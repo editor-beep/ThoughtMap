@@ -27,6 +27,9 @@
       ],
       "@types/*": [
         "../../packages/types/src/*"
+      ],
+      "@types": [
+        "../../packages/types/src/index.ts"
       ]
     },
     "ignoreDeprecations": "6.0"
