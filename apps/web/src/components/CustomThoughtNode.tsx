@@ -1,47 +1,71 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { ThoughtNode } from '@types';
-import { Sparkles, HelpCircle, AlertTriangle, Book, Copy, type LucideIcon } from 'lucide-react';
+import { useThoughtStore } from '@core/store';
+import {
+  Sparkles, Smile, User, BookOpen, Microscope,
+  Archive, AlertTriangle, Package, Layers, X,
+  type LucideIcon
+} from 'lucide-react';
 
-const TYPE_CONFIGS: Record<ThoughtNode['type'], { icon: LucideIcon; border: string }> = {
-  thought: { icon: Sparkles, border: 'border-cosmic-cyan/40' },
-  joke: { icon: Sparkles, border: 'border-cosmic-amber/40' },
-  character: { icon: Book, border: 'border-cosmic-purple/40' },
-  myth: { icon: Book, border: 'border-cosmic-purple/60' },
-  research: { icon: Copy, border: 'border-cosmic-blue/40' },
-  canon: { icon: Copy, border: 'border-cosmic-emerald/50' },
-  contradiction: { icon: AlertTriangle, border: 'border-cosmic-rose/60' },
-  artifact: { icon: HelpCircle, border: 'border-slate-500/40' },
-  fragment: { icon: HelpCircle, border: 'border-slate-600/30' }
+interface TypeConfig {
+  icon: LucideIcon;
+  border: string;
+  iconColor: string;
+  glow: string;
+}
+
+const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
+  thought:       { icon: Sparkles,      border: 'border-cosmic-cyan/40',    iconColor: 'text-cosmic-cyan',    glow: 'rgba(6,182,212,0.12)' },
+  joke:          { icon: Smile,         border: 'border-cosmic-amber/40',   iconColor: 'text-cosmic-amber',   glow: 'rgba(245,158,11,0.12)' },
+  character:     { icon: User,          border: 'border-cosmic-purple/40',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.12)' },
+  myth:          { icon: BookOpen,      border: 'border-cosmic-purple/60',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.18)' },
+  research:      { icon: Microscope,    border: 'border-cosmic-blue/40',    iconColor: 'text-cosmic-blue',    glow: 'rgba(59,130,246,0.12)' },
+  canon:         { icon: Archive,       border: 'border-cosmic-emerald/50', iconColor: 'text-cosmic-emerald', glow: 'rgba(16,185,129,0.12)' },
+  contradiction: { icon: AlertTriangle, border: 'border-cosmic-rose/60',    iconColor: 'text-cosmic-rose',    glow: 'rgba(244,63,94,0.18)' },
+  artifact:      { icon: Package,       border: 'border-slate-500/40',      iconColor: 'text-slate-400',      glow: 'rgba(100,116,139,0.1)' },
+  fragment:      { icon: Layers,        border: 'border-slate-600/30',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.08)' }
 };
 
 export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
   const { node } = data;
+  const { deleteNode } = useThoughtStore();
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
-  const Icon: LucideIcon = config.icon;
+  const Icon = config.icon;
 
   return (
-    <div className={`p-4 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm`}>
-      <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2" />
+    <div
+      className={`group p-4 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
+      style={{ boxShadow: `0 0 20px ${config.glow}` }}
+    >
+      <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
 
-      <div className="flex items-center gap-2 mb-2">
-        <Icon size={12} className="text-cosmic-cyan" />
+      <button
+        onClick={(e) => { e.stopPropagation(); deleteNode(node.id); }}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-void-700 text-slate-600 hover:text-cosmic-rose"
+        title="Delete node"
+      >
+        <X size={10} />
+      </button>
+
+      <div className="flex items-center gap-2 mb-2 pr-5">
+        <Icon size={12} className={config.iconColor} />
         <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">{node.type}</span>
       </div>
 
-      <h4 className="font-sans text-xs font-medium text-slate-200 mb-1">{node.title}</h4>
+      <h4 className="font-sans text-xs font-medium text-slate-200 mb-1 leading-snug">{node.title}</h4>
 
       <p className="font-sans text-[11px] text-slate-400 leading-relaxed break-words line-clamp-4">{node.content}</p>
 
-      <div className="flex gap-1 mt-3">
+      <div className="flex flex-wrap gap-1 mt-3">
         {node.realms.map((r) => (
-          <span key={r} className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-void-700/50 text-slate-400">
+          <span key={r} className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-void-700/50 text-slate-500">
             @{r}
           </span>
         ))}
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="!bg-void-700 !w-2 !h-2" />
+      <Handle type="source" position={Position.Bottom} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
     </div>
   );
 }
