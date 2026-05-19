@@ -6,20 +6,46 @@ When you identify a distinct concept worth anchoring as a node, end your respons
 EXTRACT: <concept title> | <one-line description>`;
 
 export default async function handler(req: Request) {
-  const { messages } = await req.json();
+  let messages: { role: string; content: string }[];
 
-  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      stream: true,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-    }),
-  });
+  try {
+    const body = await req.json();
+    messages = body.messages ?? [];
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Anthropic requires messages to start with role 'user', but the chat history
+  // begins with the welcome assistant message — drop any leading assistant turns.
+  const firstUserIdx = messages.findIndex((m) => m.role === 'user');
+  const filteredMessages = firstUserIdx >= 0 ? messages.slice(firstUserIdx) : messages;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-7',
+        max_tokens: 1024,
+        stream: true,
+        system: SYSTEM_PROMPT,
+        messages: filteredMessages,
+      }),
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   if (!upstream.ok) {
     const error = await upstream.text();
@@ -29,7 +55,47 @@ export default async function handler(req: Request) {
     });
   }
 
-  return new Response(upstream.body, {
+  // Transform Anthropic SSE events into the OpenAI SSE format the frontend expects:
+  // data: {"choices":[{"delta":{"content":"..."}}]}
+  const encoder = new TextEncoder();
+  const readable = new ReadableStream({
+    async start(controller) {
+      const reader = upstream.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if (!raw) continue;
+            try {
+              const event = JSON.parse(raw);
+              if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                const chunk = { choices: [{ delta: { content: event.delta.text } }] };
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+              }
+            } catch {
+              // skip malformed SSE chunks
+            }
+          }
+        }
+      } finally {
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
