@@ -101,30 +101,67 @@ export const useThoughtStore = create<MapState>()(
           content,
           timestamp: new Date().toISOString()
         };
-
-        set((state) => ({ chatHistory: [...state.chatHistory, userMsg], isStreaming: true }));
-
         const assistantId = crypto.randomUUID();
-        const responseTemplate = `Analysis of "${content}" complete. We notice a structural contradiction between your past conceptual architecture and this new spark. Shall we anchor this as an artifact or let it mutate?`;
+        const assistantMsg: ChatMessage = {
+          id: assistantId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString()
+        };
 
         set((state) => ({
-          chatHistory: [
-            ...state.chatHistory,
-            { id: assistantId, role: 'assistant', content: '', timestamp: new Date().toISOString() }
-          ]
+          chatHistory: [...state.chatHistory, userMsg, assistantMsg],
+          isStreaming: true
         }));
 
-        let partialContent = '';
-        const tokens = responseTemplate.split(' ');
-        for (let i = 0; i < tokens.length; i += 1) {
-          await new Promise((res) => setTimeout(res, 60));
-          partialContent += (i === 0 ? '' : ' ') + tokens[i];
+        const history = get()
+          .chatHistory
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        try {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: history })
+          });
+
+          if (!res.ok || !res.body) {
+            throw new Error(`API error: ${res.status}`);
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            for (const line of lines) {
+              const raw = line.slice(6).trim();
+              if (raw === '[DONE]') continue;
+              try {
+                const token = JSON.parse(raw).choices?.[0]?.delta?.content ?? '';
+                if (token) {
+                  set((state) => ({
+                    chatHistory: state.chatHistory.map((m) =>
+                      m.id === assistantId ? { ...m, content: m.content + token } : m
+                    )
+                  }));
+                }
+              } catch {
+                // skip malformed SSE chunks
+              }
+            }
+          }
+        } catch (err) {
+          const errorText = err instanceof Error ? err.message : 'Connection failed';
           set((state) => ({
-            chatHistory: state.chatHistory.map((msg) =>
-              msg.id === assistantId ? { ...msg, content: partialContent } : msg
+            chatHistory: state.chatHistory.map((m) =>
+              m.id === assistantId ? { ...m, content: `[Error: ${errorText}]` } : m
             )
           }));
         }
+
         set({ isStreaming: false });
       },
 
