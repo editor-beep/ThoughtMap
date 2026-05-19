@@ -1,9 +1,9 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { ThoughtNode } from '@types';
-import { Sparkles, HelpCircle, AlertTriangle, Book, Copy } from 'lucide-react';
+import { Sparkles, HelpCircle, AlertTriangle, Book, Copy, type LucideIcon } from 'lucide-react';
 
-const TYPE_CONFIGS: Record<ThoughtNode['type'], { icon: React.ComponentType<{ size?: number; className?: string }>; border: string }> = {
+const TYPE_CONFIGS: Record<ThoughtNode['type'], { icon: LucideIcon; border: string }> = {
   thought: { icon: Sparkles, border: 'border-cosmic-cyan/40' },
   joke: { icon: Sparkles, border: 'border-cosmic-amber/40' },
   character: { icon: Book, border: 'border-cosmic-purple/40' },
@@ -17,8 +17,8 @@ const TYPE_CONFIGS: Record<ThoughtNode['type'], { icon: React.ComponentType<{ si
 
 export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
   const { node } = data;
-  const config = TYPE_CONFIGS[node.type] || TYPE_CONFIGS.thought;
-  const Icon = config.icon;
+  const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
+  const Icon: LucideIcon = config.icon;
 
   return (
     <div className={`p-4 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm`}>
