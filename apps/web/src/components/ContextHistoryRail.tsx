@@ -1,16 +1,24 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useThoughtStore } from '@core/store';
-import { Compass } from 'lucide-react';
+import { Compass, Trash2 } from 'lucide-react';
 
 export default function ContextHistoryRail() {
-  const { realms, toggleRealm, nodes } = useThoughtStore();
+  const { realms, toggleRealm, nodes, deleteNode, focusNode } = useThoughtStore();
+
+  const realmCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    realms.forEach((r) => {
+      counts[r.id] = nodes.filter((n) => n.realms.includes(r.id)).length;
+    });
+    return counts;
+  }, [realms, nodes]);
 
   return (
     <aside className="w-64 h-full bg-void-900/90 flex flex-col justify-between p-4 border-r border-void-800/40 select-none">
-      <div>
+      <div className="min-h-0 flex flex-col">
         <div className="flex items-center gap-2 mb-8 px-2">
           <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" />
-          <h1 className="font-mono text-xs tracking-widest uppercase text-slate-400">Thought Map Shell</h1>
+          <h1 className="font-mono text-xs tracking-widest uppercase text-slate-400">Thought Map</h1>
         </div>
 
         <section className="mb-8">
@@ -21,28 +29,60 @@ export default function ContextHistoryRail() {
                 key={realm.id}
                 onClick={() => toggleRealm(realm.id)}
                 className={`w-full flex items-center justify-between px-2 py-1.5 rounded font-mono text-xs transition-all ${
-                  realm.isActive ? 'text-slate-200 bg-void-800/60 shadow-glow-cyan/5' : 'text-slate-600 hover:text-slate-400'
+                  realm.isActive ? 'text-slate-200 bg-void-800/60' : 'text-slate-600 hover:text-slate-400'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <span style={{ color: realm.isActive ? realm.color : '#475569' }}>{realm.symbol}</span>
                   <span>{realm.name}</span>
                 </div>
-                <div className="w-1 h-1 rounded-full" style={{ backgroundColor: realm.isActive ? realm.color : 'transparent' }} />
+                <div className="flex items-center gap-2">
+                  {realmCounts[realm.id] > 0 && (
+                    <span
+                      className="text-[9px] font-mono tabular-nums"
+                      style={{ color: realm.isActive ? realm.color : '#475569' }}
+                    >
+                      {realmCounts[realm.id]}
+                    </span>
+                  )}
+                  <div
+                    className="w-1 h-1 rounded-full"
+                    style={{ backgroundColor: realm.isActive ? realm.color : 'transparent' }}
+                  />
+                </div>
               </button>
             ))}
           </div>
         </section>
 
-        <section>
-          <div className="text-[10px] font-mono tracking-wider text-slate-500 uppercase mb-3 px-2">Active Anchors</div>
-          <div className="max-h-60 overflow-y-auto space-y-1 px-2">
+        <section className="min-h-0 flex flex-col">
+          <div className="text-[10px] font-mono tracking-wider text-slate-500 uppercase mb-3 px-2">
+            Active Anchors
+            {nodes.length > 0 && (
+              <span className="text-slate-600 ml-1">({nodes.length})</span>
+            )}
+          </div>
+          <div className="overflow-y-auto space-y-0.5 pr-1">
             {nodes.length === 0 ? (
-              <div className="text-xs italic text-slate-600 font-mono">No nodes anchored.</div>
+              <div className="text-xs italic text-slate-600 font-mono px-2">No nodes anchored.</div>
             ) : (
               nodes.map((n) => (
-                <div key={n.id} className="text-xs font-mono text-slate-400 truncate flex items-center gap-1.5">
-                  <span className="text-cosmic-cyan/60">#</span> {n.title}
+                <div
+                  key={n.id}
+                  className="group flex items-center gap-1.5 px-2 py-1.5 rounded hover:bg-void-800/60 cursor-pointer transition-colors"
+                  onClick={() => focusNode(n.id)}
+                >
+                  <span className="text-cosmic-cyan/50 text-[10px] font-mono flex-shrink-0">#</span>
+                  <span className="text-xs font-mono text-slate-400 group-hover:text-slate-200 truncate flex-1 transition-colors">
+                    {n.title}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteNode(n.id); }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-600 hover:text-cosmic-rose p-0.5 rounded flex-shrink-0"
+                    title="Delete node"
+                  >
+                    <Trash2 size={9} />
+                  </button>
                 </div>
               ))
             )}
@@ -50,7 +90,7 @@ export default function ContextHistoryRail() {
         </section>
       </div>
 
-      <div className="p-2 border-t border-void-800/60 flex items-center gap-2 text-[11px] font-mono text-slate-500">
+      <div className="p-2 border-t border-void-800/60 flex items-center gap-2 text-[11px] font-mono text-slate-500 flex-shrink-0">
         <Compass size={12} />
         <span>V0.1.0 // Spatial Dominance</span>
       </div>
