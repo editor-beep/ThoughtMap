@@ -36,7 +36,7 @@ This implementation provides a fully running monorepo architecture, a robust Zus
 #### apps/web/vite.config.ts
 ```typescript
 import { defineConfig } from 'vite';
-import react from '@vitejs/react-refresh';
+import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
