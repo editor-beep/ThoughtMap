@@ -28,7 +28,7 @@ export default function NodeCard({ node }: Props) {
 
   return (
     <Pressable
-      onPress={() => router.push(`/node/${node.id}` as never)}
+      onPress={() => router.push({ pathname: '/node/[id]', params: { id: node.id } })}
       style={({ pressed }) => [
         styles.card,
         { borderLeftColor: nodeColor + '80' },
