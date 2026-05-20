@@ -2,6 +2,75 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId } from '../types';
 
+// ─── Auto-terrain detection ────────────────────────────────────────────────
+
+const TERRAIN_KEYWORDS: Record<TerrainId, string[]> = {
+  'memory-palace': [
+    'memory', 'remember', 'recall', 'nostalgia', 'nostalgic', 'past', 'childhood',
+    'warmth', 'candle', 'laugh', 'laughter', 'humor', 'funny', 'joke', 'comedy',
+    'ritual', 'habit', 'tradition', 'ceremony', 'familiar', 'home', 'comfort',
+  ],
+  'interstellar-plane': [
+    'space', 'cosmos', 'universe', 'star', 'galaxy', 'infinite', 'infinity',
+    'philosophy', 'consciousness', 'awareness', 'thought', 'abstract', 'infinite',
+    'idea', 'mind', 'concept', 'knowledge', 'science', 'research', 'theory',
+    'existence', 'meaning', 'purpose', 'reality', 'perception', 'metaphysics',
+  ],
+  'terrestrial-globe': [
+    'world', 'earth', 'map', 'geography', 'land', 'place', 'territory',
+    'culture', 'civilization', 'city', 'country', 'history', 'worldbuilding',
+    'setting', 'location', 'landscape', 'travel', 'explore', 'terrain',
+    'continent', 'ocean', 'region', 'nation', 'society',
+  ],
+  'mythic-landscape': [
+    'myth', 'legend', 'magic', 'fantasy', 'creature', 'god', 'goddess',
+    'hero', 'sacred', 'dream', 'archetype', 'story', 'ancient', 'spirit',
+    'vision', 'symbol', 'quest', 'mystical', 'supernatural', 'divine',
+    'folklore', 'ritual', 'enchant', 'prophecy', 'oracle', 'rune',
+  ],
+  'the-void': [
+    'dark', 'void', 'empty', 'nothing', 'silence', 'silent', 'horror',
+    'fear', 'shadow', 'abyss', 'death', 'nihilism', 'existential',
+    'meaningless', 'blank', 'alone', 'isolation', 'dread', 'eerie',
+    'haunting', 'terror', 'ghost', 'hollow', 'disappear', 'absent',
+  ],
+};
+
+function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
+  if (messages.length < 3) return null;
+
+  const recentText = messages
+    .slice(-6)
+    .map((m) => m.content.toLowerCase())
+    .join(' ');
+
+  const scores: Record<TerrainId, number> = {
+    'memory-palace': 0,
+    'interstellar-plane': 0,
+    'terrestrial-globe': 0,
+    'mythic-landscape': 0,
+    'the-void': 0,
+  };
+
+  for (const [terrain, words] of Object.entries(TERRAIN_KEYWORDS) as [TerrainId, string[]][]) {
+    for (const word of words) {
+      const re = new RegExp(`\\b${word}`, 'g');
+      const hits = recentText.match(re);
+      if (hits) scores[terrain] += hits.length;
+    }
+  }
+
+  let maxScore = 2; // minimum threshold — don't shift for a single keyword
+  let detected: TerrainId | null = null;
+  for (const [t, s] of Object.entries(scores) as [TerrainId, number][]) {
+    if (s > maxScore) { maxScore = s; detected = t; }
+  }
+
+  return detected;
+}
+
+// ─── Store ─────────────────────────────────────────────────────────────────
+
 interface MapState {
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
@@ -27,12 +96,12 @@ interface MapState {
 }
 
 const INITIAL_REALMS: Realm[] = [
-  { id: 'humor', name: 'Humor', symbol: '✦', color: '#f59e0b', isActive: true },
-  { id: 'mythology', name: 'Mythology', symbol: '𓆃', color: '#a855f7', isActive: true },
-  { id: 'worldbuilding', name: 'Worldbuilding', symbol: '⚛', color: '#06b6d4', isActive: true },
-  { id: 'rituals', name: 'Rituals', symbol: '🕯', color: '#f43f5e', isActive: true },
-  { id: 'horror', name: 'Horror', symbol: '👁', color: '#10b981', isActive: true },
-  { id: 'philosophy', name: 'Philosophy', symbol: '☱', color: '#3b82f6', isActive: true }
+  { id: 'humor',        name: 'Humor',        symbol: '✦', color: '#f59e0b', isActive: true },
+  { id: 'mythology',    name: 'Mythology',    symbol: '𓆃', color: '#a855f7', isActive: true },
+  { id: 'worldbuilding',name: 'Worldbuilding',symbol: '⚛', color: '#06b6d4', isActive: true },
+  { id: 'rituals',      name: 'Rituals',      symbol: '🕯', color: '#f43f5e', isActive: true },
+  { id: 'horror',       name: 'Horror',       symbol: '👁', color: '#10b981', isActive: true },
+  { id: 'philosophy',   name: 'Philosophy',   symbol: '☱', color: '#3b82f6', isActive: true },
 ];
 
 const INITIAL_CHAT: ChatMessage[] = [
@@ -40,7 +109,7 @@ const INITIAL_CHAT: ChatMessage[] = [
     id: 'welcome-msg',
     role: 'assistant',
     content: 'The canvas is listening. What patterns shall we project onto the void tonight?',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
 ];
 
@@ -65,20 +134,20 @@ export const useThoughtStore = create<MapState>()(
 
       updateNodePosition: (id, x, y) => {
         set((state) => ({
-          nodes: state.nodes.map((node) => (node.id === id ? { ...node, x, y } : node))
+          nodes: state.nodes.map((node) => (node.id === id ? { ...node, x, y } : node)),
         }));
       },
 
       updateNode: (id, updates) => {
         set((state) => ({
-          nodes: state.nodes.map((node) => (node.id === id ? { ...node, ...updates } : node))
+          nodes: state.nodes.map((node) => (node.id === id ? { ...node, ...updates } : node)),
         }));
       },
 
       deleteNode: (id) => {
         set((state) => ({
           nodes: state.nodes.filter((n) => n.id !== id),
-          edges: state.edges.filter((e) => e.source !== id && e.target !== id)
+          edges: state.edges.filter((e) => e.source !== id && e.target !== id),
         }));
       },
 
@@ -93,7 +162,7 @@ export const useThoughtStore = create<MapState>()(
 
       toggleRealm: (id) => {
         set((state) => ({
-          realms: state.realms.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r))
+          realms: state.realms.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r)),
         }));
       },
 
@@ -102,23 +171,22 @@ export const useThoughtStore = create<MapState>()(
           id: crypto.randomUUID(),
           role: 'user',
           content,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
         const assistantId = crypto.randomUUID();
         const assistantMsg: ChatMessage = {
           id: assistantId,
           role: 'assistant',
           content: '',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
 
         set((state) => ({
           chatHistory: [...state.chatHistory, userMsg],
-          isStreaming: true
+          isStreaming: true,
         }));
 
         const history = get().chatHistory.map((m) => ({ role: m.role, content: m.content }));
-
         set((state) => ({ chatHistory: [...state.chatHistory, assistantMsg] }));
 
         const makeRequest = () =>
@@ -133,10 +201,7 @@ export const useThoughtStore = create<MapState>()(
           if (!res.ok || !res.body) {
             if (res.status === 504) throw new Error('The AI took too long to respond');
             let apiErr = `API error: ${res.status}`;
-            try {
-              const body = await res.json();
-              if (body.error) apiErr = body.error;
-            } catch { /* ignore */ }
+            try { const body = await res.json(); if (body.error) apiErr = body.error; } catch { /**/ }
             throw new Error(apiErr);
           }
 
@@ -156,12 +221,10 @@ export const useThoughtStore = create<MapState>()(
                   set((state) => ({
                     chatHistory: state.chatHistory.map((m) =>
                       m.id === assistantId ? { ...m, content: m.content + token } : m
-                    )
+                    ),
                   }));
                 }
-              } catch {
-                // skip malformed SSE chunks
-              }
+              } catch { /* skip malformed SSE */ }
             }
           }
         };
@@ -171,21 +234,20 @@ export const useThoughtStore = create<MapState>()(
           try {
             res = await makeRequest();
           } catch (firstErr) {
-            const isTimeout =
-              firstErr instanceof Error &&
+            const isTimeout = firstErr instanceof Error &&
               (firstErr.name === 'AbortError' || firstErr.name === 'TimeoutError');
             if (!isTimeout) throw firstErr;
 
             set((state) => ({
               chatHistory: state.chatHistory.map((m) =>
                 m.id === assistantId ? { ...m, content: '↺ Retrying…' } : m
-              )
+              ),
             }));
             await new Promise((resolve) => setTimeout(resolve, 2000));
             set((state) => ({
               chatHistory: state.chatHistory.map((m) =>
                 m.id === assistantId ? { ...m, content: '' } : m
-              )
+              ),
             }));
             res = await makeRequest();
           }
@@ -199,20 +261,25 @@ export const useThoughtStore = create<MapState>()(
           set((state) => ({
             chatHistory: state.chatHistory.map((m) =>
               m.id === assistantId ? { ...m, content: `⚠ ${errorText}` } : m
-            )
+            ),
           }));
         }
 
         set({ isStreaming: false });
+
+        // ── Auto-shift terrain based on conversation theme ──
+        const allMessages = get().chatHistory;
+        const suggested = detectTerrainFromMessages(allMessages);
+        if (suggested && suggested !== get().activeTerrain) {
+          set({ activeTerrain: suggested });
+        }
       },
 
       extractToMap: (messageId, type, title) => {
         const message = get().chatHistory.find((m) => m.id === messageId);
         if (!message) return;
 
-        const activeRealmIds = get()
-          .realms.filter((r) => r.isActive)
-          .map((r) => r.id);
+        const activeRealmIds = get().realms.filter((r) => r.isActive).map((r) => r.id);
 
         const nodeId = get().addNode({
           title,
@@ -220,19 +287,19 @@ export const useThoughtStore = create<MapState>()(
           type,
           realms: activeRealmIds.length ? [activeRealmIds[0]] : ['philosophy'],
           x: (Math.random() - 0.5) * 400,
-          y: (Math.random() - 0.5) * 400
+          y: (Math.random() - 0.5) * 400,
         });
 
         set((state) => ({
           chatHistory: state.chatHistory.map((m) =>
             m.id === messageId ? { ...m, extractedNodeId: nodeId } : m
-          )
+          ),
         }));
       },
 
       setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
-      clearFocusedNode: () => set({ focusedNodeId: null })
+      clearFocusedNode: () => set({ focusedNodeId: null }),
     }),
     {
       name: 'thought-map-storage',
@@ -241,8 +308,8 @@ export const useThoughtStore = create<MapState>()(
         edges: state.edges,
         realms: state.realms,
         chatHistory: state.chatHistory,
-        activeTerrain: state.activeTerrain
-      })
+        activeTerrain: state.activeTerrain,
+      }),
     }
   )
 );

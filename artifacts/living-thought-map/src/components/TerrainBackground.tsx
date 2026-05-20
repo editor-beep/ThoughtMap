@@ -1,20 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useThoughtStore } from '../store';
 import type { TerrainId } from '../types';
-
-const TERRAIN_CLASS: Record<TerrainId, string> = {
-  'memory-palace':      'terrain-memory-palace',
-  'interstellar-plane': 'terrain-interstellar-plane',
-  'terrestrial-globe':  'terrain-terrestrial-globe',
-  'mythic-landscape':   'terrain-mythic-landscape',
-  'the-void':           'terrain-the-void',
-};
+import TerrainCanvas from './TerrainCanvas';
 
 export default function TerrainBackground() {
   const activeTerrain = useThoughtStore((s) => s.activeTerrain);
   const [displayedTerrain, setDisplayedTerrain] = useState<TerrainId>(activeTerrain);
   const [incomingTerrain, setIncomingTerrain] = useState<TerrainId | null>(null);
-  const [incomingVisible, setIncomingVisible] = useState(false);
+  const [incomingOpacity, setIncomingOpacity] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -23,16 +16,16 @@ export default function TerrainBackground() {
     if (timerRef.current) clearTimeout(timerRef.current);
 
     setIncomingTerrain(activeTerrain);
-    setIncomingVisible(false);
+    setIncomingOpacity(0);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setIncomingVisible(true);
+        setIncomingOpacity(1);
         timerRef.current = setTimeout(() => {
           setDisplayedTerrain(activeTerrain);
           setIncomingTerrain(null);
-          setIncomingVisible(false);
-        }, 1200);
+          setIncomingOpacity(0);
+        }, 1500);
       });
     });
 
@@ -41,13 +34,13 @@ export default function TerrainBackground() {
 
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ zIndex: -10 }}>
-      <div className={`absolute inset-0 ${TERRAIN_CLASS[displayedTerrain]}`} />
+      <TerrainCanvas terrain={displayedTerrain} />
       {incomingTerrain && (
-        <div
-          className={`absolute inset-0 ${TERRAIN_CLASS[incomingTerrain]}`}
+        <TerrainCanvas
+          terrain={incomingTerrain}
           style={{
-            opacity: incomingVisible ? 1 : 0,
-            transition: 'opacity 1200ms cubic-bezier(0.4, 0, 0.2, 1)',
+            opacity: incomingOpacity,
+            transition: 'opacity 1500ms cubic-bezier(0.4,0,0.2,1)',
             willChange: 'opacity',
           }}
         />
