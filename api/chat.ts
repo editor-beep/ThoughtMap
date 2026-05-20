@@ -29,7 +29,13 @@ export default async function handler(req: Request) {
     parts: [{ text: m.content }],
   }));
 
-  const apiKey = process.env.GEMINI_API ?? '';
+  const apiKey = process.env.GEMINI_API_KEY ?? '';
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Server misconfiguration: missing GEMINI_API_KEY' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   const model = 'gemini-2.0-flash';
 
   let upstream: Response;
