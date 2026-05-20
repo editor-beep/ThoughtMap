@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType } from '@types';
+import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId } from '@types';
 
 interface MapState {
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
   realms: Realm[];
   chatHistory: ChatMessage[];
+  activeTerrain: TerrainId;
   activeConversationId: string | null;
   isStreaming: boolean;
   focusedNodeId: string | null;
@@ -20,6 +21,7 @@ interface MapState {
   toggleRealm: (id: string) => void;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string) => void;
+  setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
 }
@@ -49,6 +51,7 @@ export const useThoughtStore = create<MapState>()(
       edges: [],
       realms: INITIAL_REALMS,
       chatHistory: INITIAL_CHAT,
+      activeTerrain: 'the-void' as TerrainId,
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
@@ -189,6 +192,7 @@ export const useThoughtStore = create<MapState>()(
         }));
       },
 
+      setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
       clearFocusedNode: () => set({ focusedNodeId: null })
     }),
@@ -198,7 +202,8 @@ export const useThoughtStore = create<MapState>()(
         nodes: state.nodes,
         edges: state.edges,
         realms: state.realms,
-        chatHistory: state.chatHistory
+        chatHistory: state.chatHistory,
+        activeTerrain: state.activeTerrain
       })
     }
   )

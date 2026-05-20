@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import ReactFlow, {
-  Background,
   Controls,
   MiniMap,
   NodeChange,
@@ -12,6 +11,7 @@ import ReactFlow, {
 import { useThoughtStore } from '@core/store';
 import { EdgeType } from '@types';
 import CustomThoughtNode from './CustomThoughtNode';
+import TerrainBackground from './TerrainBackground';
 
 const nodeTypes = { thoughtMapNode: CustomThoughtNode };
 
@@ -137,6 +137,7 @@ export default function SpatialCanvas() {
 
   return (
     <div className="w-full h-full relative">
+      <TerrainBackground />
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 select-none">
           <p className="font-mono text-xs tracking-widest text-slate-500 uppercase animate-pulse">Begin thinking.</p>
@@ -157,7 +158,6 @@ export default function SpatialCanvas() {
         fitView
         fitViewOptions={{ padding: 0.25 }}
       >
-        <Background color="#1e293b" gap={24} size={1} />
         <Controls className="!bg-void-800 !border-void-700 !text-slate-400 !fill-slate-400" />
         <MiniMap
           nodeColor={(n) => NODE_TYPE_COLORS[(nodes.find((x) => x.id === n.id)?.type ?? '')] ?? '#1e293b'}

@@ -1,9 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useThoughtStore } from '@core/store';
-import { Compass, Trash2 } from 'lucide-react';
+import { Compass, Layers, Trash2 } from 'lucide-react';
+import SanctumModal from './SanctumModal';
+
+const TERRAIN_NAMES: Record<string, string> = {
+  'memory-palace':      'Memory Palace',
+  'interstellar-plane': 'Interstellar',
+  'terrestrial-globe':  'Terrestrial',
+  'mythic-landscape':   'Mythic',
+  'the-void':           'The Void',
+};
 
 export default function ContextHistoryRail() {
-  const { realms, toggleRealm, nodes, deleteNode, focusNode } = useThoughtStore();
+  const { realms, toggleRealm, nodes, deleteNode, focusNode, activeTerrain } = useThoughtStore();
+  const [isSanctumOpen, setIsSanctumOpen] = useState(false);
 
   const realmCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -90,10 +100,22 @@ export default function ContextHistoryRail() {
         </section>
       </div>
 
-      <div className="p-2 border-t border-void-800/60 flex items-center gap-2 text-[11px] font-mono text-slate-500 flex-shrink-0">
-        <Compass size={12} />
-        <span>V0.1.0 // Spatial Dominance</span>
+      <div className="flex-shrink-0 border-t border-void-800/60">
+        <button
+          onClick={() => setIsSanctumOpen(true)}
+          className="w-full flex items-center gap-2 px-4 py-2.5 font-mono text-[10px] tracking-widest uppercase text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-all"
+        >
+          <Layers size={11} />
+          <span>Sanctum</span>
+          <span className="ml-auto text-slate-600 normal-case tracking-normal">{TERRAIN_NAMES[activeTerrain]}</span>
+        </button>
+        <div className="px-4 py-2 flex items-center gap-2 text-[11px] font-mono text-slate-600">
+          <Compass size={12} />
+          <span>V0.1.0 // Spatial Dominance</span>
+        </div>
       </div>
+
+      {isSanctumOpen && <SanctumModal onClose={() => setIsSanctumOpen(false)} />}
     </aside>
   );
 }
