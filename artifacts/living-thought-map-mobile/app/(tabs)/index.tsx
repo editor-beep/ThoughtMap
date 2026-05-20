@@ -9,10 +9,12 @@ import TypingIndicator from "@/components/TypingIndicator";
 import { useThought } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
 
+const TAB_BAR_HEIGHT = 49;
+
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { chatHistory, isStreaming, sendChatMessage, extractToMap } = useThought();
+  const { chatHistory, isStreaming, sendChatMessage, extractToMap, realms } = useThought();
   const [inputText, setInputText] = useState("");
   const inputRef = useRef<TextInput>(null);
   const s = makeStyles(colors);
@@ -27,8 +29,17 @@ export default function ChatScreen() {
 
   const reversed = [...chatHistory].reverse();
 
+  const activeRealms = realms.filter((r) => r.isActive);
+
+  // Bottom offset: tab bar + home indicator + input padding
+  const bottomOffset = Platform.OS === "web" ? 34 : insets.bottom + TAB_BAR_HEIGHT;
+
   return (
-    <KeyboardAvoidingView style={[s.container, { backgroundColor: colors.background }]} behavior="padding" keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView
+      style={[s.container, { backgroundColor: colors.background }]}
+      behavior="padding"
+      keyboardVerticalOffset={0}
+    >
       {/* Header */}
       <View style={[s.header, {
         paddingTop: Platform.OS === "web" ? 67 : insets.top,
@@ -39,10 +50,16 @@ export default function ChatScreen() {
           <View style={[s.dot, { backgroundColor: colors.cosmicCyan }]} />
           <Text style={[s.headerTitle, { color: colors.foreground }]}>NAVIGATOR</Text>
         </View>
+        {/* Active realm indicators */}
+        <View style={s.realmDots}>
+          {activeRealms.map((r) => (
+            <View key={r.id} style={[s.realmDot, { backgroundColor: r.color }]} />
+          ))}
+        </View>
         <Text style={[s.headerSub, { color: colors.mutedForeground }]}>Gemini · Thought Stream</Text>
       </View>
 
-      {/* Message list */}
+      {/* Message list — inverted so newest message is at bottom */}
       <FlatList
         data={reversed}
         keyExtractor={(item) => item.id}
@@ -59,14 +76,14 @@ export default function ChatScreen() {
         ListHeaderComponent={isStreaming ? <TypingIndicator /> : null}
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingVertical: 12 }}
+        contentContainerStyle={{ paddingVertical: 12, paddingBottom: bottomOffset + 72 }}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Input bar */}
+      {/* Input bar — sits above tab bar */}
       <View style={[s.inputBar, {
-        paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 8,
+        paddingBottom: bottomOffset + 8,
         borderTopColor: colors.border,
         backgroundColor: colors.background,
       }]}>
@@ -109,6 +126,8 @@ function makeStyles(colors: any) {
     dot: { width: 7, height: 7, borderRadius: 4 },
     headerTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 2 },
     headerSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
+    realmDots: { flexDirection: "row", gap: 3, flex: 1, paddingHorizontal: 8 },
+    realmDot: { width: 5, height: 5, borderRadius: 3 },
     inputBar: { paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1 },
     inputWrap: {
       flexDirection: "row", alignItems: "flex-end",

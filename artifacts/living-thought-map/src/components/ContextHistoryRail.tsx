@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useThoughtStore } from '../store';
-import { Compass, Layers, Trash2 } from 'lucide-react';
+import { Compass, Layers, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import SanctumModal from './SanctumModal';
 
 const TERRAIN_NAMES: Record<string, string> = {
@@ -14,6 +14,7 @@ const TERRAIN_NAMES: Record<string, string> = {
 export default function ContextHistoryRail() {
   const { realms, toggleRealm, nodes, deleteNode, focusNode, activeTerrain } = useThoughtStore();
   const [isSanctumOpen, setIsSanctumOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const realmCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -23,12 +24,45 @@ export default function ContextHistoryRail() {
     return counts;
   }, [realms, nodes]);
 
+  if (collapsed) {
+    return (
+      <aside className="w-10 h-full bg-void-900/90 flex flex-col items-center py-4 border-r border-void-800/40 gap-3 flex-shrink-0">
+        <button
+          onClick={() => setCollapsed(false)}
+          className="p-1.5 rounded hover:bg-void-800/60 text-slate-500 hover:text-slate-300 transition-colors"
+          title="Expand panel"
+        >
+          <ChevronRight size={13} />
+        </button>
+        <div className="flex flex-col gap-2 mt-2">
+          {realms.map((r) => (
+            <div
+              key={r.id}
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: r.isActive ? r.color : '#1e293b' }}
+              title={r.name}
+            />
+          ))}
+        </div>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-64 h-full bg-void-900/90 flex flex-col justify-between p-4 border-r border-void-800/40 select-none">
+    <aside className="w-56 h-full bg-void-900/90 flex flex-col justify-between p-4 border-r border-void-800/40 select-none flex-shrink-0">
       <div className="min-h-0 flex flex-col">
-        <div className="flex items-center gap-2 mb-8 px-2">
-          <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" />
-          <h1 className="font-mono text-xs tracking-widest uppercase text-slate-400">Thought Map</h1>
+        <div className="flex items-center justify-between mb-8 px-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" />
+            <h1 className="font-mono text-xs tracking-widest uppercase text-slate-400">Thought Map</h1>
+          </div>
+          <button
+            onClick={() => setCollapsed(true)}
+            className="p-1 rounded hover:bg-void-800/60 text-slate-600 hover:text-slate-400 transition-colors"
+            title="Collapse panel"
+          >
+            <ChevronLeft size={12} />
+          </button>
         </div>
 
         <section className="mb-8">
