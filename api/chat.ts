@@ -50,8 +50,12 @@ export default async function handler(req: Request) {
           systemInstruction: {
             parts: [{ text: SYSTEM_PROMPT }],
           },
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 500,
+          },
         }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(30000),
       }
     );
   } catch (err) {

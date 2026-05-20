@@ -16,15 +16,15 @@ interface TypeConfig {
 }
 
 const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
-  thought:       { icon: Sparkles,      border: 'border-cosmic-cyan/40',    iconColor: 'text-cosmic-cyan',    glow: 'rgba(6,182,212,0.12)' },
-  joke:          { icon: Smile,         border: 'border-cosmic-amber/40',   iconColor: 'text-cosmic-amber',   glow: 'rgba(245,158,11,0.12)' },
-  character:     { icon: User,          border: 'border-cosmic-purple/40',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.12)' },
-  myth:          { icon: BookOpen,      border: 'border-cosmic-purple/60',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.18)' },
-  research:      { icon: Microscope,    border: 'border-cosmic-blue/40',    iconColor: 'text-cosmic-blue',    glow: 'rgba(59,130,246,0.12)' },
-  canon:         { icon: Archive,       border: 'border-cosmic-emerald/50', iconColor: 'text-cosmic-emerald', glow: 'rgba(16,185,129,0.12)' },
-  contradiction: { icon: AlertTriangle, border: 'border-cosmic-rose/60',    iconColor: 'text-cosmic-rose',    glow: 'rgba(244,63,94,0.18)' },
-  artifact:      { icon: Package,       border: 'border-slate-500/40',      iconColor: 'text-slate-400',      glow: 'rgba(100,116,139,0.1)' },
-  fragment:      { icon: Layers,        border: 'border-slate-600/30',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.08)' }
+  thought:       { icon: Sparkles,      border: 'border-cosmic-cyan/50',    iconColor: 'text-cosmic-cyan',    glow: 'rgba(6,182,212,0.22)' },
+  joke:          { icon: Smile,         border: 'border-cosmic-amber/50',   iconColor: 'text-cosmic-amber',   glow: 'rgba(245,158,11,0.22)' },
+  character:     { icon: User,          border: 'border-cosmic-purple/50',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.22)' },
+  myth:          { icon: BookOpen,      border: 'border-cosmic-purple/70',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.30)' },
+  research:      { icon: Microscope,    border: 'border-cosmic-blue/50',    iconColor: 'text-cosmic-blue',    glow: 'rgba(59,130,246,0.22)' },
+  canon:         { icon: Archive,       border: 'border-cosmic-emerald/60', iconColor: 'text-cosmic-emerald', glow: 'rgba(16,185,129,0.22)' },
+  contradiction: { icon: AlertTriangle, border: 'border-cosmic-rose/70',    iconColor: 'text-cosmic-rose',    glow: 'rgba(244,63,94,0.30)' },
+  artifact:      { icon: Package,       border: 'border-slate-500/50',      iconColor: 'text-slate-400',      glow: 'rgba(100,116,139,0.18)' },
+  fragment:      { icon: Layers,        border: 'border-slate-600/40',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.14)' }
 };
 
 export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
@@ -48,18 +48,18 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
         <X size={10} />
       </button>
 
-      <div className="flex items-center gap-2 mb-2 pr-5">
-        <Icon size={12} className={config.iconColor} />
+      <div className="flex items-center gap-2 mb-2.5 pr-5">
+        <Icon size={13} className={config.iconColor} />
         <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">{node.type}</span>
       </div>
 
-      <h4 className="font-sans text-xs font-medium text-slate-200 mb-1 leading-snug">{node.title}</h4>
+      <h4 className="font-sans text-sm font-semibold text-slate-100 mb-1.5 leading-snug">{node.title}</h4>
 
-      <p className="font-sans text-[11px] text-slate-400 leading-relaxed break-words line-clamp-4">{node.content}</p>
+      <p className="font-sans text-xs text-slate-400 leading-relaxed break-words line-clamp-4">{node.content}</p>
 
       <div className="flex flex-wrap gap-1 mt-3">
         {node.realms.map((r) => (
-          <span key={r} className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-void-700/50 text-slate-500">
+          <span key={r} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-void-700/60 text-slate-500">
             @{r}
           </span>
         ))}
