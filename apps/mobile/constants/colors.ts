@@ -1,0 +1,26 @@
+export const Colors = {
+  void900: '#030712',
+  void800: '#0b0f19',
+  void700: '#111827',
+  void600: '#1e293b',
+  voidBorder: '#1f2937',
+  cosmicCyan: '#06b6d4',
+  cosmicRose: '#f43f5e',
+  slate200: '#e2e8f0',
+  slate300: '#cbd5e1',
+  slate400: '#94a3b8',
+  slate500: '#64748b',
+  slate600: '#475569',
+
+  nodeColors: {
+    thought: '#06b6d4',
+    joke: '#f59e0b',
+    character: '#a855f7',
+    myth: '#a855f7',
+    research: '#3b82f6',
+    canon: '#10b981',
+    contradiction: '#f43f5e',
+    artifact: '#64748b',
+    fragment: '#475569',
+  } as Record<string, string>,
+} as const;
