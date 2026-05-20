@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "Living Thought Map Mobile"
+version = "1.0.0"
+id = "artifacts/living-thought-map-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/mobile/" ]
+localPort = 23728
+
+[services.development]
+run = "pnpm --filter @workspace/living-thought-map-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/living-thought-map-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/living-thought-map-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "23728"
+BASE_PATH = "/mobile/"

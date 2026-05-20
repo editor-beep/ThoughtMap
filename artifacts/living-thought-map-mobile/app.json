@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Living Thought Map",
+    "slug": "living-thought-map-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "living-thought-map-mobile",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#030712"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.replit.livingthoughtmapmobile"
+    },
+    "android": {
+      "package": "com.replit.livingthoughtmapmobile"
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
