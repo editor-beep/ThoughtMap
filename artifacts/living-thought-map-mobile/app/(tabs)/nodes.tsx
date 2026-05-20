@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
@@ -11,7 +12,6 @@ import { NodeType, useThought } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
 
 const NODE_TYPES: NodeType[] = ["thought", "joke", "character", "myth", "research", "canon", "contradiction", "artifact", "fragment"];
-const TAB_BAR_HEIGHT = 49;
 
 export default function NodesScreen() {
   const colors = useColors();
@@ -67,7 +67,8 @@ export default function NodesScreen() {
     setShowAdd(false);
   };
 
-  const bottomOffset = Platform.OS === "web" ? 34 : insets.bottom + TAB_BAR_HEIGHT;
+  const tabBarHeight = useBottomTabBarHeight();
+  const bottomOffset = tabBarHeight;
 
   return (
     <View style={[s.container, { backgroundColor: colors.background }]}>

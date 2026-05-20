@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -8,8 +9,6 @@ import MessageBubble from "@/components/MessageBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import { useThought } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
-
-const TAB_BAR_HEIGHT = 49;
 
 export default function ChatScreen() {
   const colors = useColors();
@@ -31,8 +30,10 @@ export default function ChatScreen() {
 
   const activeRealms = realms.filter((r) => r.isActive);
 
-  // Bottom offset: tab bar + home indicator + input padding
-  const bottomOffset = Platform.OS === "web" ? 34 : insets.bottom + TAB_BAR_HEIGHT;
+  // useBottomTabBarHeight returns the actual rendered tab-bar height (includes safe-area)
+  // on every platform — native iOS/Android and Expo Web.
+  const tabBarHeight = useBottomTabBarHeight();
+  const bottomOffset = tabBarHeight;
 
   return (
     <KeyboardAvoidingView
