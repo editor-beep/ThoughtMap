@@ -8,7 +8,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import NodeCard from "@/components/NodeCard";
-import { NodeType, useThought } from "@/context/ThoughtContext";
+import NodeDetailSheet from "@/components/NodeDetailSheet";
+import { NodeType, ThoughtNode, useThought } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
 
 const NODE_TYPES: NodeType[] = ["thought", "joke", "character", "myth", "research", "canon", "contradiction", "artifact", "fragment"];
@@ -25,6 +26,7 @@ export default function NodesScreen() {
   const [newRealm, setNewRealm] = useState<string>("");
   const [showNewRealm, setShowNewRealm] = useState(false);
   const [newRealmInput, setNewRealmInput] = useState("");
+  const [selectedNode, setSelectedNode] = useState<ThoughtNode | null>(null);
   const s = makeStyles(colors);
 
   const realmMap = useMemo(
@@ -143,7 +145,7 @@ export default function NodesScreen() {
         <FlatList
           data={[...filtered].reverse()}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <NodeCard node={item} realmMap={realmMap} onDelete={deleteNode} />}
+          renderItem={({ item }) => <NodeCard node={item} realmMap={realmMap} onDelete={deleteNode} onPress={() => setSelectedNode(item)} />}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomOffset + 24 }}
           showsVerticalScrollIndicator={false}
         />
@@ -257,6 +259,7 @@ export default function NodesScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <NodeDetailSheet node={selectedNode} visible={!!selectedNode} onClose={() => setSelectedNode(null)} />
     </View>
   );
 }

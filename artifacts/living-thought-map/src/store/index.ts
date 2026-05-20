@@ -94,6 +94,9 @@ interface MapState {
   setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
+  nodeChats: Record<string, ChatMessage[]>;
+  nodeChatStreaming: string | null;
+  sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -125,6 +128,8 @@ export const useThoughtStore = create<MapState>()(
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
+      nodeChats: {} as Record<string, ChatMessage[]>,
+      nodeChatStreaming: null as string | null,
 
       addNode: (nodeData) => {
         const id = `node_${crypto.randomUUID()}`;
@@ -313,6 +318,77 @@ export const useThoughtStore = create<MapState>()(
       setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
       clearFocusedNode: () => set({ focusedNodeId: null }),
+
+      sendNodeChatMessage: async (nodeId, nodeTitle, nodeContent, message) => {
+        const previousChat = get().nodeChats[nodeId] ?? [];
+        const userMsg: ChatMessage = {
+          id: crypto.randomUUID(), role: 'user', content: message, timestamp: new Date().toISOString(),
+        };
+        const assistantId = crypto.randomUUID();
+        const assistantMsg: ChatMessage = {
+          id: assistantId, role: 'assistant', content: '', timestamp: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          nodeChats: { ...state.nodeChats, [nodeId]: [...previousChat, userMsg, assistantMsg] },
+          nodeChatStreaming: nodeId,
+        }));
+
+        const contextMessages = [
+          { role: 'user', content: `We're exploring a concept: "${nodeTitle}".${nodeContent ? ` Context: ${nodeContent}` : ''}` },
+          { role: 'assistant', content: `I'll focus our discussion on "${nodeTitle}". What would you like to explore?` },
+          ...previousChat.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'user', content: message },
+        ];
+
+        try {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: contextMessages }),
+            signal: AbortSignal.timeout(45000),
+          });
+
+          if (!res.ok || !res.body) throw new Error(`API error: ${res.status}`);
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            for (const line of lines) {
+              const raw = line.slice(6).trim();
+              if (raw === '[DONE]') continue;
+              try {
+                const token = JSON.parse(raw).choices?.[0]?.delta?.content ?? '';
+                if (token) {
+                  set((state) => ({
+                    nodeChats: {
+                      ...state.nodeChats,
+                      [nodeId]: (state.nodeChats[nodeId] ?? []).map((m) =>
+                        m.id === assistantId ? { ...m, content: m.content + token } : m
+                      ),
+                    },
+                  }));
+                }
+              } catch { /* skip malformed SSE */ }
+            }
+          }
+        } catch (err) {
+          const text = err instanceof Error ? err.message : 'Something went wrong';
+          set((state) => ({
+            nodeChats: {
+              ...state.nodeChats,
+              [nodeId]: (state.nodeChats[nodeId] ?? []).map((m) =>
+                m.id === assistantId ? { ...m, content: `⚠ ${text}` } : m
+              ),
+            },
+          }));
+        }
+
+        set({ nodeChatStreaming: null });
+      },
     }),
     {
       name: 'thought-map-storage',
@@ -322,6 +398,7 @@ export const useThoughtStore = create<MapState>()(
         realms: state.realms,
         chatHistory: state.chatHistory,
         activeTerrain: state.activeTerrain,
+        nodeChats: state.nodeChats,
       }),
     }
   )

@@ -10,8 +10,9 @@ import ReactFlow, {
   NodeMouseHandler
 } from 'reactflow';
 import { useThoughtStore } from '../store';
-import { EdgeType, NodeType, ThoughtNode } from '../types';
+import { EdgeType } from '../types';
 import CustomThoughtNode from './CustomThoughtNode';
+import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 
 const nodeTypes = { thoughtMapNode: CustomThoughtNode };
@@ -44,18 +45,6 @@ const NODE_TYPE_COLORS: Record<string, string> = {
   fragment:     '#475569'
 };
 
-const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
-  { value: 'thought',       label: 'Thought' },
-  { value: 'joke',          label: 'Joke' },
-  { value: 'character',     label: 'Character' },
-  { value: 'myth',          label: 'Myth' },
-  { value: 'research',      label: 'Research' },
-  { value: 'canon',         label: 'Canon' },
-  { value: 'contradiction', label: 'Contradiction' },
-  { value: 'artifact',      label: 'Artifact' },
-  { value: 'fragment',      label: 'Fragment' },
-];
-
 type PendingConnection = { source: string; target: string };
 
 function CanvasController() {
@@ -72,17 +61,10 @@ function CanvasController() {
   return null;
 }
 
-interface EditState {
-  node: ThoughtNode;
-  title: string;
-  content: string;
-  type: NodeType;
-}
-
 export default function SpatialCanvas() {
-  const { nodes, edges, realms, updateNodePosition, updateNode, addEdge, deleteNode, deleteEdge } = useThoughtStore();
+  const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
-  const [editState, setEditState] = useState<EditState | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const activeRealmIds = useMemo(
     () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
@@ -157,20 +139,8 @@ export default function SpatialCanvas() {
   };
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, rfNode) => {
-    const node = nodes.find((n) => n.id === rfNode.id);
-    if (!node) return;
-    setEditState({ node, title: node.title, content: node.content, type: node.type });
-  }, [nodes]);
-
-  const saveEdit = () => {
-    if (!editState) return;
-    updateNode(editState.node.id, {
-      title: editState.title.trim() || editState.node.title,
-      content: editState.content,
-      type: editState.type,
-    });
-    setEditState(null);
-  };
+    setSelectedNodeId(rfNode.id);
+  }, []);
 
   return (
     <div className="w-full h-full relative">
@@ -238,73 +208,7 @@ export default function SpatialCanvas() {
         </div>
       )}
 
-      {/* Node detail / edit panel */}
-      {editState && (
-        <div
-          className="absolute inset-0 z-40 flex items-center justify-center bg-void-900/60 backdrop-blur-sm"
-          onClick={() => setEditState(null)}
-        >
-          <div
-            className="bg-void-800 border border-void-700/80 rounded-xl p-5 w-80 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Edit Node</span>
-              <button onClick={() => setEditState(null)} className="text-slate-600 hover:text-slate-300 text-sm transition-colors">✕</button>
-            </div>
-
-            <input
-              type="text"
-              value={editState.title}
-              onChange={(e) => setEditState((s) => s && ({ ...s, title: e.target.value }))}
-              className="w-full bg-void-900 border border-void-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cosmic-cyan placeholder:text-slate-600 transition-colors mb-3"
-              placeholder="Title"
-            />
-            <textarea
-              value={editState.content}
-              onChange={(e) => setEditState((s) => s && ({ ...s, content: e.target.value }))}
-              className="w-full bg-void-900 border border-void-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-cosmic-cyan placeholder:text-slate-600 transition-colors mb-3 resize-none"
-              rows={4}
-              placeholder="Content"
-            />
-            <div className="mb-4">
-              <div className="font-mono text-[9px] uppercase tracking-widest text-slate-500 mb-2">Type</div>
-              <select
-                value={editState.type}
-                onChange={(e) => setEditState((s) => s && ({ ...s, type: e.target.value as NodeType }))}
-                className="w-full bg-void-900 border border-void-700 rounded-lg px-3 py-2 text-sm text-slate-400 focus:outline-none focus:border-cosmic-cyan transition-colors"
-              >
-                {NODE_TYPE_OPTIONS.map(({ value, label }) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex gap-2 justify-between">
-              <button
-                onClick={() => { deleteNode(editState.node.id); setEditState(null); }}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-600 hover:text-cosmic-rose transition-colors border border-void-700 hover:border-cosmic-rose/40"
-              >
-                Delete
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditState(null)}
-                  className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveEdit}
-                  className="px-4 py-1.5 rounded-lg text-sm bg-cosmic-cyan text-void-900 font-semibold transition-opacity"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <NodeDetailPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} />
     </div>
   );
 }

@@ -34,6 +34,9 @@ export type TerrainId =
   | "memory-palace" | "interstellar-plane" | "terrestrial-globe"
   | "mythic-landscape" | "the-void";
 
+export type EdgeType = "evolves_from" | "contradicts" | "references" | "remixes" | "supports";
+export interface ThoughtEdge { id: string; source: string; target: string; type: EdgeType; }
+
 const INITIAL_REALMS: Realm[] = [
   { id: "humor", name: "Humor", symbol: "✦", color: "#f59e0b", isActive: true },
   { id: "mythology", name: "Mythology", symbol: "𓆃", color: "#a855f7", isActive: true },
@@ -57,6 +60,7 @@ const STORAGE_KEY = "thought-map-mobile-v1";
 interface ThoughtContextValue {
   nodes: ThoughtNode[];
   realms: Realm[];
+  edges: ThoughtEdge[];
   chatHistory: ChatMessage[];
   activeTerrain: TerrainId;
   isStreaming: boolean;
@@ -65,9 +69,14 @@ interface ThoughtContextValue {
   deleteNode: (id: string) => void;
   toggleRealm: (id: string) => void;
   addRealm: (name: string) => string;
+  addEdge: (source: string, target: string, type: EdgeType) => void;
+  deleteEdge: (id: string) => void;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
   setTerrain: (id: TerrainId) => void;
+  nodeChats: Record<string, ChatMessage[]>;
+  nodeChatStreaming: string | null;
+  sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
 }
 
 const ThoughtContext = createContext<ThoughtContextValue | null>(null);
@@ -84,6 +93,9 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(INITIAL_CHAT);
   const [activeTerrain, setActiveTerrain] = useState<TerrainId>("the-void");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [edges, setEdges] = useState<ThoughtEdge[]>([]);
+  const [nodeChats, setNodeChats] = useState<Record<string, ChatMessage[]>>({});
+  const [nodeChatStreaming, setNodeChatStreaming] = useState<string | null>(null);
   const initializedRef = useRef(false);
 
   // Load persisted state on mount
@@ -97,6 +109,8 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
           if (saved.realms) setRealms(saved.realms);
           if (saved.chatHistory) setChatHistory(saved.chatHistory);
           if (saved.activeTerrain) setActiveTerrain(saved.activeTerrain);
+          if (saved.edges) setEdges(saved.edges);
+          if (saved.nodeChats) setNodeChats(saved.nodeChats);
         }
       } catch { /* ignore corrupt data */ } finally {
         initializedRef.current = true;
@@ -104,8 +118,8 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const persist = useCallback((n: ThoughtNode[], r: Realm[], c: ChatMessage[], t: TerrainId) => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: n, realms: r, chatHistory: c, activeTerrain: t })).catch(() => {});
+  const persist = useCallback((n: ThoughtNode[], r: Realm[], c: ChatMessage[], t: TerrainId, e: ThoughtEdge[], nc: Record<string, ChatMessage[]>) => {
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: n, realms: r, chatHistory: c, activeTerrain: t, edges: e, nodeChats: nc })).catch(() => {});
   }, []);
 
   const addNode = useCallback((nodeData: Omit<ThoughtNode, "id" | "createdAt">) => {
@@ -124,6 +138,7 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
   const deleteNode = useCallback((id: string) => {
     setNodes((prev) => prev.filter((n) => n.id !== id));
+    setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
   }, []);
 
   const toggleRealm = useCallback((id: string) => {
@@ -143,6 +158,84 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     });
     return id;
   }, []);
+
+  const addEdge = useCallback((source: string, target: string, type: EdgeType) => {
+    const id = `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setEdges((prev) => [...prev, { id, source, target, type }]);
+  }, []);
+
+  const deleteEdge = useCallback((id: string) => {
+    setEdges((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
+  const sendNodeChatMessage = useCallback(async (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => {
+    const previousChat = nodeChats[nodeId] ?? [];
+    const userMsg: ChatMessage = { id: genId(), role: "user", content: message, timestamp: new Date().toISOString() };
+    const assistantId = genId();
+    const assistantMsg: ChatMessage = { id: assistantId, role: "assistant", content: "", timestamp: new Date().toISOString() };
+
+    setNodeChats((prev) => ({ ...prev, [nodeId]: [...(prev[nodeId] ?? []), userMsg, assistantMsg] }));
+    setNodeChatStreaming(nodeId);
+
+    const contextMessages = [
+      { role: "user", content: `We're exploring a concept: "${nodeTitle}".${nodeContent ? ` Context: ${nodeContent}` : ""}` },
+      { role: "assistant", content: `I'll focus our discussion on "${nodeTitle}". What would you like to explore?` },
+      ...previousChat.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: message },
+    ];
+
+    try {
+      // @ts-ignore — expo/fetch types not available at compile time
+      const { fetch: expoFetch } = await import("expo/fetch");
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const baseUrl = domain ? `https://${domain}/` : "/";
+
+      const response = await expoFetch(`${baseUrl}api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({ messages: contextMessages }),
+      });
+
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") continue;
+          try {
+            const token = JSON.parse(raw).choices?.[0]?.delta?.content ?? "";
+            if (token) {
+              setNodeChats((prev) => {
+                const updated = [...(prev[nodeId] ?? [])];
+                const idx = updated.findLastIndex((m) => m.id === assistantId);
+                if (idx !== -1) updated[idx] = { ...updated[idx], content: updated[idx].content + token };
+                return { ...prev, [nodeId]: updated };
+              });
+            }
+          } catch { /* skip malformed SSE */ }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setNodeChats((prev) => ({
+        ...prev,
+        [nodeId]: (prev[nodeId] ?? []).map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)),
+      }));
+    } finally {
+      setNodeChatStreaming(null);
+    }
+  }, [nodeChats]);
 
   const sendChatMessage = useCallback(async (content: string) => {
     const userMsg: ChatMessage = { id: genId(), role: "user", content, timestamp: new Date().toISOString() };
@@ -225,11 +318,16 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
   // Persist whenever state changes
   useEffect(() => {
-    if (initializedRef.current) persist(nodes, realms, chatHistory, activeTerrain);
-  }, [nodes, realms, chatHistory, activeTerrain, persist]);
+    if (initializedRef.current) persist(nodes, realms, chatHistory, activeTerrain, edges, nodeChats);
+  }, [nodes, realms, chatHistory, activeTerrain, edges, nodeChats, persist]);
 
   return (
-    <ThoughtContext.Provider value={{ nodes, realms, chatHistory, activeTerrain, isStreaming, addNode, updateNode, deleteNode, toggleRealm, addRealm, sendChatMessage, extractToMap, setTerrain }}>
+    <ThoughtContext.Provider value={{
+      nodes, realms, edges, chatHistory, activeTerrain, isStreaming,
+      addNode, updateNode, deleteNode, toggleRealm, addRealm,
+      addEdge, deleteEdge, sendChatMessage, extractToMap, setTerrain,
+      nodeChats, nodeChatStreaming, sendNodeChatMessage,
+    }}>
       {children}
     </ThoughtContext.Provider>
   );

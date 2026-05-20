@@ -27,16 +27,17 @@ interface Props {
   node: ThoughtNode;
   realmMap: Record<string, { name: string; color: string }>;
   onDelete?: (id: string) => void;
+  onPress?: () => void;
 }
 
-export default function NodeCard({ node, realmMap, onDelete }: Props) {
+export default function NodeCard({ node, realmMap, onDelete, onPress }: Props) {
   const colors = useColors();
   const typeColor = TYPE_COLORS[node.type] ?? colors.primary;
   const icon = TYPE_ICONS[node.type] ?? "bulb-outline";
   const s = makeStyles(colors);
 
   return (
-    <View style={s.card}>
+    <Pressable style={s.card} onPress={onPress}>
       <View style={[s.typeIcon, { backgroundColor: typeColor + "22", borderColor: typeColor + "55" }]}>
         <Ionicons name={icon} size={16} color={typeColor} />
       </View>
@@ -61,7 +62,7 @@ export default function NodeCard({ node, realmMap, onDelete }: Props) {
           <Ionicons name="trash-outline" size={15} color={colors.mutedForeground} />
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 
