@@ -48,6 +48,8 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   extractedNodeId?: string;
+  /** false while streaming; true once the full response has arrived */
+  complete?: boolean;
 }
 
 export type TerrainId =
