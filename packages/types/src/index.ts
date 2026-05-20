@@ -49,3 +49,10 @@ export interface ChatMessage {
   timestamp: string;
   extractedNodeId?: string;
 }
+
+export type TerrainId =
+  | 'memory-palace'
+  | 'interstellar-plane'
+  | 'terrestrial-globe'
+  | 'mythic-landscape'
+  | 'the-void';
