@@ -125,11 +125,20 @@ export const useThoughtStore = create<MapState>()(
           const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: history })
+            body: JSON.stringify({ messages: history }),
+            signal: AbortSignal.timeout(25000),
           });
 
           if (!res.ok || !res.body) {
-            throw new Error(`API error: ${res.status}`);
+            if (res.status === 504) {
+              throw new Error('Load failed — the AI took too long to respond');
+            }
+            let apiErr = `API error: ${res.status}`;
+            try {
+              const body = await res.json();
+              if (body.error) apiErr = body.error;
+            } catch { /* ignore */ }
+            throw new Error(apiErr);
           }
 
           const reader = res.body.getReader();
@@ -157,7 +166,10 @@ export const useThoughtStore = create<MapState>()(
             }
           }
         } catch (err) {
-          const errorText = err instanceof Error ? err.message : 'Connection failed';
+          const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
+          const errorText = isTimeout
+            ? 'Load failed — the AI took too long to respond'
+            : err instanceof Error ? err.message : 'Load failed';
           set((state) => ({
             chatHistory: state.chatHistory.map((m) =>
               m.id === assistantId ? { ...m, content: `[Error: ${errorText}]` } : m
