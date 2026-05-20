@@ -1,15 +1,37 @@
-# Authorization Ontology: The Living Symbolic Terrain
+# Ontology of the Living Thought Map
 
-This document outlines the strict conceptual framework governing the execution layer of the Living Thought Map. No structural additions or adjustments should be processed without validating against this authority.
+## Core Philosophy
 
-## 1. Node Philosophy
-Nodes are not text documents, database cells, or markdown archives. A node is a crystallized cross-section of a conceptual trajectory. It holds mass within the spatial plane and exerts continuous structural logic on adjacent nodes via relationships.
+The Living Thought Map is a spatial cognition interface — a digital extension of the human mind's natural capacity for symbolic and spatial memory. It is not a database of notes, but a **living symbolic terrain** where thoughts exist as placed entities in a navigable cognitive landscape.
 
-## 2. Symbolic Realms
-Realms are non-exclusive atmospheric overlays. Unlike folders, which partition and segregate material entities, a Realm represents a wavelength of thought. An architectural plan can exist completely and harmoniously within `Horror`, `Philosophy`, and `Worldbuilding` simultaneously without duplication.
+We reject linear chronology and hierarchical folders as primary organizing principles. Instead, we embrace **spatial memory** as the superior substrate for complex thought.
 
-## 3. Map-First Navigation
-If a user is searching for an object chronologically, they have regressed to legacy computing logic. The map behaves as a geographic external memory device. Relationships are remembered through spatial configuration—an orientation known as Topographic Cognitive Architecture.
+### Key Ontological Concepts
 
-## 4. The "Extract to Map" Mechanism
-The stream of raw input text from the chat interface is fundamentally untrustworthy until it has been parameterised into an externalized spatial asset. "Extraction" acts as an anchor, stripping away sequential chronology and transferring conceptual authority directly onto the canvas view.
+**The Map**  
+The infinite canvas is the primary reality. All other elements (chat, history, metadata) are secondary interfaces that feed or orbit the map. The map is the memory palace. The map is the mind.
+
+**Nodes**  
+Nodes are not mere data records. They are symbolic artifacts — condensed essences of thought, emotion, insight, or creation. Each node occupies a deliberate position in space, giving it contextual meaning through proximity, clustering, and relational paths.
+
+**Realms**  
+Realms are symbolic regions of the mind, not containers. A single node may belong to multiple realms simultaneously (e.g., a "Contradiction" that is both Philosophical and Horrific). Realms color, texture, and influence the symbolic atmosphere of the map without imposing rigid boundaries.
+
+**Relationships (Edges)**  
+Typed connections represent cognitive movements: evolution, contradiction, reference, remix, support. These are the pathways of thought — the secret passages and ley lines of your inner world.
+
+**Terrains**  
+The visual foundation of the map (Memory Palace floorplan, Interstellar void, Earthly globe, Mythic landscape, etc.). Users may choose and later switch terrains. The terrain is the "skin of the mind" — it shapes how thoughts feel and are remembered.
+
+**Extract to Map**  
+The sacred act of the application. Transforming an ephemeral utterance in the Thought Stream into a permanent, spatially anchored symbol. This is the moment linear thought becomes living cognition.
+
+## Guiding Principles
+
+- Spatial placement > temporal order
+- Symbolic resonance > semantic search
+- Atmosphere and feeling > sterile productivity
+- Exploration > optimization
+- The user is a cartographer of their own psyche
+
+This ontology is authoritative. All future features, designs, and decisions must be measured against it.
