@@ -29,7 +29,7 @@ export default async function handler(req: Request) {
     parts: [{ text: m.content }],
   }));
 
-  const apiKey = process.env.GEMINI_API_KEY ?? '';
+  const apiKey = process.env.GEMINI_API ?? '';
   const model = 'gemini-2.0-flash';
 
   let upstream: Response;
