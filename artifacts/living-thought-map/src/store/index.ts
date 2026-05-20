@@ -71,6 +71,8 @@ function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
 
 // ─── Store ─────────────────────────────────────────────────────────────────
 
+type UndoAction = { type: 'deleteNode'; node: ThoughtNode; edges: ThoughtEdge[] } | { type: 'deleteEdge'; edge: ThoughtEdge };
+
 interface MapState {
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
@@ -80,6 +82,7 @@ interface MapState {
   activeConversationId: string | null;
   isStreaming: boolean;
   focusedNodeId: string | null;
+  undoStack: UndoAction[];
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
@@ -94,6 +97,8 @@ interface MapState {
   setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
+  undo: () => void;
+  importMap: (data: { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] }) => void;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -125,6 +130,7 @@ export const useThoughtStore = create<MapState>()(
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
+      undoStack: [],
 
       addNode: (nodeData) => {
         const id = `node_${crypto.randomUUID()}`;
@@ -146,10 +152,16 @@ export const useThoughtStore = create<MapState>()(
       },
 
       deleteNode: (id) => {
-        set((state) => ({
-          nodes: state.nodes.filter((n) => n.id !== id),
-          edges: state.edges.filter((e) => e.source !== id && e.target !== id),
-        }));
+        const { nodes, edges, undoStack } = get();
+        const node = nodes.find((n) => n.id === id);
+        const connectedEdges = edges.filter((e) => e.source === id || e.target === id);
+        if (node) {
+          set({
+            undoStack: [...undoStack.slice(-49), { type: 'deleteNode', node, edges: connectedEdges }],
+            nodes: nodes.filter((n) => n.id !== id),
+            edges: edges.filter((e) => e.source !== id && e.target !== id),
+          });
+        }
       },
 
       addEdge: (source, target, type) => {
@@ -158,7 +170,14 @@ export const useThoughtStore = create<MapState>()(
       },
 
       deleteEdge: (id) => {
-        set((state) => ({ edges: state.edges.filter((e) => e.id !== id) }));
+        const { edges, undoStack } = get();
+        const edge = edges.find((e) => e.id === id);
+        if (edge) {
+          set({
+            undoStack: [...undoStack.slice(-49), { type: 'deleteEdge', edge }],
+            edges: edges.filter((e) => e.id !== id),
+          });
+        }
       },
 
       toggleRealm: (id) => {
@@ -194,6 +213,7 @@ export const useThoughtStore = create<MapState>()(
           role: 'assistant',
           content: '',
           timestamp: new Date().toISOString(),
+          complete: false,
         };
 
         set((state) => ({
@@ -239,7 +259,11 @@ export const useThoughtStore = create<MapState>()(
                     ),
                   }));
                 }
-              } catch { /* skip malformed SSE */ }
+              } catch (parseErr) {
+                if (process.env.NODE_ENV !== 'production') {
+                  console.warn('[ThoughtMap] Malformed SSE chunk:', raw, parseErr);
+                }
+              }
             }
           }
         };
@@ -268,6 +292,39 @@ export const useThoughtStore = create<MapState>()(
           }
 
           await streamResponse(res);
+
+          // Mark the message complete and parse any AI-suggested edges
+          set((state) => {
+            const finalMsg = state.chatHistory.find((m) => m.id === assistantId);
+            const newEdges: ThoughtEdge[] = [];
+
+            if (finalMsg) {
+              // Parse LINK: <title1> → <title2> | <relationship>
+              const linkRe = /LINK:\s*(.+?)\s*[→>]\s*(.+?)\s*\|\s*(\w+)/gi;
+              let match: RegExpExecArray | null;
+              while ((match = linkRe.exec(finalMsg.content)) !== null) {
+                const [, fromTitle, toTitle, relType] = match;
+                const fromNode = state.nodes.find((n) =>
+                  n.title.toLowerCase().trim() === fromTitle.toLowerCase().trim()
+                );
+                const toNode = state.nodes.find((n) =>
+                  n.title.toLowerCase().trim() === toTitle.toLowerCase().trim()
+                );
+                const validTypes: EdgeType[] = ['evolves_from', 'contradicts', 'references', 'remixes', 'supports'];
+                const edgeType = validTypes.includes(relType as EdgeType) ? (relType as EdgeType) : 'references';
+                if (fromNode && toNode) {
+                  newEdges.push({ id: `edge_${crypto.randomUUID()}`, source: fromNode.id, target: toNode.id, type: edgeType });
+                }
+              }
+            }
+
+            return {
+              chatHistory: state.chatHistory.map((m) =>
+                m.id === assistantId ? { ...m, complete: true } : m
+              ),
+              edges: [...state.edges, ...newEdges],
+            };
+          });
         } catch (err) {
           const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
           const errorText = isTimeout
@@ -275,7 +332,7 @@ export const useThoughtStore = create<MapState>()(
             : err instanceof Error ? err.message : 'Something went wrong';
           set((state) => ({
             chatHistory: state.chatHistory.map((m) =>
-              m.id === assistantId ? { ...m, content: `⚠ ${errorText}` } : m
+              m.id === assistantId ? { ...m, content: `⚠ ${errorText}`, complete: true } : m
             ),
           }));
         }
@@ -313,6 +370,41 @@ export const useThoughtStore = create<MapState>()(
       setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
       clearFocusedNode: () => set({ focusedNodeId: null }),
+
+      undo: () => {
+        const { undoStack } = get();
+        if (undoStack.length === 0) return;
+        const action = undoStack[undoStack.length - 1];
+        const remaining = undoStack.slice(0, -1);
+        if (action.type === 'deleteNode') {
+          set((state) => ({
+            undoStack: remaining,
+            nodes: [...state.nodes, action.node],
+            edges: [...state.edges, ...action.edges],
+          }));
+        } else if (action.type === 'deleteEdge') {
+          set((state) => ({
+            undoStack: remaining,
+            edges: [...state.edges, action.edge],
+          }));
+        }
+      },
+
+      importMap: ({ nodes, edges, realms }) => {
+        set((state) => {
+          const existingIds = new Set(state.nodes.map((n) => n.id));
+          const newNodes = nodes.filter((n) => !existingIds.has(n.id));
+          const existingEdgeIds = new Set(state.edges.map((e) => e.id));
+          const newEdges = edges.filter((e) => !existingEdgeIds.has(e.id));
+          const existingRealmIds = new Set(state.realms.map((r) => r.id));
+          const newRealms = realms.filter((r) => !existingRealmIds.has(r.id));
+          return {
+            nodes: [...state.nodes, ...newNodes],
+            edges: [...state.edges, ...newEdges],
+            realms: [...state.realms, ...newRealms],
+          };
+        });
+      },
     }),
     {
       name: 'thought-map-storage',
@@ -323,6 +415,16 @@ export const useThoughtStore = create<MapState>()(
         chatHistory: state.chatHistory,
         activeTerrain: state.activeTerrain,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        // Mark any assistant messages that were incomplete (mid-stream on last close) as failed
+        const repaired = state.chatHistory.map((m) =>
+          m.role === 'assistant' && m.complete === false
+            ? { ...m, content: m.content || '⚠ Message interrupted — please resend.', complete: true }
+            : m
+        );
+        state.chatHistory = repaired;
+      },
     }
   )
 );
