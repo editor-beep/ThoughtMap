@@ -16,13 +16,15 @@ const NODE_TYPES: NodeType[] = ["thought", "joke", "character", "myth", "researc
 export default function NodesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { nodes, realms, deleteNode, addNode } = useThought();
+  const { nodes, realms, deleteNode, addNode, addRealm } = useThought();
   const [filterRealm, setFilterRealm] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newType, setNewType] = useState<NodeType>("thought");
   const [newRealm, setNewRealm] = useState<string>("");
+  const [showNewRealm, setShowNewRealm] = useState(false);
+  const [newRealmInput, setNewRealmInput] = useState("");
   const s = makeStyles(colors);
 
   const realmMap = useMemo(
@@ -54,6 +56,15 @@ export default function NodesScreen() {
     setNewContent("");
     setNewType("thought");
     setShowAdd(true);
+  };
+
+  const handleCreateRealm = () => {
+    const trimmed = newRealmInput.trim();
+    if (!trimmed) return;
+    const newId = addRealm(trimmed);
+    setNewRealm(newId);
+    setNewRealmInput("");
+    setShowNewRealm(false);
   };
 
   const handleAdd = () => {
@@ -190,21 +201,50 @@ export default function NodesScreen() {
             {/* Realm picker */}
             <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>REALM</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-              {realms.map((r) => (
-                <Pressable
-                  key={r.id}
-                  style={[s.typePill, {
-                    backgroundColor: newRealm === r.id ? r.color + "22" : colors.muted,
-                    borderColor: newRealm === r.id ? r.color : colors.border,
-                    opacity: r.isActive ? 1 : 0.45,
-                  }]}
-                  onPress={() => setNewRealm(r.id)}
-                >
-                  <Text style={[s.typePillText, { color: newRealm === r.id ? r.color : colors.mutedForeground }]}>
-                    {r.name}
-                  </Text>
-                </Pressable>
-              ))}
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                {realms.map((r) => (
+                  <Pressable
+                    key={r.id}
+                    style={[s.typePill, {
+                      backgroundColor: newRealm === r.id ? r.color + "22" : colors.muted,
+                      borderColor: newRealm === r.id ? r.color : colors.border,
+                      opacity: r.isActive ? 1 : 0.45,
+                    }]}
+                    onPress={() => setNewRealm(r.id)}
+                  >
+                    <Text style={[s.typePillText, { color: newRealm === r.id ? r.color : colors.mutedForeground }]}>
+                      {r.name}
+                    </Text>
+                  </Pressable>
+                ))}
+                {showNewRealm ? (
+                  <View style={[s.typePill, { borderColor: colors.cosmicCyan, backgroundColor: colors.cosmicCyan + "11", flexDirection: "row", alignItems: "center", gap: 6 }]}>
+                    <TextInput
+                      autoFocus
+                      style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.foreground, minWidth: 72 }}
+                      placeholder="Realm name..."
+                      placeholderTextColor={colors.mutedForeground}
+                      value={newRealmInput}
+                      onChangeText={setNewRealmInput}
+                      onSubmitEditing={handleCreateRealm}
+                      returnKeyType="done"
+                    />
+                    <Pressable onPress={handleCreateRealm}>
+                      <Ionicons name="checkmark" size={14} color={colors.cosmicCyan} />
+                    </Pressable>
+                    <Pressable onPress={() => { setShowNewRealm(false); setNewRealmInput(""); }}>
+                      <Ionicons name="close" size={12} color={colors.mutedForeground} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={[s.typePill, { borderColor: colors.border, borderStyle: "dashed" }]}
+                    onPress={() => setShowNewRealm(true)}
+                  >
+                    <Text style={[s.typePillText, { color: colors.mutedForeground }]}>+ New</Text>
+                  </Pressable>
+                )}
+              </View>
             </ScrollView>
 
             <Pressable

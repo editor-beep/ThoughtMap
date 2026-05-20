@@ -16,12 +16,14 @@ const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
 ];
 
 export default function ThoughtStreamRail() {
-  const { chatHistory, sendChatMessage, extractToMap, isStreaming, realms } = useThoughtStore();
+  const { chatHistory, sendChatMessage, extractToMap, isStreaming, realms, addRealm } = useThoughtStore();
   const [input, setInput] = useState('');
   const [extractTargetId, setExtractTargetId] = useState<string | null>(null);
   const [nodeTitle, setNodeTitle] = useState('');
   const [nodeType, setNodeType] = useState<NodeType>('thought');
   const [nodeRealm, setNodeRealm] = useState<string>('');
+  const [showNewRealm, setShowNewRealm] = useState(false);
+  const [newRealmInput, setNewRealmInput] = useState('');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,8 @@ export default function ThoughtStreamRail() {
     setNodeTitle('');
     setNodeType('thought');
     setNodeRealm('');
+    setShowNewRealm(false);
+    setNewRealmInput('');
   };
 
   const commitExtract = () => {
@@ -58,12 +62,25 @@ export default function ThoughtStreamRail() {
     setNodeTitle('');
     setNodeType('thought');
     setNodeRealm('');
+    setShowNewRealm(false);
+    setNewRealmInput('');
   };
 
   const cancelExtract = () => {
     setExtractTargetId(null);
     setNodeTitle('');
     setNodeRealm('');
+    setShowNewRealm(false);
+    setNewRealmInput('');
+  };
+
+  const handleCreateRealm = () => {
+    const trimmed = newRealmInput.trim();
+    if (!trimmed) return;
+    const newId = addRealm(trimmed);
+    setNodeRealm(newId);
+    setNewRealmInput('');
+    setShowNewRealm(false);
   };
 
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -188,6 +205,30 @@ export default function ThoughtStreamRail() {
                 {r.name}
               </button>
             ))}
+            {showNewRealm ? (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-cosmic-cyan/50 bg-cosmic-cyan/5">
+                <input
+                  autoFocus
+                  value={newRealmInput}
+                  onChange={(e) => setNewRealmInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateRealm();
+                    if (e.key === 'Escape') { setShowNewRealm(false); setNewRealmInput(''); }
+                  }}
+                  placeholder="Name…"
+                  className="bg-transparent text-slate-200 placeholder:text-slate-600 outline-none w-20 font-mono text-[10px]"
+                />
+                <button onClick={handleCreateRealm} className="text-cosmic-cyan hover:text-white transition-colors">✓</button>
+                <button onClick={() => { setShowNewRealm(false); setNewRealmInput(''); }} className="text-slate-600 hover:text-slate-300 transition-colors">✕</button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setShowNewRealm(true)}
+                className="px-2 py-0.5 rounded-full text-[10px] font-mono border border-dashed border-void-600 text-slate-600 hover:border-slate-500 hover:text-slate-400 transition-colors"
+              >
+                + New
+              </button>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
             <button

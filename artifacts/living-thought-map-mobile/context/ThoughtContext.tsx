@@ -64,6 +64,7 @@ interface ThoughtContextValue {
   updateNode: (id: string, updates: Partial<Pick<ThoughtNode, "title" | "content" | "type" | "realms">>) => void;
   deleteNode: (id: string) => void;
   toggleRealm: (id: string) => void;
+  addRealm: (name: string) => string;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
   setTerrain: (id: TerrainId) => void;
@@ -127,6 +128,20 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
   const toggleRealm = useCallback((id: string) => {
     setRealms((prev) => prev.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r)));
+  }, []);
+
+  const addRealm = useCallback((name: string): string => {
+    const REALM_COLORS = ['#f59e0b','#a855f7','#06b6d4','#f43f5e','#10b981','#3b82f6','#ec4899','#f97316','#84cc16','#8b5cf6'];
+    const REALM_SYMBOLS = ['✦','◈','⬡','◉','▲','☱','⊕','⌘','⬟','◇'];
+    const trimmed = name.trim();
+    const id = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || `realm-${Date.now()}`;
+    setRealms((prev) => {
+      if (prev.find((r) => r.id === id)) return prev;
+      const color = REALM_COLORS[prev.length % REALM_COLORS.length];
+      const symbol = REALM_SYMBOLS[prev.length % REALM_SYMBOLS.length];
+      return [...prev, { id, name: trimmed, symbol, color, isActive: true }];
+    });
+    return id;
   }, []);
 
   const sendChatMessage = useCallback(async (content: string) => {
@@ -214,7 +229,7 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   }, [nodes, realms, chatHistory, activeTerrain, persist]);
 
   return (
-    <ThoughtContext.Provider value={{ nodes, realms, chatHistory, activeTerrain, isStreaming, addNode, updateNode, deleteNode, toggleRealm, sendChatMessage, extractToMap, setTerrain }}>
+    <ThoughtContext.Provider value={{ nodes, realms, chatHistory, activeTerrain, isStreaming, addNode, updateNode, deleteNode, toggleRealm, addRealm, sendChatMessage, extractToMap, setTerrain }}>
       {children}
     </ThoughtContext.Provider>
   );

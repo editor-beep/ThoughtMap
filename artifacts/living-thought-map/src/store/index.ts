@@ -88,6 +88,7 @@ interface MapState {
   addEdge: (source: string, target: string, type: EdgeType) => void;
   deleteEdge: (id: string) => void;
   toggleRealm: (id: string) => void;
+  addRealm: (name: string) => string;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
   setTerrain: (id: TerrainId) => void;
@@ -164,6 +165,20 @@ export const useThoughtStore = create<MapState>()(
         set((state) => ({
           realms: state.realms.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r)),
         }));
+      },
+
+      addRealm: (name) => {
+        const REALM_COLORS = ['#f59e0b','#a855f7','#06b6d4','#f43f5e','#10b981','#3b82f6','#ec4899','#f97316','#84cc16','#8b5cf6'];
+        const REALM_SYMBOLS = ['✦','◈','⬡','◉','▲','☱','⊕','⌘','⬟','◇'];
+        const trimmed = name.trim();
+        const id = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || `realm-${Date.now()}`;
+        const existing = get().realms;
+        const dupe = existing.find((r) => r.id === id);
+        if (dupe) return dupe.id;
+        const color = REALM_COLORS[existing.length % REALM_COLORS.length];
+        const symbol = REALM_SYMBOLS[existing.length % REALM_SYMBOLS.length];
+        set((state) => ({ realms: [...state.realms, { id, name: trimmed, symbol, color, isActive: true }] }));
+        return id;
       },
 
       sendChatMessage: async (content) => {

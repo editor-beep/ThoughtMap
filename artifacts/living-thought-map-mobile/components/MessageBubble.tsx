@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { NodeType, Realm } from "@/context/ThoughtContext";
+import { NodeType, useThought } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
@@ -10,15 +10,17 @@ interface Props {
   role: "user" | "assistant";
   content: string;
   extractedNodeId?: string;
-  realms?: Realm[];
   onExtract?: (id: string, type: NodeType, title: string, realmId?: string) => void;
 }
 
-export default function MessageBubble({ id, role, content, extractedNodeId, realms = [], onExtract }: Props) {
+export default function MessageBubble({ id, role, content, extractedNodeId, onExtract }: Props) {
   const colors = useColors();
+  const { realms, addRealm } = useThought();
   const [showExtract, setShowExtract] = useState(false);
   const [title, setTitle] = useState("");
   const [selectedRealm, setSelectedRealm] = useState<string>("");
+  const [showNewRealm, setShowNewRealm] = useState(false);
+  const [newRealmInput, setNewRealmInput] = useState("");
   const isUser = role === "user";
   const s = makeStyles(colors);
 
@@ -28,12 +30,25 @@ export default function MessageBubble({ id, role, content, extractedNodeId, real
     setShowExtract(false);
     setTitle("");
     setSelectedRealm("");
+    setShowNewRealm(false);
+    setNewRealmInput("");
   };
 
   const handleOpen = () => {
     setShowExtract(true);
     setTitle("");
     setSelectedRealm("");
+    setShowNewRealm(false);
+    setNewRealmInput("");
+  };
+
+  const handleCreateRealm = () => {
+    const trimmed = newRealmInput.trim();
+    if (!trimmed) return;
+    const newId = addRealm(trimmed);
+    setSelectedRealm(newId);
+    setNewRealmInput("");
+    setShowNewRealm(false);
   };
 
   return (
@@ -61,43 +76,68 @@ export default function MessageBubble({ id, role, content, extractedNodeId, real
                   autoFocus
                 />
 
-                {realms.length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
-                    <View style={s.realmRow}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                  <View style={s.realmRow}>
+                    <Pressable
+                      onPress={() => setSelectedRealm("")}
+                      style={[
+                        s.realmPill,
+                        { borderColor: selectedRealm === "" ? colors.cosmicCyan : colors.border },
+                        selectedRealm === "" && { backgroundColor: colors.cosmicCyan + "22" },
+                      ]}
+                    >
+                      <Text style={[s.realmPillText, { color: selectedRealm === "" ? colors.cosmicCyan : colors.mutedForeground }]}>
+                        None
+                      </Text>
+                    </Pressable>
+                    {realms.map((r) => (
                       <Pressable
-                        onPress={() => setSelectedRealm("")}
+                        key={r.id}
+                        onPress={() => setSelectedRealm(r.id)}
                         style={[
                           s.realmPill,
-                          { borderColor: selectedRealm === "" ? colors.cosmicCyan : colors.border },
-                          selectedRealm === "" && { backgroundColor: colors.cosmicCyan + "22" },
+                          { borderColor: selectedRealm === r.id ? r.color : colors.border },
+                          selectedRealm === r.id && { backgroundColor: r.color + "22" },
                         ]}
                       >
-                        <Text style={[s.realmPillText, { color: selectedRealm === "" ? colors.cosmicCyan : colors.mutedForeground }]}>
-                          None
+                        <View style={[s.realmDot, { backgroundColor: r.color }]} />
+                        <Text style={[s.realmPillText, { color: selectedRealm === r.id ? r.color : colors.mutedForeground }]}>
+                          {r.name}
                         </Text>
                       </Pressable>
-                      {realms.map((r) => (
-                        <Pressable
-                          key={r.id}
-                          onPress={() => setSelectedRealm(r.id)}
-                          style={[
-                            s.realmPill,
-                            { borderColor: selectedRealm === r.id ? r.color : colors.border },
-                            selectedRealm === r.id && { backgroundColor: r.color + "22" },
-                          ]}
-                        >
-                          <View style={[s.realmDot, { backgroundColor: r.color }]} />
-                          <Text style={[s.realmPillText, { color: selectedRealm === r.id ? r.color : colors.mutedForeground }]}>
-                            {r.name}
-                          </Text>
+                    ))}
+                    {showNewRealm ? (
+                      <View style={[s.realmPill, { borderColor: colors.cosmicCyan, gap: 4 }]}>
+                        <TextInput
+                          autoFocus
+                          style={[s.newRealmInput, { color: colors.foreground }]}
+                          placeholder="Name..."
+                          placeholderTextColor={colors.mutedForeground}
+                          value={newRealmInput}
+                          onChangeText={setNewRealmInput}
+                          onSubmitEditing={handleCreateRealm}
+                          returnKeyType="done"
+                        />
+                        <Pressable onPress={handleCreateRealm}>
+                          <Ionicons name="checkmark" size={13} color={colors.cosmicCyan} />
                         </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                )}
+                        <Pressable onPress={() => { setShowNewRealm(false); setNewRealmInput(""); }}>
+                          <Ionicons name="close" size={11} color={colors.mutedForeground} />
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <Pressable
+                        onPress={() => setShowNewRealm(true)}
+                        style={[s.realmPill, { borderColor: colors.border, borderStyle: "dashed" }]}
+                      >
+                        <Text style={[s.realmPillText, { color: colors.mutedForeground }]}>+ New</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </ScrollView>
 
                 <View style={s.extractActions}>
-                  <Pressable onPress={() => { setShowExtract(false); setTitle(""); setSelectedRealm(""); }}>
+                  <Pressable onPress={() => { setShowExtract(false); setTitle(""); setSelectedRealm(""); setShowNewRealm(false); setNewRealmInput(""); }}>
                     <Ionicons name="close" size={16} color={colors.mutedForeground} />
                   </Pressable>
                   <Pressable
@@ -157,7 +197,6 @@ function makeStyles(colors: any) {
     extractPanel: {
       borderRadius: 10, borderWidth: 1,
       paddingHorizontal: 10, paddingVertical: 8,
-      gap: 0,
     },
     extractInput: {
       fontSize: 12, fontFamily: "Inter_400Regular",
@@ -173,6 +212,7 @@ function makeStyles(colors: any) {
     },
     realmDot: { width: 5, height: 5, borderRadius: 3 },
     realmPillText: { fontSize: 10, fontFamily: "Inter_400Regular" },
+    newRealmInput: { fontSize: 10, fontFamily: "Inter_400Regular", minWidth: 60 },
     extractActions: {
       flexDirection: "row", justifyContent: "flex-end",
       alignItems: "center", gap: 10, marginTop: 6,
