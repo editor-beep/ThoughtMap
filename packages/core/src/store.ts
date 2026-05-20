@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId } from '@types';
+import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext } from '@types';
 
 interface MapState {
   nodes: ThoughtNode[];
@@ -11,6 +11,14 @@ interface MapState {
   activeConversationId: string | null;
   isStreaming: boolean;
   focusedNodeId: string | null;
+
+  // Cartographer Agent state
+  cartographerLoading: boolean;
+  cartographerSuggestions: CartographerVariation[] | null;
+  cartographerInsight: string | null;
+  cartographerExtractingMessageId: string | null;
+  cartographerPanelOpen: boolean;
+  cartographerWanderResponse: string | null;
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
@@ -24,6 +32,15 @@ interface MapState {
   setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
+
+  // Cartographer Agent actions
+  requestCartographerExtraction: (messageId: string) => Promise<void>;
+  applyCartographerSuggestion: (variationIndex: number, customTitle?: string) => void;
+  dismissCartographerSuggestions: () => void;
+  openCartographerPanel: () => void;
+  closeCartographerPanel: () => void;
+  requestWanderMode: () => Promise<void>;
+  clearWanderResponse: () => void;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -55,6 +72,14 @@ export const useThoughtStore = create<MapState>()(
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
+
+      // Cartographer Agent initial state
+      cartographerLoading: false,
+      cartographerSuggestions: null,
+      cartographerInsight: null,
+      cartographerExtractingMessageId: null,
+      cartographerPanelOpen: false,
+      cartographerWanderResponse: null,
 
       addNode: (nodeData) => {
         const id = `node_${crypto.randomUUID()}`;
@@ -206,7 +231,203 @@ export const useThoughtStore = create<MapState>()(
 
       setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
-      clearFocusedNode: () => set({ focusedNodeId: null })
+      clearFocusedNode: () => set({ focusedNodeId: null }),
+
+      // Cartographer Agent actions
+      requestCartographerExtraction: async (messageId) => {
+        const message = get().chatHistory.find((m) => m.id === messageId);
+        if (!message) return;
+
+        set({
+          cartographerLoading: true,
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: messageId
+        });
+
+        // Build context for the Cartographer
+        const state = get();
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({
+            id: n.id,
+            title: n.title,
+            type: n.type,
+            realms: n.realms,
+            x: n.x,
+            y: n.y
+          })),
+          activeTerrain: state.activeTerrain,
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id)
+        };
+
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'extract',
+              message: message.content,
+              context
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+
+          if (!res.ok) {
+            let errorMsg = `API error: ${res.status}`;
+            try {
+              const body = await res.json();
+              if (body.error) errorMsg = body.error;
+            } catch { /* ignore */ }
+            throw new Error(errorMsg);
+          }
+
+          const data = await res.json();
+          set({
+            cartographerLoading: false,
+            cartographerSuggestions: data.variations ?? [],
+            cartographerInsight: data.spatialInsight ?? null
+          });
+        } catch (err) {
+          console.error('[Cartographer] Extraction failed:', err);
+          set({
+            cartographerLoading: false,
+            cartographerSuggestions: null,
+            cartographerInsight: null,
+            cartographerExtractingMessageId: null
+          });
+        }
+      },
+
+      applyCartographerSuggestion: (variationIndex, customTitle) => {
+        const suggestions = get().cartographerSuggestions;
+        const messageId = get().cartographerExtractingMessageId;
+        if (!suggestions || !messageId || variationIndex >= suggestions.length) return;
+
+        const variation = suggestions[variationIndex];
+        const state = get();
+
+        // Calculate position based on suggested zone
+        let x = (Math.random() - 0.5) * 400;
+        let y = (Math.random() - 0.5) * 400;
+
+        if (variation.suggestedZone.startsWith('near:')) {
+          const nearNodeId = variation.suggestedZone.slice(5);
+          const nearNode = state.nodes.find((n) => n.id === nearNodeId);
+          if (nearNode) {
+            x = nearNode.x + 150 + (Math.random() - 0.5) * 100;
+            y = nearNode.y + (Math.random() - 0.5) * 100;
+          }
+        } else {
+          // Zone-based positioning
+          const zoneOffsets: Record<string, { x: number; y: number }> = {
+            center: { x: 0, y: 0 },
+            northern: { x: 0, y: -300 },
+            southern: { x: 0, y: 300 },
+            eastern: { x: 300, y: 0 },
+            western: { x: -300, y: 0 }
+          };
+          const offset = zoneOffsets[variation.suggestedZone] ?? zoneOffsets.center;
+          x = offset.x + (Math.random() - 0.5) * 200;
+          y = offset.y + (Math.random() - 0.5) * 200;
+        }
+
+        const nodeId = get().addNode({
+          title: customTitle ?? variation.title,
+          content: variation.content,
+          type: variation.type,
+          realms: variation.realms,
+          x,
+          y
+        });
+
+        // Mark the message as extracted
+        set((s) => ({
+          chatHistory: s.chatHistory.map((m) =>
+            m.id === messageId ? { ...m, extractedNodeId: nodeId } : m
+          ),
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: null
+        }));
+      },
+
+      dismissCartographerSuggestions: () => {
+        set({
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: null,
+          cartographerLoading: false
+        });
+      },
+
+      openCartographerPanel: () => set({ cartographerPanelOpen: true }),
+      closeCartographerPanel: () => set({ cartographerPanelOpen: false, cartographerWanderResponse: null }),
+
+      requestWanderMode: async () => {
+        set({ cartographerLoading: true, cartographerWanderResponse: null });
+
+        const state = get();
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({
+            id: n.id,
+            title: n.title,
+            type: n.type,
+            realms: n.realms,
+            x: n.x,
+            y: n.y
+          })),
+          activeTerrain: state.activeTerrain,
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id)
+        };
+
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'wander',
+              message: 'Survey the map and offer an observation.',
+              context
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+
+          if (!res.ok || !res.body) {
+            throw new Error('Wander mode failed');
+          }
+
+          // Stream the response
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullResponse = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            for (const line of lines) {
+              const raw = line.slice(6).trim();
+              if (raw === '[DONE]') continue;
+              try {
+                const token = JSON.parse(raw).choices?.[0]?.delta?.content ?? '';
+                if (token) {
+                  fullResponse += token;
+                  set({ cartographerWanderResponse: fullResponse });
+                }
+              } catch {
+                // skip malformed chunks
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[Cartographer] Wander mode failed:', err);
+          set({ cartographerWanderResponse: 'The Cartographer remains silent... the terrain is difficult to read at present.' });
+        }
+
+        set({ cartographerLoading: false });
+      },
+
+      clearWanderResponse: () => set({ cartographerWanderResponse: null })
     }),
     {
       name: 'thought-map-storage',

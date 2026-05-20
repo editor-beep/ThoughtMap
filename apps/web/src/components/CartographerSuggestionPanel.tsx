@@ -1,0 +1,223 @@
+import React, { useState } from 'react';
+import { useThoughtStore } from '@core/store';
+import { Compass, Sparkles, MapPin, X, ChevronRight } from 'lucide-react';
+import type { CartographerVariation, NodeType } from '@types';
+
+const NODE_TYPE_COLORS: Record<NodeType, string> = {
+  thought: '#06b6d4',
+  joke: '#f59e0b',
+  character: '#a855f7',
+  myth: '#a855f7',
+  research: '#3b82f6',
+  canon: '#10b981',
+  contradiction: '#f43f5e',
+  artifact: '#64748b',
+  fragment: '#475569'
+};
+
+const NODE_TYPE_LABELS: Record<NodeType, string> = {
+  thought: 'Thought',
+  joke: 'Joke',
+  character: 'Character',
+  myth: 'Myth',
+  research: 'Research',
+  canon: 'Canon',
+  contradiction: 'Contradiction',
+  artifact: 'Artifact',
+  fragment: 'Fragment'
+};
+
+interface VariationCardProps {
+  variation: CartographerVariation;
+  index: number;
+  onSelect: (index: number, customTitle?: string) => void;
+}
+
+function VariationCard({ variation, index, onSelect }: VariationCardProps) {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [customTitle, setCustomTitle] = useState(variation.title);
+
+  const handleMaterialize = () => {
+    onSelect(index, customTitle !== variation.title ? customTitle : undefined);
+  };
+
+  const formatZone = (zone: string) => {
+    if (zone.startsWith('near:')) {
+      return 'Near existing node';
+    }
+    return zone.charAt(0).toUpperCase() + zone.slice(1) + ' region';
+  };
+
+  return (
+    <div className="bg-void-900/80 border border-void-700/50 rounded-lg p-3 space-y-3 hover:border-void-600/60 transition-colors">
+      {/* Title */}
+      <div className="flex items-start justify-between gap-2">
+        {editingTitle ? (
+          <input
+            type="text"
+            value={customTitle}
+            onChange={(e) => setCustomTitle(e.target.value)}
+            onBlur={() => setEditingTitle(false)}
+            onKeyDown={(e) => e.key === 'Enter' && setEditingTitle(false)}
+            autoFocus
+            className="flex-1 bg-void-800 border border-void-600 rounded px-2 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-cosmic-cyan"
+          />
+        ) : (
+          <h4
+            onClick={() => setEditingTitle(true)}
+            className="flex-1 font-mono text-sm text-slate-200 cursor-text hover:text-cosmic-cyan transition-colors"
+            title="Click to edit title"
+          >
+            {customTitle}
+          </h4>
+        )}
+        <span
+          className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider"
+          style={{
+            backgroundColor: `${NODE_TYPE_COLORS[variation.type]}20`,
+            color: NODE_TYPE_COLORS[variation.type]
+          }}
+        >
+          {NODE_TYPE_LABELS[variation.type]}
+        </span>
+      </div>
+
+      {/* Realms */}
+      {variation.realms.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {variation.realms.map((realm) => (
+            <span
+              key={realm}
+              className="px-1.5 py-0.5 rounded bg-void-800 text-[9px] font-mono text-slate-500 border border-void-700/50"
+            >
+              {realm}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Reasoning */}
+      <p className="text-[11px] text-slate-500 italic leading-relaxed border-l-2 border-void-700 pl-2">
+        {variation.reasoning}
+      </p>
+
+      {/* Zone indicator */}
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+        <MapPin size={10} />
+        <span>{formatZone(variation.suggestedZone)}</span>
+      </div>
+
+      {/* Materialize button */}
+      <button
+        onClick={handleMaterialize}
+        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded bg-cosmic-cyan/10 border border-cosmic-cyan/30 text-cosmic-cyan text-[11px] font-mono hover:bg-cosmic-cyan/20 hover:border-cosmic-cyan/50 transition-all group"
+      >
+        <Sparkles size={12} className="group-hover:animate-pulse" />
+        <span>Materialize</span>
+        <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+      </button>
+    </div>
+  );
+}
+
+export default function CartographerSuggestionPanel() {
+  const {
+    cartographerLoading,
+    cartographerSuggestions,
+    cartographerInsight,
+    cartographerExtractingMessageId,
+    applyCartographerSuggestion,
+    dismissCartographerSuggestions,
+    extractToMap,
+    chatHistory
+  } = useThoughtStore();
+
+  // Don't render if no extraction in progress
+  if (!cartographerExtractingMessageId && !cartographerLoading && !cartographerSuggestions) {
+    return null;
+  }
+
+  const handleManualExtract = () => {
+    // Fall back to the simple extraction flow
+    dismissCartographerSuggestions();
+  };
+
+  return (
+    <div className="flex-shrink-0 bg-void-800/95 border-t border-void-700/60 backdrop-blur-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-void-700/40">
+        <div className="flex items-center gap-2">
+          <Compass size={14} className={`text-cosmic-cyan ${cartographerLoading ? 'animate-spin' : ''}`} />
+          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
+            {cartographerLoading ? 'The Cartographer is studying...' : 'The Cartographer suggests'}
+          </span>
+        </div>
+        <button
+          onClick={dismissCartographerSuggestions}
+          className="text-slate-600 hover:text-slate-300 transition-colors p-1"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 max-h-80 overflow-y-auto space-y-4">
+        {cartographerLoading && (
+          <div className="flex flex-col items-center justify-center py-8 space-y-3">
+            <div className="w-8 h-8 rounded-full border-2 border-cosmic-cyan/30 border-t-cosmic-cyan animate-spin" />
+            <p className="text-[11px] font-mono text-slate-500 text-center">
+              Analyzing the topology of this thought...
+            </p>
+          </div>
+        )}
+
+        {!cartographerLoading && cartographerSuggestions && cartographerSuggestions.length > 0 && (
+          <>
+            {/* Spatial insight */}
+            {cartographerInsight && (
+              <div className="bg-void-900/60 border border-void-700/30 rounded-lg p-3 mb-4">
+                <p className="text-[11px] text-slate-400 italic leading-relaxed">
+                  {cartographerInsight}
+                </p>
+              </div>
+            )}
+
+            {/* Variation cards */}
+            <div className="space-y-3">
+              {cartographerSuggestions.map((variation, index) => (
+                <VariationCard
+                  key={index}
+                  variation={variation}
+                  index={index}
+                  onSelect={applyCartographerSuggestion}
+                />
+              ))}
+            </div>
+
+            {/* Manual option */}
+            <button
+              onClick={handleManualExtract}
+              className="w-full text-center py-2 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              I&apos;ll place it myself
+            </button>
+          </>
+        )}
+
+        {!cartographerLoading && cartographerSuggestions && cartographerSuggestions.length === 0 && (
+          <div className="text-center py-6">
+            <p className="text-[11px] font-mono text-slate-500">
+              The Cartographer could not divine a clear path for this thought.
+            </p>
+            <button
+              onClick={handleManualExtract}
+              className="mt-3 px-3 py-1.5 rounded bg-void-700 text-[10px] font-mono text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Extract manually
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

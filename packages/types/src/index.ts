@@ -56,3 +56,35 @@ export type TerrainId =
   | 'terrestrial-globe'
   | 'mythic-landscape'
   | 'the-void';
+
+// Cartographer Agent Types
+export type CartographerMode = 'extract' | 'converse' | 'wander';
+
+export interface CartographerVariation {
+  title: string;
+  content: string;
+  type: NodeType;
+  realms: string[];
+  suggestedZone: string;
+  reasoning: string;
+}
+
+export interface CartographerResponse {
+  variations?: CartographerVariation[];
+  spatialInsight?: string;
+  message?: string;
+  wanderReflection?: string;
+}
+
+export interface CartographerContext {
+  nodes: Array<{
+    id: string;
+    title: string;
+    type: NodeType;
+    realms: string[];
+    x: number;
+    y: number;
+  }>;
+  activeTerrain: TerrainId;
+  activeRealms: string[];
+}
