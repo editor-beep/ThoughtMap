@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useThoughtStore } from '@core/store';
-import { Send, ArrowUpRight } from 'lucide-react';
+import { Send, ArrowUpRight, Sparkles, User as UserIcon } from 'lucide-react';
 import { NodeType } from '@types';
 
 const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
@@ -71,42 +71,61 @@ export default function ThoughtStreamRail() {
 
   return (
     <aside className="w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden">
-      <div className="p-4 border-b border-void-800/60 bg-void-900/40 backdrop-blur-sm flex-shrink-0">
+      <div className="px-4 py-3.5 border-b border-void-800/60 bg-void-900/60 backdrop-blur-sm flex-shrink-0 flex items-center gap-2.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse" />
         <h3 className="font-mono text-xs tracking-wider uppercase text-slate-400">Thought Stream</h3>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6 min-h-0">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
         {chatHistory.map((message) => (
-          <div key={message.id} className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <span className="text-[9px] font-mono text-slate-600 mb-1">
-              {message.role === 'user' ? '// TRANSMISSION' : '// COGNITION'}
-            </span>
+          <div key={message.id} className={`flex flex-col gap-1.5 ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
+
+            {message.role === 'user' ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-500">You</span>
+                <div className="w-4 h-4 rounded-full bg-void-700 border border-void-600 flex items-center justify-center">
+                  <UserIcon size={8} className="text-slate-400" />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded-full bg-cosmic-cyan/10 border border-cosmic-cyan/25 flex items-center justify-center">
+                  <Sparkles size={8} className="text-cosmic-cyan" />
+                </div>
+                <span className="text-[10px] text-cosmic-cyan/60">Navigator</span>
+              </div>
+            )}
 
             <div
-              className={`p-3 rounded-lg text-xs leading-relaxed max-w-[85%] font-sans ${
+              className={`px-3.5 py-2.5 rounded-xl text-sm leading-relaxed max-w-[85%] border ${
                 message.role === 'user'
-                  ? 'bg-void-800 text-slate-200 border border-void-700/50'
-                  : 'bg-void-900/60 text-slate-300 border border-void-800/30'
+                  ? 'bg-void-700/80 text-slate-200 border-void-600/50 rounded-tr-sm'
+                  : 'bg-void-900/60 text-slate-300 border-void-800/60 rounded-tl-sm'
               }`}
+              style={
+                message.role === 'assistant'
+                  ? { borderLeftColor: 'rgba(6,182,212,0.45)', borderLeftWidth: '2px' }
+                  : undefined
+              }
             >
               {message.content}
               {message.role === 'assistant' && isStreaming && message.id === lastMsgId && (
-                <span className="inline-block w-[2px] h-3 bg-cosmic-cyan/80 ml-0.5 animate-pulse align-middle" />
+                <span className="inline-block w-[2px] h-[14px] bg-cosmic-cyan/80 ml-0.5 animate-pulse align-middle" />
               )}
             </div>
 
-            {message.role === 'assistant' && !message.extractedNodeId && (
+            {message.role === 'assistant' && !message.extractedNodeId && message.content && !message.content.startsWith('⚠') && (
               <button
                 onClick={() => openExtract(message.id)}
-                className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-cosmic-cyan hover:text-cyan-400 transition-colors bg-void-800/30 px-2 py-0.5 rounded border border-void-800"
+                className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cosmic-cyan transition-colors"
               >
                 <ArrowUpRight size={10} />
-                <span>Extract to map</span>
+                <span>Crystallize to canvas</span>
               </button>
             )}
 
             {message.extractedNodeId && (
-              <span className="mt-1 text-[9px] font-mono text-slate-600 italic">✓ Crystallized onto canvas</span>
+              <span className="text-[9px] font-mono text-slate-600 italic">✦ Anchored on canvas</span>
             )}
           </div>
         ))}
@@ -115,8 +134,8 @@ export default function ThoughtStreamRail() {
       {extractTargetId && (
         <div className="flex-shrink-0 p-4 bg-void-800/95 border-t border-void-700/60 space-y-3 backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Anchor Parameterization</span>
-            <button onClick={cancelExtract} className="text-slate-600 hover:text-slate-300 transition-colors font-mono text-xs">✕</button>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-cosmic-cyan/70">Crystallize to Canvas</span>
+            <button onClick={cancelExtract} className="text-slate-600 hover:text-slate-300 transition-colors text-sm">✕</button>
           </div>
           <input
             ref={titleInputRef}
@@ -125,12 +144,12 @@ export default function ThoughtStreamRail() {
             value={nodeTitle}
             onChange={(e) => setNodeTitle(e.target.value)}
             onKeyDown={handleTitleKeyDown}
-            className="w-full bg-void-900 border border-void-700 rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-cosmic-cyan text-slate-200 placeholder:text-slate-600"
+            className="w-full bg-void-900 border border-void-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cosmic-cyan text-slate-200 placeholder:text-slate-600 transition-colors"
           />
           <select
             value={nodeType}
             onChange={(e) => setNodeType(e.target.value as NodeType)}
-            className="w-full bg-void-900 border border-void-700 rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-cosmic-cyan text-slate-400"
+            className="w-full bg-void-900 border border-void-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cosmic-cyan text-slate-400 transition-colors"
           >
             {NODE_TYPE_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>{label}</option>
@@ -139,37 +158,37 @@ export default function ThoughtStreamRail() {
           <div className="flex gap-2 justify-end">
             <button
               onClick={cancelExtract}
-              className="px-2.5 py-1 rounded font-mono text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-300 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={commitExtract}
               disabled={!nodeTitle.trim()}
-              className="px-3 py-1 rounded font-mono text-[10px] bg-cosmic-cyan text-void-900 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+              className="px-4 py-1.5 rounded-lg text-sm bg-cosmic-cyan text-void-900 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
-              Materialize Node
+              Materialize
             </button>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSend} className="p-4 border-t border-void-800/60 bg-void-900/50 flex-shrink-0">
+      <form onSubmit={handleSend} className="p-4 border-t border-void-800/60 bg-void-900/60 flex-shrink-0">
         <div className="relative flex items-center">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? 'Processing...' : 'Introduce a concept...'}
+            placeholder={isStreaming ? 'Navigating…' : 'Introduce a concept…'}
             disabled={isStreaming}
-            className="w-full bg-void-900 text-xs font-mono border border-void-800/80 rounded-lg pl-3 pr-10 py-3 text-slate-200 focus:outline-none focus:border-cosmic-cyan/50 placeholder:text-slate-600 disabled:opacity-50"
+            className="w-full bg-void-800/60 text-sm border border-void-700/80 rounded-xl pl-4 pr-11 py-3 text-slate-200 focus:outline-none focus:border-cosmic-cyan/60 placeholder:text-slate-600 disabled:opacity-50 transition-colors"
           />
           <button
             type="submit"
             disabled={isStreaming || !input.trim()}
-            className="absolute right-2 p-1.5 rounded-md text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-30"
+            className="absolute right-2.5 p-1.5 rounded-lg text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-30"
           >
-            <Send size={14} />
+            <Send size={15} />
           </button>
         </div>
       </form>

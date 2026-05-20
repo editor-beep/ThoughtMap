@@ -112,27 +112,28 @@ export const useThoughtStore = create<MapState>()(
           timestamp: new Date().toISOString()
         };
 
+        // Add user message first so history doesn't include the empty assistant placeholder
         set((state) => ({
-          chatHistory: [...state.chatHistory, userMsg, assistantMsg],
+          chatHistory: [...state.chatHistory, userMsg],
           isStreaming: true
         }));
 
-        const history = get()
-          .chatHistory
-          .map((m) => ({ role: m.role, content: m.content }));
+        const history = get().chatHistory.map((m) => ({ role: m.role, content: m.content }));
 
-        try {
-          const res = await fetch('/api/chat', {
+        // Now add the assistant placeholder for the UI
+        set((state) => ({ chatHistory: [...state.chatHistory, assistantMsg] }));
+
+        const makeRequest = () =>
+          fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messages: history }),
-            signal: AbortSignal.timeout(25000),
+            signal: AbortSignal.timeout(45000),
           });
 
+        const streamResponse = async (res: Response) => {
           if (!res.ok || !res.body) {
-            if (res.status === 504) {
-              throw new Error('Load failed — the AI took too long to respond');
-            }
+            if (res.status === 504) throw new Error('The AI took too long to respond');
             let apiErr = `API error: ${res.status}`;
             try {
               const body = await res.json();
@@ -165,14 +166,42 @@ export const useThoughtStore = create<MapState>()(
               }
             }
           }
+        };
+
+        try {
+          let res: Response;
+          try {
+            res = await makeRequest();
+          } catch (firstErr) {
+            const isTimeout =
+              firstErr instanceof Error &&
+              (firstErr.name === 'AbortError' || firstErr.name === 'TimeoutError');
+            if (!isTimeout) throw firstErr;
+
+            // Show retry indicator then try once more
+            set((state) => ({
+              chatHistory: state.chatHistory.map((m) =>
+                m.id === assistantId ? { ...m, content: '↺ Retrying…' } : m
+              )
+            }));
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            set((state) => ({
+              chatHistory: state.chatHistory.map((m) =>
+                m.id === assistantId ? { ...m, content: '' } : m
+              )
+            }));
+            res = await makeRequest();
+          }
+
+          await streamResponse(res);
         } catch (err) {
           const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
           const errorText = isTimeout
-            ? 'Load failed — the AI took too long to respond'
-            : err instanceof Error ? err.message : 'Load failed';
+            ? 'The AI took too long to respond. Try again.'
+            : err instanceof Error ? err.message : 'Something went wrong';
           set((state) => ({
             chatHistory: state.chatHistory.map((m) =>
-              m.id === assistantId ? { ...m, content: `[Error: ${errorText}]` } : m
+              m.id === assistantId ? { ...m, content: `⚠ ${errorText}` } : m
             )
           }));
         }
