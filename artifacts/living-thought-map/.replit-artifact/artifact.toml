@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Living Thought Map"
+version = "1.0.0"
+id = "artifacts/living-thought-map"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19175
+
+[services.development]
+run = "pnpm --filter @workspace/living-thought-map run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/living-thought-map", "run", "build" ]
+publicDir = "artifacts/living-thought-map/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19175"
+BASE_PATH = "/"
