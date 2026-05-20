@@ -70,6 +70,7 @@ export default function ChatScreen() {
             role={item.role}
             content={item.content}
             extractedNodeId={item.extractedNodeId}
+            realms={realms}
             onExtract={extractToMap}
           />
         )}

@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { NodeType } from "@/context/ThoughtContext";
+import { NodeType, Realm } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
 
 interface Props {
@@ -10,15 +10,31 @@ interface Props {
   role: "user" | "assistant";
   content: string;
   extractedNodeId?: string;
-  onExtract?: (id: string, type: NodeType, title: string) => void;
+  realms?: Realm[];
+  onExtract?: (id: string, type: NodeType, title: string, realmId?: string) => void;
 }
 
-export default function MessageBubble({ id, role, content, extractedNodeId, onExtract }: Props) {
+export default function MessageBubble({ id, role, content, extractedNodeId, realms = [], onExtract }: Props) {
   const colors = useColors();
   const [showExtract, setShowExtract] = useState(false);
   const [title, setTitle] = useState("");
+  const [selectedRealm, setSelectedRealm] = useState<string>("");
   const isUser = role === "user";
   const s = makeStyles(colors);
+
+  const handleCommit = () => {
+    if (!title.trim()) return;
+    onExtract?.(id, "thought", title.trim(), selectedRealm || undefined);
+    setShowExtract(false);
+    setTitle("");
+    setSelectedRealm("");
+  };
+
+  const handleOpen = () => {
+    setShowExtract(true);
+    setTitle("");
+    setSelectedRealm("");
+  };
 
   return (
     <View style={[s.row, isUser ? s.rowUser : s.rowAssistant]}>
@@ -33,24 +49,68 @@ export default function MessageBubble({ id, role, content, extractedNodeId, onEx
         {!isUser && onExtract && !extractedNodeId && content.length > 10 && (
           <View style={{ marginTop: 8 }}>
             {showExtract ? (
-              <View style={[s.extractRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <View style={[s.extractPanel, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                 <TextInput
-                  style={[s.extractInput, { color: colors.foreground }]}
+                  style={[s.extractInput, { color: colors.foreground, borderColor: colors.border }]}
                   placeholder="Node title..."
                   placeholderTextColor={colors.mutedForeground}
                   value={title}
                   onChangeText={setTitle}
+                  onSubmitEditing={handleCommit}
+                  returnKeyType="done"
                   autoFocus
                 />
-                <Pressable onPress={() => { if (title.trim()) { onExtract(id, "thought", title.trim()); setShowExtract(false); setTitle(""); } }}>
-                  <Ionicons name="add-circle" size={20} color={colors.cosmicCyan} />
-                </Pressable>
-                <Pressable onPress={() => setShowExtract(false)} style={{ marginLeft: 6 }}>
-                  <Ionicons name="close" size={16} color={colors.mutedForeground} />
-                </Pressable>
+
+                {realms.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                    <View style={s.realmRow}>
+                      <Pressable
+                        onPress={() => setSelectedRealm("")}
+                        style={[
+                          s.realmPill,
+                          { borderColor: selectedRealm === "" ? colors.cosmicCyan : colors.border },
+                          selectedRealm === "" && { backgroundColor: colors.cosmicCyan + "22" },
+                        ]}
+                      >
+                        <Text style={[s.realmPillText, { color: selectedRealm === "" ? colors.cosmicCyan : colors.mutedForeground }]}>
+                          None
+                        </Text>
+                      </Pressable>
+                      {realms.map((r) => (
+                        <Pressable
+                          key={r.id}
+                          onPress={() => setSelectedRealm(r.id)}
+                          style={[
+                            s.realmPill,
+                            { borderColor: selectedRealm === r.id ? r.color : colors.border },
+                            selectedRealm === r.id && { backgroundColor: r.color + "22" },
+                          ]}
+                        >
+                          <View style={[s.realmDot, { backgroundColor: r.color }]} />
+                          <Text style={[s.realmPillText, { color: selectedRealm === r.id ? r.color : colors.mutedForeground }]}>
+                            {r.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
+
+                <View style={s.extractActions}>
+                  <Pressable onPress={() => { setShowExtract(false); setTitle(""); setSelectedRealm(""); }}>
+                    <Ionicons name="close" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleCommit}
+                    disabled={!title.trim()}
+                    style={{ opacity: title.trim() ? 1 : 0.4 }}
+                  >
+                    <Ionicons name="add-circle" size={22} color={colors.cosmicCyan} />
+                  </Pressable>
+                </View>
               </View>
             ) : (
-              <Pressable style={s.crystalBtn} onPress={() => setShowExtract(true)}>
+              <Pressable style={s.crystalBtn} onPress={handleOpen}>
                 <Ionicons name="git-network-outline" size={11} color={colors.cosmicCyan} />
                 <Text style={[s.crystalText, { color: colors.cosmicCyan }]}>Crystallize to node</Text>
               </Pressable>
@@ -94,12 +154,29 @@ function makeStyles(colors: any) {
       borderBottomLeftRadius: 4,
     },
     text: { fontSize: 14, lineHeight: 20, fontFamily: "Inter_400Regular" },
-    extractRow: {
-      flexDirection: "row", alignItems: "center",
-      borderRadius: 8, borderWidth: 1,
-      paddingHorizontal: 8, paddingVertical: 4, gap: 6,
+    extractPanel: {
+      borderRadius: 10, borderWidth: 1,
+      paddingHorizontal: 10, paddingVertical: 8,
+      gap: 0,
     },
-    extractInput: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular" },
+    extractInput: {
+      fontSize: 12, fontFamily: "Inter_400Regular",
+      borderWidth: 1, borderRadius: 6,
+      paddingHorizontal: 8, paddingVertical: 5,
+      backgroundColor: "transparent",
+    },
+    realmRow: { flexDirection: "row", gap: 5, paddingBottom: 2 },
+    realmPill: {
+      flexDirection: "row", alignItems: "center", gap: 4,
+      borderWidth: 1, borderRadius: 20,
+      paddingHorizontal: 8, paddingVertical: 3,
+    },
+    realmDot: { width: 5, height: 5, borderRadius: 3 },
+    realmPillText: { fontSize: 10, fontFamily: "Inter_400Regular" },
+    extractActions: {
+      flexDirection: "row", justifyContent: "flex-end",
+      alignItems: "center", gap: 10, marginTop: 6,
+    },
     crystalBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
     crystalText: { fontSize: 11, fontFamily: "Inter_400Regular" },
   });

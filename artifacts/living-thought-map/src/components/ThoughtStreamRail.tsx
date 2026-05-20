@@ -16,11 +16,12 @@ const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
 ];
 
 export default function ThoughtStreamRail() {
-  const { chatHistory, sendChatMessage, extractToMap, isStreaming } = useThoughtStore();
+  const { chatHistory, sendChatMessage, extractToMap, isStreaming, realms } = useThoughtStore();
   const [input, setInput] = useState('');
   const [extractTargetId, setExtractTargetId] = useState<string | null>(null);
   const [nodeTitle, setNodeTitle] = useState('');
   const [nodeType, setNodeType] = useState<NodeType>('thought');
+  const [nodeRealm, setNodeRealm] = useState<string>('');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -47,19 +48,22 @@ export default function ThoughtStreamRail() {
     setExtractTargetId(messageId);
     setNodeTitle('');
     setNodeType('thought');
+    setNodeRealm('');
   };
 
   const commitExtract = () => {
     if (!nodeTitle.trim() || !extractTargetId) return;
-    extractToMap(extractTargetId, nodeType, nodeTitle);
+    extractToMap(extractTargetId, nodeType, nodeTitle, nodeRealm || undefined);
     setExtractTargetId(null);
     setNodeTitle('');
     setNodeType('thought');
+    setNodeRealm('');
   };
 
   const cancelExtract = () => {
     setExtractTargetId(null);
     setNodeTitle('');
+    setNodeRealm('');
   };
 
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -155,6 +159,36 @@ export default function ThoughtStreamRail() {
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setNodeRealm('')}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors ${
+                nodeRealm === ''
+                  ? 'border-cosmic-cyan/60 text-cosmic-cyan bg-cosmic-cyan/10'
+                  : 'border-void-600 text-slate-500 hover:border-slate-500'
+              }`}
+            >
+              No realm
+            </button>
+            {realms.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setNodeRealm(r.id)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors ${
+                  nodeRealm === r.id
+                    ? 'border-current text-current'
+                    : 'border-void-600 text-slate-500 hover:border-slate-500'
+                }`}
+                style={nodeRealm === r.id ? { color: r.color, borderColor: r.color, backgroundColor: r.color + '18' } : {}}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: r.color }}
+                />
+                {r.name}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={cancelExtract}

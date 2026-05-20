@@ -89,7 +89,7 @@ interface MapState {
   deleteEdge: (id: string) => void;
   toggleRealm: (id: string) => void;
   sendChatMessage: (content: string) => Promise<void>;
-  extractToMap: (messageId: string, type: NodeType, title: string) => void;
+  extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
   setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
@@ -275,17 +275,15 @@ export const useThoughtStore = create<MapState>()(
         }
       },
 
-      extractToMap: (messageId, type, title) => {
+      extractToMap: (messageId, type, title, realmId) => {
         const message = get().chatHistory.find((m) => m.id === messageId);
         if (!message) return;
-
-        const activeRealmIds = get().realms.filter((r) => r.isActive).map((r) => r.id);
 
         const nodeId = get().addNode({
           title,
           content: message.content,
           type,
-          realms: activeRealmIds.length ? [activeRealmIds[0]] : ['philosophy'],
+          realms: realmId ? [realmId] : [],
           x: (Math.random() - 0.5) * 400,
           y: (Math.random() - 0.5) * 400,
         });

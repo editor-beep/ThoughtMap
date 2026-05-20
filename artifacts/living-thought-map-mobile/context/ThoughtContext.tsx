@@ -65,7 +65,7 @@ interface ThoughtContextValue {
   deleteNode: (id: string) => void;
   toggleRealm: (id: string) => void;
   sendChatMessage: (content: string) => Promise<void>;
-  extractToMap: (messageId: string, type: NodeType, title: string) => void;
+  extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
   setTerrain: (id: TerrainId) => void;
 }
 
@@ -193,19 +193,18 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     }
   }, [chatHistory]);
 
-  const extractToMap = useCallback((messageId: string, type: NodeType, title: string) => {
+  const extractToMap = useCallback((messageId: string, type: NodeType, title: string, realmId?: string) => {
     const message = chatHistory.find((m) => m.id === messageId);
     if (!message) return;
-    const activeRealmIds = realms.filter((r) => r.isActive).map((r) => r.id);
     const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newNode: ThoughtNode = {
       id, title, content: message.content, type,
-      realms: activeRealmIds.length ? [activeRealmIds[0]] : ["philosophy"],
+      realms: realmId ? [realmId] : [],
       createdAt: new Date().toISOString(),
     };
     setNodes((prev) => [...prev, newNode]);
     setChatHistory((prev) => prev.map((m) => (m.id === messageId ? { ...m, extractedNodeId: id } : m)));
-  }, [chatHistory, realms]);
+  }, [chatHistory]);
 
   const setTerrain = useCallback((id: TerrainId) => setActiveTerrain(id), []);
 
