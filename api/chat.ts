@@ -45,11 +45,13 @@ export default async function handler(req: Request) {
             parts: [{ text: SYSTEM_PROMPT }],
           },
         }),
+        signal: AbortSignal.timeout(20000),
       }
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 502,
+    const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
+    return new Response(JSON.stringify({ error: isTimeout ? 'Load failed — the AI took too long to respond' : String(err) }), {
+      status: isTimeout ? 504 : 502,
       headers: { 'Content-Type': 'application/json' },
     });
   }
