@@ -11,8 +11,10 @@ import ReactFlow, {
 } from 'reactflow';
 import { useThoughtStore } from '../store';
 import { EdgeType, NodeType, ThoughtNode } from '../types';
+import { Compass } from 'lucide-react';
 import CustomThoughtNode from './CustomThoughtNode';
 import TerrainBackground from './TerrainBackground';
+import CartographerPanel from './CartographerPanel';
 
 const nodeTypes = { thoughtMapNode: CustomThoughtNode };
 
@@ -80,7 +82,7 @@ interface EditState {
 }
 
 export default function SpatialCanvas() {
-  const { nodes, edges, realms, updateNodePosition, updateNode, addEdge, deleteNode, deleteEdge } = useThoughtStore();
+  const { nodes, edges, realms, updateNodePosition, updateNode, addEdge, deleteNode, deleteEdge, openCartographerPanel } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
 
@@ -181,6 +183,18 @@ export default function SpatialCanvas() {
           <p className="font-mono text-[10px] text-slate-600 mt-1">Every message can become a node.</p>
         </div>
       )}
+
+      {/* Floating Cartographer Button */}
+      <button
+        onClick={openCartographerPanel}
+        className="absolute bottom-20 right-4 z-30 p-3 rounded-full bg-void-800/90 border border-void-700 text-cosmic-cyan hover:bg-void-700 hover:border-cosmic-cyan/50 transition-all group shadow-lg"
+        title="Call the Cartographer"
+      >
+        <Compass size={18} className="group-hover:rotate-45 transition-transform duration-300" />
+      </button>
+
+      {/* Cartographer Panel Modal */}
+      <CartographerPanel />
 
       <ReactFlow
         nodes={flowNodes}
