@@ -88,15 +88,18 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   // Load persisted state on mount
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (!raw || initializedRef.current) return;
+      if (initializedRef.current) return;
       try {
-        const saved = JSON.parse(raw);
-        if (saved.nodes) setNodes(saved.nodes);
-        if (saved.realms) setRealms(saved.realms);
-        if (saved.chatHistory) setChatHistory(saved.chatHistory);
-        if (saved.activeTerrain) setActiveTerrain(saved.activeTerrain);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved.nodes) setNodes(saved.nodes);
+          if (saved.realms) setRealms(saved.realms);
+          if (saved.chatHistory) setChatHistory(saved.chatHistory);
+          if (saved.activeTerrain) setActiveTerrain(saved.activeTerrain);
+        }
+      } catch { /* ignore corrupt data */ } finally {
         initializedRef.current = true;
-      } catch { /* ignore corrupt data */ }
+      }
     });
   }, []);
 
