@@ -64,7 +64,7 @@ function CanvasController() {
 }
 
 export default function SpatialCanvas() {
-  const { nodes, edges, realms, updateNodePosition, updateNode, addEdge, deleteNode, deleteEdge, openCartographerPanel } = useThoughtStore();
+  const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
