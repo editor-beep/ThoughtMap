@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useThoughtStore } from '../store';
-import { Send, ArrowUpRight, Sparkles, User as UserIcon } from 'lucide-react';
+import { Send, Compass, Sparkles, User as UserIcon } from 'lucide-react';
+import CartographerSuggestionPanel from './CartographerSuggestionPanel';
 import { NodeType } from '../types';
 
 const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
@@ -16,7 +17,19 @@ const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
 ];
 
 export default function ThoughtStreamRail() {
-  const { chatHistory, sendChatMessage, extractToMap, isStreaming, realms, addRealm } = useThoughtStore();
+  const {
+    chatHistory,
+    sendChatMessage,
+    extractToMap,
+    isStreaming,
+    realms,
+    addRealm,
+    requestCartographerExtraction,
+    cartographerExtractingMessageId,
+    cartographerLoading,
+    cartographerSuggestions,
+    dismissCartographerSuggestions,
+  } = useThoughtStore();
   const [input, setInput] = useState('');
   const [extractTargetId, setExtractTargetId] = useState<string | null>(null);
   const [nodeTitle, setNodeTitle] = useState('');
@@ -24,6 +37,7 @@ export default function ThoughtStreamRail() {
   const [nodeRealm, setNodeRealm] = useState<string>('');
   const [showNewRealm, setShowNewRealm] = useState(false);
   const [newRealmInput, setNewRealmInput] = useState('');
+  const [useManualMode, setUseManualMode] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -35,8 +49,14 @@ export default function ThoughtStreamRail() {
   }, [chatHistory]);
 
   useEffect(() => {
-    if (extractTargetId) titleInputRef.current?.focus();
-  }, [extractTargetId]);
+    if (extractTargetId && useManualMode) titleInputRef.current?.focus();
+  }, [extractTargetId, useManualMode]);
+
+  useEffect(() => {
+    if (!cartographerExtractingMessageId && !cartographerSuggestions) {
+      setUseManualMode(false);
+    }
+  }, [cartographerExtractingMessageId, cartographerSuggestions]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,11 +68,18 @@ export default function ThoughtStreamRail() {
 
   const openExtract = (messageId: string) => {
     setExtractTargetId(messageId);
+    setUseManualMode(false);
+    requestCartographerExtraction(messageId);
+  };
+
+  const switchToManualMode = () => {
+    setUseManualMode(true);
     setNodeTitle('');
     setNodeType('thought');
     setNodeRealm('');
     setShowNewRealm(false);
     setNewRealmInput('');
+    dismissCartographerSuggestions();
   };
 
   const commitExtract = () => {
@@ -64,6 +91,7 @@ export default function ThoughtStreamRail() {
     setNodeRealm('');
     setShowNewRealm(false);
     setNewRealmInput('');
+    setUseManualMode(false);
   };
 
   const cancelExtract = () => {
@@ -72,6 +100,8 @@ export default function ThoughtStreamRail() {
     setNodeRealm('');
     setShowNewRealm(false);
     setNewRealmInput('');
+    setUseManualMode(false);
+    dismissCartographerSuggestions();
   };
 
   const handleCreateRealm = () => {
@@ -89,6 +119,8 @@ export default function ThoughtStreamRail() {
   };
 
   const lastMsgId = chatHistory[chatHistory.length - 1]?.id;
+  const showCartographerPanel = cartographerExtractingMessageId && !useManualMode;
+  const showManualPanel = extractTargetId && useManualMode;
 
   return (
     <aside className="w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden">
@@ -138,9 +170,10 @@ export default function ThoughtStreamRail() {
             {message.role === 'assistant' && !message.extractedNodeId && message.content && !message.content.startsWith('⚠') && (
               <button
                 onClick={() => openExtract(message.id)}
-                className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cosmic-cyan transition-colors"
+                disabled={cartographerLoading}
+                className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
               >
-                <ArrowUpRight size={10} />
+                <Compass size={10} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-45 transition-transform'}`} />
                 <span>Crystallize to canvas</span>
               </button>
             )}
@@ -152,7 +185,11 @@ export default function ThoughtStreamRail() {
         ))}
       </div>
 
-      {extractTargetId && (
+      {/* Cartographer Suggestion Panel */}
+      {showCartographerPanel && <CartographerSuggestionPanel onSwitchToManual={switchToManualMode} />}
+
+      {/* Manual extraction panel */}
+      {showManualPanel && (
         <div className="flex-shrink-0 p-4 bg-void-800/95 border-t border-void-700/60 space-y-3 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase tracking-widest text-cosmic-cyan/70">Crystallize to Canvas</span>

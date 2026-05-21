@@ -25,7 +25,17 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : null;
+
+app.use(
+  cors({
+    // Restrict to explicit whitelist in production; allow all in dev when unset
+    origin: allowedOrigins ?? (process.env.NODE_ENV === 'production' ? false : true),
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

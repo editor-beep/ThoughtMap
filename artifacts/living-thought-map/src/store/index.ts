@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId } from '../types';
+import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext } from '../types';
 
 // ─── Auto-terrain detection ────────────────────────────────────────────────
 
@@ -71,6 +71,8 @@ function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
 
 // ─── Store ─────────────────────────────────────────────────────────────────
 
+type UndoAction = { type: 'deleteNode'; node: ThoughtNode; edges: ThoughtEdge[] } | { type: 'deleteEdge'; edge: ThoughtEdge };
+
 interface MapState {
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
@@ -80,6 +82,14 @@ interface MapState {
   activeConversationId: string | null;
   isStreaming: boolean;
   focusedNodeId: string | null;
+  undoStack: UndoAction[];
+
+  cartographerLoading: boolean;
+  cartographerSuggestions: CartographerVariation[] | null;
+  cartographerInsight: string | null;
+  cartographerExtractingMessageId: string | null;
+  cartographerPanelOpen: boolean;
+  cartographerWanderResponse: string | null;
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
@@ -97,6 +107,17 @@ interface MapState {
   nodeChats: Record<string, ChatMessage[]>;
   nodeChatStreaming: string | null;
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
+
+  undo: () => void;
+  importMap: (data: { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] }) => void;
+
+  requestCartographerExtraction: (messageId: string) => Promise<void>;
+  applyCartographerSuggestion: (variationIndex: number, customTitle?: string) => void;
+  dismissCartographerSuggestions: () => void;
+  openCartographerPanel: () => void;
+  closeCartographerPanel: () => void;
+  requestWanderMode: () => Promise<void>;
+  clearWanderResponse: () => void;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -131,6 +152,15 @@ export const useThoughtStore = create<MapState>()(
       nodeChats: {} as Record<string, ChatMessage[]>,
       nodeChatStreaming: null as string | null,
 
+      undoStack: [],
+
+      cartographerLoading: false,
+      cartographerSuggestions: null,
+      cartographerInsight: null,
+      cartographerExtractingMessageId: null,
+      cartographerPanelOpen: false,
+      cartographerWanderResponse: null,
+
       addNode: (nodeData) => {
         const id = `node_${crypto.randomUUID()}`;
         const newNode: ThoughtNode = { ...nodeData, id, createdAt: new Date().toISOString() };
@@ -151,10 +181,16 @@ export const useThoughtStore = create<MapState>()(
       },
 
       deleteNode: (id) => {
-        set((state) => ({
-          nodes: state.nodes.filter((n) => n.id !== id),
-          edges: state.edges.filter((e) => e.source !== id && e.target !== id),
-        }));
+        const { nodes, edges, undoStack } = get();
+        const node = nodes.find((n) => n.id === id);
+        const connectedEdges = edges.filter((e) => e.source === id || e.target === id);
+        if (node) {
+          set({
+            undoStack: [...undoStack.slice(-49), { type: 'deleteNode', node, edges: connectedEdges }],
+            nodes: nodes.filter((n) => n.id !== id),
+            edges: edges.filter((e) => e.source !== id && e.target !== id),
+          });
+        }
       },
 
       addEdge: (source, target, type) => {
@@ -163,7 +199,14 @@ export const useThoughtStore = create<MapState>()(
       },
 
       deleteEdge: (id) => {
-        set((state) => ({ edges: state.edges.filter((e) => e.id !== id) }));
+        const { edges, undoStack } = get();
+        const edge = edges.find((e) => e.id === id);
+        if (edge) {
+          set({
+            undoStack: [...undoStack.slice(-49), { type: 'deleteEdge', edge }],
+            edges: edges.filter((e) => e.id !== id),
+          });
+        }
       },
 
       toggleRealm: (id) => {
@@ -199,6 +242,7 @@ export const useThoughtStore = create<MapState>()(
           role: 'assistant',
           content: '',
           timestamp: new Date().toISOString(),
+          complete: false,
         };
 
         set((state) => ({
@@ -244,7 +288,11 @@ export const useThoughtStore = create<MapState>()(
                     ),
                   }));
                 }
-              } catch { /* skip malformed SSE */ }
+              } catch (parseErr) {
+                if (process.env.NODE_ENV !== 'production') {
+                  console.warn('[ThoughtMap] Malformed SSE chunk:', raw, parseErr);
+                }
+              }
             }
           }
         };
@@ -273,6 +321,39 @@ export const useThoughtStore = create<MapState>()(
           }
 
           await streamResponse(res);
+
+          // Mark the message complete and parse any AI-suggested edges
+          set((state) => {
+            const finalMsg = state.chatHistory.find((m) => m.id === assistantId);
+            const newEdges: ThoughtEdge[] = [];
+
+            if (finalMsg) {
+              // Parse LINK: <title1> → <title2> | <relationship>
+              const linkRe = /LINK:\s*(.+?)\s*[→>]\s*(.+?)\s*\|\s*(\w+)/gi;
+              let match: RegExpExecArray | null;
+              while ((match = linkRe.exec(finalMsg.content)) !== null) {
+                const [, fromTitle, toTitle, relType] = match;
+                const fromNode = state.nodes.find((n) =>
+                  n.title.toLowerCase().trim() === fromTitle.toLowerCase().trim()
+                );
+                const toNode = state.nodes.find((n) =>
+                  n.title.toLowerCase().trim() === toTitle.toLowerCase().trim()
+                );
+                const validTypes: EdgeType[] = ['evolves_from', 'contradicts', 'references', 'remixes', 'supports'];
+                const edgeType = validTypes.includes(relType as EdgeType) ? (relType as EdgeType) : 'references';
+                if (fromNode && toNode) {
+                  newEdges.push({ id: `edge_${crypto.randomUUID()}`, source: fromNode.id, target: toNode.id, type: edgeType });
+                }
+              }
+            }
+
+            return {
+              chatHistory: state.chatHistory.map((m) =>
+                m.id === assistantId ? { ...m, complete: true } : m
+              ),
+              edges: [...state.edges, ...newEdges],
+            };
+          });
         } catch (err) {
           const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
           const errorText = isTimeout
@@ -280,7 +361,7 @@ export const useThoughtStore = create<MapState>()(
             : err instanceof Error ? err.message : 'Something went wrong';
           set((state) => ({
             chatHistory: state.chatHistory.map((m) =>
-              m.id === assistantId ? { ...m, content: `⚠ ${errorText}` } : m
+              m.id === assistantId ? { ...m, content: `⚠ ${errorText}`, complete: true } : m
             ),
           }));
         }
@@ -389,6 +470,197 @@ export const useThoughtStore = create<MapState>()(
 
         set({ nodeChatStreaming: null });
       },
+
+      requestCartographerExtraction: async (messageId) => {
+        const message = get().chatHistory.find((m) => m.id === messageId);
+        if (!message) return;
+
+        set({
+          cartographerLoading: true,
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: messageId,
+        });
+
+        const state = get();
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
+          activeTerrain: state.activeTerrain,
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+        };
+
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'extract', message: message.content, context }),
+            signal: AbortSignal.timeout(30000),
+          });
+
+          if (!res.ok) {
+            let errorMsg = `API error: ${res.status}`;
+            try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
+            throw new Error(errorMsg);
+          }
+
+          const data = await res.json();
+          set({
+            cartographerLoading: false,
+            cartographerSuggestions: data.variations ?? [],
+            cartographerInsight: data.spatialInsight ?? null,
+          });
+        } catch (err) {
+          console.error('[Cartographer] Extraction failed:', err);
+          set({
+            cartographerLoading: false,
+            cartographerSuggestions: null,
+            cartographerInsight: null,
+            cartographerExtractingMessageId: null,
+          });
+        }
+      },
+
+      applyCartographerSuggestion: (variationIndex, customTitle) => {
+        const suggestions = get().cartographerSuggestions;
+        const messageId = get().cartographerExtractingMessageId;
+        if (!suggestions || !messageId || variationIndex >= suggestions.length) return;
+
+        const variation = suggestions[variationIndex];
+        const state = get();
+
+        let x = (Math.random() - 0.5) * 400;
+        let y = (Math.random() - 0.5) * 400;
+
+        if (variation.suggestedZone.startsWith('near:')) {
+          const nearNodeId = variation.suggestedZone.slice(5);
+          const nearNode = state.nodes.find((n) => n.id === nearNodeId);
+          if (nearNode) {
+            x = nearNode.x + 150 + (Math.random() - 0.5) * 100;
+            y = nearNode.y + (Math.random() - 0.5) * 100;
+          }
+        } else {
+          const zoneOffsets: Record<string, { x: number; y: number }> = {
+            center: { x: 0, y: 0 },
+            northern: { x: 0, y: -300 },
+            southern: { x: 0, y: 300 },
+            eastern: { x: 300, y: 0 },
+            western: { x: -300, y: 0 },
+          };
+          const offset = zoneOffsets[variation.suggestedZone] ?? zoneOffsets.center;
+          x = offset.x + (Math.random() - 0.5) * 200;
+          y = offset.y + (Math.random() - 0.5) * 200;
+        }
+
+        const nodeId = get().addNode({
+          title: customTitle ?? variation.title,
+          content: variation.content,
+          type: variation.type,
+          realms: variation.realms,
+          x,
+          y,
+        });
+
+        set((s) => ({
+          chatHistory: s.chatHistory.map((m) => (m.id === messageId ? { ...m, extractedNodeId: nodeId } : m)),
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: null,
+        }));
+      },
+
+      dismissCartographerSuggestions: () => {
+        set({
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: null,
+          cartographerLoading: false,
+        });
+      },
+
+      openCartographerPanel: () => set({ cartographerPanelOpen: true }),
+      closeCartographerPanel: () => set({ cartographerPanelOpen: false, cartographerWanderResponse: null }),
+
+      requestWanderMode: async () => {
+        set({ cartographerLoading: true, cartographerWanderResponse: null });
+
+        const state = get();
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
+          activeTerrain: state.activeTerrain,
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+        };
+
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'wander', message: 'Survey the map and offer an observation.', context }),
+            signal: AbortSignal.timeout(30000),
+          });
+
+          if (!res.ok || !res.body) throw new Error('Wander mode failed');
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullResponse = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            for (const line of lines) {
+              const raw = line.slice(6).trim();
+              if (raw === '[DONE]') continue;
+              try {
+                const token = JSON.parse(raw).choices?.[0]?.delta?.content ?? '';
+                if (token) { fullResponse += token; set({ cartographerWanderResponse: fullResponse }); }
+              } catch { /**/ }
+            }
+          }
+        } catch (err) {
+          console.error('[Cartographer] Wander mode failed:', err);
+          set({ cartographerWanderResponse: 'The Cartographer remains silent... the terrain is difficult to read at present.' });
+        }
+
+        set({ cartographerLoading: false });
+      },
+
+      clearWanderResponse: () => set({ cartographerWanderResponse: null }),
+
+      undo: () => {
+        const { undoStack } = get();
+        if (undoStack.length === 0) return;
+        const action = undoStack[undoStack.length - 1];
+        const remaining = undoStack.slice(0, -1);
+        if (action.type === 'deleteNode') {
+          set((state) => ({
+            undoStack: remaining,
+            nodes: [...state.nodes, action.node],
+            edges: [...state.edges, ...action.edges],
+          }));
+        } else if (action.type === 'deleteEdge') {
+          set((state) => ({
+            undoStack: remaining,
+            edges: [...state.edges, action.edge],
+          }));
+        }
+      },
+
+      importMap: ({ nodes, edges, realms }) => {
+        set((state) => {
+          const existingIds = new Set(state.nodes.map((n) => n.id));
+          const newNodes = nodes.filter((n) => !existingIds.has(n.id));
+          const existingEdgeIds = new Set(state.edges.map((e) => e.id));
+          const newEdges = edges.filter((e) => !existingEdgeIds.has(e.id));
+          const existingRealmIds = new Set(state.realms.map((r) => r.id));
+          const newRealms = realms.filter((r) => !existingRealmIds.has(r.id));
+          return {
+            nodes: [...state.nodes, ...newNodes],
+            edges: [...state.edges, ...newEdges],
+            realms: [...state.realms, ...newRealms],
+          };
+        });
+      },
     }),
     {
       name: 'thought-map-storage',
@@ -400,6 +672,16 @@ export const useThoughtStore = create<MapState>()(
         activeTerrain: state.activeTerrain,
         nodeChats: state.nodeChats,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        // Mark any assistant messages that were incomplete (mid-stream on last close) as failed
+        const repaired = state.chatHistory.map((m) =>
+          m.role === 'assistant' && m.complete === false
+            ? { ...m, content: m.content || '⚠ Message interrupted — please resend.', complete: true }
+            : m
+        );
+        state.chatHistory = repaired;
+      },
     }
   )
 );
