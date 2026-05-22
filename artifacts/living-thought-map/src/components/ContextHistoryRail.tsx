@@ -63,7 +63,7 @@ export default function ContextHistoryRail() {
 
   if (collapsed) {
     return (
-      <aside className="w-10 h-full bg-void-900/90 flex flex-col items-center py-4 border-r border-void-800/40 gap-3 flex-shrink-0">
+      <aside className="hidden md:flex w-10 h-full bg-void-900/90 flex-col items-center py-4 border-r border-void-800/40 gap-3 flex-shrink-0">
         <button
           onClick={() => setCollapsed(false)}
           className="p-1.5 rounded hover:bg-void-800/60 text-slate-500 hover:text-slate-300 transition-colors"
@@ -86,7 +86,7 @@ export default function ContextHistoryRail() {
   }
 
   return (
-    <aside className="w-56 h-full bg-void-900/90 flex flex-col justify-between p-4 border-r border-void-800/40 select-none flex-shrink-0">
+    <aside className="hidden md:flex w-56 h-full bg-void-900/90 flex-col justify-between p-4 border-r border-void-800/40 select-none flex-shrink-0">
       <div className="min-h-0 flex flex-col">
         <div className="flex items-center justify-between mb-8 px-2">
           <div className="flex items-center gap-2">
