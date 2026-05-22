@@ -1,8 +1,60 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useThoughtStore } from '../store';
-import { Send, Compass, Sparkles, User as UserIcon } from 'lucide-react';
+import { Send, Compass, Sparkles, User as UserIcon, X } from 'lucide-react';
 import CartographerSuggestionPanel from './CartographerSuggestionPanel';
 import { NodeType } from '../types';
+
+function getDisplayContent(content: string): string {
+  const mapExtractIdx = content.search(/\*\*MAP EXTRACT\*\*|```json/);
+  if (mapExtractIdx === -1) return content;
+  return content.slice(0, mapExtractIdx).replace(/^1\.\s+\*\*REFLECTION & INSIGHTS\*\*\s*/i, '').trim();
+}
+
+function renderInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
+}
+
+function MarkdownText({ text }: { text: string }) {
+  const paragraphs = text.split(/\n{2,}/);
+  return (
+    <div className="space-y-2">
+      {paragraphs.map((para, pi) => {
+        const lines = para.split('\n');
+        return (
+          <p key={pi} className="leading-relaxed">
+            {lines.map((line, li) => {
+              const listMatch = line.match(/^(\d+)\.\s+(.*)/);
+              if (listMatch) {
+                return (
+                  <span key={li} className="block pl-2">
+                    <strong className="text-cosmic-cyan/70">{listMatch[1]}.</strong>{' '}
+                    {renderInline(listMatch[2])}
+                    {li < lines.length - 1 && <br />}
+                  </span>
+                );
+              }
+              return (
+                <span key={li}>
+                  {renderInline(line)}
+                  {li < lines.length - 1 && <br />}
+                </span>
+              );
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
   { value: 'thought',       label: 'Thought' },
@@ -16,7 +68,7 @@ const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
   { value: 'fragment',      label: 'Fragment' }
 ];
 
-export default function ThoughtStreamRail() {
+export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const {
     chatHistory,
     sendChatMessage,
@@ -123,10 +175,13 @@ export default function ThoughtStreamRail() {
   const showManualPanel = extractTargetId && useManualMode;
 
   return (
-    <aside className="w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden">
+    <aside className={`fixed md:relative inset-0 md:inset-auto w-full md:w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden z-50 md:z-auto transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
       <div className="px-4 py-3.5 border-b border-void-800/60 bg-void-900/60 backdrop-blur-sm flex-shrink-0 flex items-center gap-2.5">
         <div className="w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse" />
-        <h3 className="font-mono text-xs tracking-wider uppercase text-slate-400">Thought Stream</h3>
+        <h3 className="font-mono text-xs tracking-wider uppercase text-slate-400 flex-1">Thought Stream</h3>
+        <button onClick={onClose} className="md:hidden text-slate-600 hover:text-slate-300 transition-colors p-1">
+          <X size={16} />
+        </button>
       </div>
 
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
@@ -150,9 +205,9 @@ export default function ThoughtStreamRail() {
             )}
 
             <div
-              className={`px-3.5 py-2.5 rounded-xl text-sm leading-relaxed max-w-[85%] border ${
+              className={`px-3.5 py-2.5 rounded-xl text-sm max-w-[85%] border ${
                 message.role === 'user'
-                  ? 'bg-void-700/80 text-slate-200 border-void-600/50 rounded-tr-sm'
+                  ? 'bg-void-700/80 text-slate-200 border-void-600/50 rounded-tr-sm leading-relaxed'
                   : 'bg-void-900/60 text-slate-300 border-void-800/60 rounded-tl-sm'
               }`}
               style={
@@ -161,9 +216,20 @@ export default function ThoughtStreamRail() {
                   : undefined
               }
             >
-              {message.content}
-              {message.role === 'assistant' && isStreaming && message.id === lastMsgId && (
-                <span className="inline-block w-[2px] h-[14px] bg-cosmic-cyan/80 ml-0.5 animate-pulse align-middle" />
+              {message.role === 'assistant' ? (
+                <>
+                  <MarkdownText text={getDisplayContent(message.content)} />
+                  {isStreaming && message.id === lastMsgId && (
+                    <span className="inline-block w-[2px] h-[14px] bg-cosmic-cyan/80 ml-0.5 animate-pulse align-middle" />
+                  )}
+                </>
+              ) : (
+                <>
+                  {message.content}
+                  {isStreaming && message.id === lastMsgId && (
+                    <span className="inline-block w-[2px] h-[14px] bg-cosmic-cyan/80 ml-0.5 animate-pulse align-middle" />
+                  )}
+                </>
               )}
             </div>
 
