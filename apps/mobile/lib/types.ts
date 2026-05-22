@@ -49,10 +49,40 @@ export interface Realm {
   isActive: boolean;
 }
 
+export interface MapExtractNode {
+  id: string;
+  title: string;
+  content?: string;
+  type: string;
+  suggestedPosition?: { x: number; y: number };
+  realm?: string;
+  tags?: string[];
+  visual?: string;
+}
+
+export interface MapExtractEdge {
+  from: string;
+  to: string;
+  type: string;
+  strength?: number;
+  label?: string;
+}
+
+export interface MapExtract {
+  nodes: MapExtractNode[];
+  edges: MapExtractEdge[];
+  suggestions?: {
+    newRealms?: string[];
+    clusters?: string[];
+    actions?: string[];
+  };
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   extractedNodeId?: string;
+  mapExtract?: MapExtract;
 }

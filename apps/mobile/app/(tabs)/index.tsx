@@ -18,7 +18,7 @@ import { Colors } from '../../constants/colors';
 import ExtractModal from '../../components/ExtractModal';
 
 export default function ChatScreen() {
-  const { chatHistory, sendChatMessage, isStreaming } = useThoughtStore();
+  const { chatHistory, sendChatMessage, isStreaming, applyMapExtract } = useThoughtStore();
   const [input, setInput] = useState('');
   const [extractMsgId, setExtractMsgId] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -31,13 +31,24 @@ export default function ChatScreen() {
     await sendChatMessage(text);
   }, [input, isStreaming, sendChatMessage]);
 
+  const getDisplayContent = useCallback((content: string): string => {
+    const mapIdx = content.indexOf('2. **MAP EXTRACT**');
+    if (mapIdx !== -1) return content.slice(0, mapIdx).trim();
+    const jsonIdx = content.indexOf('```json');
+    if (jsonIdx !== -1) return content.slice(0, jsonIdx).trim();
+    return content;
+  }, []);
+
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<ChatMessage>) => {
       const isUser = item.role === 'user';
       const isLastMsg = chatHistory[chatHistory.length - 1]?.id === item.id;
-      const canExtract =
+      const displayContent = isUser ? item.content : getDisplayContent(item.content);
+      const hasMapExtract = !!item.mapExtract && !item.extractedNodeId;
+      const canManualExtract =
         !isUser &&
         !item.extractedNodeId &&
+        !item.mapExtract &&
         item.content &&
         !item.content.startsWith('⚠') &&
         !item.content.startsWith('↺');
@@ -64,14 +75,22 @@ export default function ChatScreen() {
 
           <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
             <Text style={styles.bubbleText}>
-              {item.content}
+              {displayContent}
               {!isUser && isStreaming && isLastMsg && (
                 <Text style={{ color: Colors.cosmicCyan }}> ▍</Text>
               )}
             </Text>
           </View>
 
-          {canExtract && (
+          {hasMapExtract && (
+            <Pressable onPress={() => applyMapExtract(item.id)} style={styles.applyBtn}>
+              <Text style={styles.applyBtnText}>
+                ✦ Apply to canvas ({item.mapExtract!.nodes.length} node{item.mapExtract!.nodes.length !== 1 ? 's' : ''})
+              </Text>
+            </Pressable>
+          )}
+
+          {canManualExtract && (
             <Pressable onPress={() => setExtractMsgId(item.id)} style={styles.extractBtn}>
               <Text style={styles.extractBtnText}>✦ Crystallize to canvas</Text>
             </Pressable>
@@ -83,7 +102,7 @@ export default function ChatScreen() {
         </View>
       );
     },
-    [chatHistory, isStreaming]
+    [chatHistory, isStreaming, getDisplayContent, applyMapExtract]
   );
 
   return (
@@ -232,6 +251,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.slate300,
     lineHeight: 20,
+  },
+  applyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.cosmicCyan + '50',
+    backgroundColor: Colors.cosmicCyan + '12',
+  },
+  applyBtnText: {
+    fontSize: 10,
+    color: Colors.cosmicCyan + 'CC',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   extractBtn: {
     flexDirection: 'row',
