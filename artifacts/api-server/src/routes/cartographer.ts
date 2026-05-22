@@ -222,8 +222,8 @@ router.post("/cartographer", async (req: Request, res: Response) => {
         return;
       }
 
-      const result = await upstream.json();
-      const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const result = await upstream.json() as Record<string, unknown>;
+      const rawText = (result.candidates as Array<{content:{parts:Array<{text:string}>}}> | undefined)?.[0]?.content?.parts?.[0]?.text ?? "";
 
       let parsed: unknown;
       try {

@@ -13,18 +13,17 @@ runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
-mode = "parallel"
+mode = "sequential"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8081 BASE_PATH=/ pnpm --filter @workspace/living-thought-map run dev"
-waitForPort = 8081
+args = "pnpm install --frozen-lockfile"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
+args = "PORT=8081 BASE_PATH=/ pnpm --filter @workspace/living-thought-map run dev & PORT=8080 pnpm --filter @workspace/api-server run dev & wait"
+waitForPort = 8081
 
 [agent]
 stack = "PNPM_WORKSPACE"
