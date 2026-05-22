@@ -87,11 +87,11 @@ export default function ContextHistoryRail() {
 
   return (
     <aside className="hidden md:flex w-56 h-full bg-void-900/90 flex-col justify-between p-4 border-r border-void-800/40 select-none flex-shrink-0">
-      <div className="min-h-0 flex flex-col">
+      <div className="min-h-0 flex flex-col flex-1">
         <div className="flex items-center justify-between mb-8 px-2">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" />
-            <h1 className="font-mono text-xs tracking-widest uppercase text-slate-400">Thought Map</h1>
+            <div className="w-2.5 h-2.5 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
+            <h1 className="font-mono text-xs tracking-widest uppercase text-slate-300">Thought Map</h1>
           </div>
           <button
             onClick={() => setCollapsed(true)}
@@ -103,15 +103,16 @@ export default function ContextHistoryRail() {
         </div>
 
         <section className="mb-8">
-          <div className="text-[10px] font-mono tracking-wider text-slate-500 uppercase mb-3 px-2">Symbolic Realms</div>
-          <div className="space-y-1">
+          <div className="text-[10px] font-mono tracking-wider text-slate-300 uppercase mb-3 pl-3 border-l-2 border-cosmic-cyan/40">Symbolic Realms</div>
+          <div className="space-y-0.5">
             {realms.map((realm) => (
               <button
                 key={realm.id}
                 onClick={() => toggleRealm(realm.id)}
-                className={`w-full flex items-center justify-between px-2 py-1.5 rounded font-mono text-xs transition-all ${
-                  realm.isActive ? 'text-slate-200 bg-void-800/60' : 'text-slate-600 hover:text-slate-400'
+                className={`w-full flex items-center justify-between px-2 py-2 rounded font-mono text-xs transition-all ${
+                  realm.isActive ? 'text-slate-200 bg-void-800/60' : 'text-slate-600 hover:text-slate-400 hover:bg-void-800/30'
                 }`}
+                style={realm.isActive ? { boxShadow: `inset 2px 0 0 ${realm.color}` } : undefined}
               >
                 <div className="flex items-center gap-2">
                   <span style={{ color: realm.isActive ? realm.color : '#475569' }}>{realm.symbol}</span>
@@ -127,8 +128,8 @@ export default function ContextHistoryRail() {
                     </span>
                   )}
                   <div
-                    className="w-1 h-1 rounded-full"
-                    style={{ backgroundColor: realm.isActive ? realm.color : 'transparent' }}
+                    className="w-1.5 h-1.5 rounded-full transition-all"
+                    style={{ backgroundColor: realm.isActive ? realm.color : 'transparent', boxShadow: realm.isActive ? `0 0 4px ${realm.color}` : 'none' }}
                   />
                 </div>
               </button>
@@ -136,11 +137,11 @@ export default function ContextHistoryRail() {
           </div>
         </section>
 
-        <section className="min-h-0 flex flex-col">
-          <div className="text-[10px] font-mono tracking-wider text-slate-500 uppercase mb-2 px-2">
+        <section className="min-h-0 flex flex-col flex-1">
+          <div className="text-[10px] font-mono tracking-wider text-slate-300 uppercase mb-2 pl-3 border-l-2 border-cosmic-cyan/40">
             Active Anchors
             {nodes.length > 0 && (
-              <span className="text-slate-600 ml-1">({nodes.length})</span>
+              <span className="text-slate-500 ml-1">({nodes.length})</span>
             )}
           </div>
           {nodes.length > 3 && (
@@ -155,7 +156,7 @@ export default function ContextHistoryRail() {
               />
             </div>
           )}
-          <div className="overflow-y-auto space-y-0.5 pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5 pr-1">
             {nodes.length === 0 ? (
               <div className="text-xs italic text-slate-600 font-mono px-2">No nodes anchored.</div>
             ) : filteredNodes.length === 0 ? (
@@ -222,7 +223,7 @@ export default function ContextHistoryRail() {
         </div>
         <button
           onClick={() => setIsSanctumOpen(true)}
-          className="w-full flex items-center gap-2 px-4 py-2.5 font-mono text-[10px] tracking-widest uppercase text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-all"
+          className="w-full flex items-center gap-2 px-4 py-2.5 font-mono text-[10px] tracking-widest uppercase text-slate-400 hover:text-cosmic-cyan hover:bg-void-800/60 transition-all group"
         >
           <Layers size={11} />
           <span>Sanctum</span>

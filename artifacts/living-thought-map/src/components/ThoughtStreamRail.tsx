@@ -118,6 +118,13 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
     await sendChatMessage(msg);
   };
 
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e as unknown as React.FormEvent);
+    }
+  };
+
   const openExtract = (messageId: string) => {
     setExtractTargetId(messageId);
     setUseManualMode(false);
@@ -177,8 +184,8 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   return (
     <aside className={`fixed md:relative inset-0 md:inset-auto w-full md:w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden z-50 md:z-auto transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
       <div className="px-4 py-3.5 border-b border-void-800/60 bg-void-900/60 backdrop-blur-sm flex-shrink-0 flex items-center gap-2.5">
-        <div className="w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse" />
-        <h3 className="font-mono text-xs tracking-wider uppercase text-slate-400 flex-1">Thought Stream</h3>
+        <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
+        <h3 className="font-mono text-xs tracking-wider uppercase text-slate-300 flex-1">Thought Stream</h3>
         <button onClick={onClose} className="md:hidden text-slate-600 hover:text-slate-300 transition-colors p-1">
           <X size={16} />
         </button>
@@ -212,7 +219,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
               }`}
               style={
                 message.role === 'assistant'
-                  ? { borderLeftColor: 'rgba(6,182,212,0.45)', borderLeftWidth: '2px' }
+                  ? { borderLeftColor: 'rgba(6,182,212,0.65)', borderLeftWidth: '3px' }
                   : undefined
               }
             >
@@ -237,9 +244,9 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
               <button
                 onClick={() => openExtract(message.id)}
                 disabled={cartographerLoading}
-                className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="flex items-center gap-1.5 text-xs text-cosmic-cyan/50 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
               >
-                <Compass size={10} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-45 transition-transform'}`} />
+                <Compass size={11} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-45 transition-transform'}`} />
                 <span>Crystallize to canvas</span>
               </button>
             )}
@@ -352,23 +359,31 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
       )}
 
       <form onSubmit={handleSend} className="p-4 border-t border-void-800/60 bg-void-900/60 flex-shrink-0">
-        <div className="relative flex items-center">
-          <input
-            type="text"
+        <div className="relative flex items-end">
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleInputKeyDown}
             placeholder={isStreaming ? 'Navigating…' : 'Introduce a concept…'}
             disabled={isStreaming}
-            className="w-full bg-void-800/60 text-sm border border-void-700/80 rounded-xl pl-4 pr-11 py-3 text-slate-200 focus:outline-none focus:border-cosmic-cyan/60 placeholder:text-slate-600 disabled:opacity-50 transition-colors"
+            rows={1}
+            className="w-full bg-void-800/80 text-sm border border-void-700/80 rounded-2xl pl-4 pr-11 py-3 text-slate-200 focus:outline-none focus:border-cosmic-cyan/60 placeholder:text-slate-600 disabled:opacity-50 transition-colors resize-none overflow-hidden leading-relaxed"
+            style={{ maxHeight: '120px', overflowY: input.split('\n').length > 4 ? 'auto' : 'hidden' }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+            }}
           />
           <button
             type="submit"
             disabled={isStreaming || !input.trim()}
-            className="absolute right-2.5 p-1.5 rounded-lg text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-30"
+            className="absolute right-2.5 bottom-2.5 p-1.5 rounded-lg text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-30"
           >
             <Send size={15} />
           </button>
         </div>
+        <p className="text-[10px] text-slate-600 mt-1.5 text-center">Enter to send · Shift+Enter for new line</p>
       </form>
     </aside>
   );

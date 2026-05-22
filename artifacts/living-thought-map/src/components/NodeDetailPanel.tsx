@@ -63,7 +63,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const [nodeType, setNodeType] = useState<NodeType>('thought');
   const [chatInput, setChatInput] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (node) {
@@ -132,16 +132,17 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-void-800/60 flex-shrink-0">
+      <div className="flex border-b border-void-800/60 flex-shrink-0 bg-void-800/30">
         {tabs.map(([key, label, TabIcon]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-mono uppercase tracking-wider transition-colors border-b-2 ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-mono uppercase tracking-wider transition-all border-b-2 ${
               tab === key
-                ? 'border-cosmic-cyan text-cosmic-cyan'
-                : 'border-transparent text-slate-500 hover:text-slate-300'
+                ? 'border-cosmic-cyan text-cosmic-cyan bg-void-800/40'
+                : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-void-800/20'
             }`}
+            style={tab === key ? { textShadow: '0 0 12px rgba(6,182,212,0.6)' } : undefined}
           >
             <TabIcon size={10} />
             {label}
@@ -196,20 +197,32 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
           </div>
 
           <form onSubmit={handleSendChat} className="p-3 border-t border-void-800/60 flex-shrink-0">
-            <div className="relative flex items-center">
-              <input
+            <div className="relative flex items-end">
+              <textarea
                 ref={chatInputRef}
-                type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendChat(e as unknown as React.FormEvent);
+                  }
+                }}
                 placeholder={isStreaming ? 'Navigating…' : `Explore "${node.title}"…`}
                 disabled={isStreaming}
-                className="w-full bg-void-800/60 text-sm border border-void-700/80 rounded-xl pl-3 pr-10 py-2.5 text-slate-200 focus:outline-none focus:border-cosmic-cyan/60 placeholder:text-slate-600 disabled:opacity-50 transition-colors"
+                rows={1}
+                className="w-full bg-void-800/60 text-sm border border-void-700/80 rounded-xl pl-3 pr-10 py-2.5 text-slate-200 focus:outline-none focus:border-cosmic-cyan/60 placeholder:text-slate-600 disabled:opacity-50 transition-colors resize-none overflow-hidden leading-relaxed"
+                style={{ maxHeight: '96px' }}
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = 'auto';
+                  el.style.height = Math.min(el.scrollHeight, 96) + 'px';
+                }}
               />
               <button
                 type="submit"
                 disabled={isStreaming || !chatInput.trim()}
-                className="absolute right-2 p-1.5 text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-30"
+                className="absolute right-2 bottom-2 p-1.5 text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-30"
               >
                 <Send size={13} />
               </button>
