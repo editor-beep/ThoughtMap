@@ -25,14 +25,87 @@ const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().max(10_000),
 });
+const contextNodeSchema = z.object({
+  id: z.string().max(100),
+  title: z.string().max(200),
+  type: z.string().max(50),
+  realm: z.string().max(100).optional(),
+});
 const chatRequestSchema = z.object({
   messages: z.array(messageSchema).max(200),
+  contextNodes: z.array(contextNodeSchema).max(50).optional(),
+  terrain: z.string().max(100).optional(),
+  focusedNodeId: z.string().max(100).optional(),
 });
 
-const SYSTEM_PROMPT = `You are a spatial reasoning assistant embedded in a thought-mapping canvas.
-Responses are concise (2-4 sentences). Speak as if tracing conceptual topology — the user maps ideas spatially.
-When you identify a distinct concept worth anchoring as a node, end your response with:
-EXTRACT: <concept title> | <one-line description>`;
+const BASE_SYSTEM_PROMPT = `You are an expert AI co-cartographer collaborating inside ThoughtMap — a living spatial thought terrain. Your role is to think associatively, surface patterns, and co-create a rich, interconnected constellation of ideas directly on the infinite canvas.
+
+Core principles:
+- Thoughts are fluid, symbolic, and multi-layered. Prioritize unexpected but meaningful connections (metaphorical, thematic, oppositional, evolutionary).
+- Favor depth + creativity over generic summaries.
+- Always consider spatial placement: central ideas, clusters ("rooms" or "houses"), proximity = semantic closeness.
+- Support the user as a true collaborator: suggest expansions, critiques, refinements, and visual groupings.
+
+For every response, provide TWO parts clearly labeled:
+
+1. **REFLECTION & INSIGHTS** (Natural, engaging prose — 2-5 sentences)
+   - Key takeaways, new angles, questions to explore, or creative sparks.
+   - Highlight patterns or constellations emerging from the discussion.
+
+2. **MAP EXTRACT** (Strictly valid JSON only — nothing else in this section)
+\`\`\`json
+{
+  "nodes": [
+    {
+      "id": "unique-short-id",
+      "title": "Concise, evocative title",
+      "content": "Rich description (markdown ok)",
+      "type": "thought",
+      "suggestedPosition": { "x": 0, "y": 0 },
+      "realm": "optional realm id",
+      "tags": ["tag1"],
+      "visual": "color hint e.g. cosmic-blue"
+    }
+  ],
+  "edges": [
+    {
+      "from": "node-id-1",
+      "to": "node-id-2",
+      "type": "references",
+      "strength": 0.8,
+      "label": "optional label"
+    }
+  ],
+  "suggestions": {
+    "newRealms": [],
+    "clusters": [],
+    "actions": []
+  }
+}
+\`\`\`
+
+Node types — use ONLY these exact values: thought | joke | character | myth | research | canon | contradiction | artifact | fragment
+Edge types — use ONLY these exact values: evolves_from | contradicts | references | remixes | supports
+
+Rules for MAP EXTRACT:
+- Create 2–6 high-value nodes per response.
+- Reuse existing node IDs (from canvas context) when referring to nodes already on the map.
+- suggestedPosition is relative to canvas center (0,0 = center). Spread nodes meaningfully.
+- Only output valid JSON in this section — no extra text, markdown prose, or explanations outside the code fence.`;
+
+function buildSystemInstruction(contextNodes?: { id: string; title: string; type: string; realm?: string }[], terrain?: string, focusedNodeId?: string): string {
+  const lines: string[] = [];
+  if (terrain) lines.push(`Active terrain: ${terrain}`);
+  if (focusedNodeId) lines.push(`Focused/pinned node ID: ${focusedNodeId}`);
+  if (contextNodes && contextNodes.length > 0) {
+    lines.push("Existing nodes on canvas (reuse these IDs in edges):");
+    for (const n of contextNodes) {
+      lines.push(`  - id: ${n.id} | "${n.title}" | type: ${n.type}${n.realm ? ` | realm: ${n.realm}` : ""}`);
+    }
+  }
+  if (lines.length === 0) return BASE_SYSTEM_PROMPT;
+  return `${BASE_SYSTEM_PROMPT}\n\n## Current Canvas Context\n${lines.join("\n")}`;
+}
 
 router.post("/chat", async (req: Request, res: Response) => {
   const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
@@ -49,7 +122,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
     return;
   }
-  const { messages } = parsed.data;
+  const { messages, contextNodes, terrain, focusedNodeId } = parsed.data;
 
   const apiKey = process.env.GEMINI_API_KEY ?? "";
   if (!apiKey) {
@@ -67,6 +140,7 @@ router.post("/chat", async (req: Request, res: Response) => {
   }));
 
   const model = "gemini-2.0-flash";
+  const systemText = buildSystemInstruction(contextNodes, terrain, focusedNodeId);
 
   let upstream: Response | globalThis.Response;
   try {
@@ -78,11 +152,11 @@ router.post("/chat", async (req: Request, res: Response) => {
         body: JSON.stringify({
           contents: geminiContents,
           systemInstruction: {
-            parts: [{ text: SYSTEM_PROMPT }],
+            parts: [{ text: systemText }],
           },
           generationConfig: {
             temperature: 0.8,
-            maxOutputTokens: 500,
+            maxOutputTokens: 1200,
           },
         }),
         signal: AbortSignal.timeout(30000),

@@ -6,10 +6,45 @@ import {
   ThoughtEdge,
   Realm,
   ChatMessage,
+  MapExtract,
   NodeType,
   EdgeType,
   TerrainId,
 } from './types';
+
+const VALID_NODE_TYPES: NodeType[] = ['thought', 'joke', 'character', 'myth', 'research', 'canon', 'contradiction', 'artifact', 'fragment'];
+const VALID_EDGE_TYPES: EdgeType[] = ['evolves_from', 'contradicts', 'references', 'remixes', 'supports'];
+
+function mapNodeType(type: string): NodeType {
+  if (VALID_NODE_TYPES.includes(type as NodeType)) return type as NodeType;
+  const fallback: Record<string, NodeType> = {
+    concept: 'thought', note: 'fragment', question: 'thought',
+    claim: 'research', entity: 'character', persona: 'character', realm: 'myth',
+  };
+  return fallback[type] ?? 'thought';
+}
+
+function mapEdgeType(type: string): EdgeType {
+  if (VALID_EDGE_TYPES.includes(type as EdgeType)) return type as EdgeType;
+  const fallback: Record<string, EdgeType> = {
+    evolves: 'evolves_from', relates: 'references', contrasts: 'contradicts',
+    contains: 'references', inspires: 'supports', questions: 'contradicts',
+    grounds: 'supports',
+  };
+  return fallback[type] ?? 'references';
+}
+
+function parseMapExtract(text: string): MapExtract | null {
+  const match = text.match(/```json\s*([\s\S]*?)```/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1].trim());
+    if (!Array.isArray(parsed.nodes)) return null;
+    return parsed as MapExtract;
+  } catch {
+    return null;
+  }
+}
 
 interface MapState {
   nodes: ThoughtNode[];
@@ -28,6 +63,7 @@ interface MapState {
   toggleRealm: (id: string) => void;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string) => void;
+  applyMapExtract: (messageId: string) => void;
   setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
@@ -124,11 +160,24 @@ export const useThoughtStore = create<MapState>()(
         // EXPO_PUBLIC_API_URL must point to the deployed Vercel domain, e.g. https://your-app.vercel.app
         const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? '';
 
+        const state = get();
+        const contextNodes = state.nodes.slice(-50).map((n) => ({
+          id: n.id,
+          title: n.title,
+          type: n.type,
+          realm: n.realms[0],
+        }));
+
         const makeRequest = () =>
           fetch(`${baseUrl}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: history }),
+            body: JSON.stringify({
+              messages: history,
+              contextNodes,
+              terrain: state.activeTerrain,
+              focusedNodeId: state.focusedNodeId ?? undefined,
+            }),
           });
 
         try {
@@ -184,6 +233,15 @@ export const useThoughtStore = create<MapState>()(
               } catch { /* skip malformed SSE */ }
             }
           }
+          const finalContent = get().chatHistory.find((m) => m.id === assistantId)?.content ?? '';
+          const mapExtract = parseMapExtract(finalContent);
+          if (mapExtract) {
+            set((state) => ({
+              chatHistory: state.chatHistory.map((m) =>
+                m.id === assistantId ? { ...m, mapExtract } : m
+              ),
+            }));
+          }
         } catch (err) {
           const errorText = err instanceof Error ? err.message : 'Something went wrong';
           set((state) => ({
@@ -216,6 +274,47 @@ export const useThoughtStore = create<MapState>()(
         set((state) => ({
           chatHistory: state.chatHistory.map((m) =>
             m.id === messageId ? { ...m, extractedNodeId: nodeId } : m
+          ),
+        }));
+      },
+
+      applyMapExtract: (messageId) => {
+        const message = get().chatHistory.find((m) => m.id === messageId);
+        if (!message?.mapExtract) return;
+
+        const { nodes, edges } = message.mapExtract;
+        const idMap = new Map<string, string>();
+
+        for (const n of nodes) {
+          const existing = get().nodes.find((node) => node.id === n.id);
+          if (existing) {
+            idMap.set(n.id, existing.id);
+            continue;
+          }
+          const realId = get().addNode({
+            title: n.title,
+            content: n.content ?? '',
+            type: mapNodeType(n.type),
+            realms: n.realm ? [n.realm] : [],
+            x: n.suggestedPosition?.x ?? (Math.random() - 0.5) * 400,
+            y: n.suggestedPosition?.y ?? (Math.random() - 0.5) * 400,
+          });
+          idMap.set(n.id, realId);
+        }
+
+        for (const e of edges ?? []) {
+          const srcId = idMap.get(e.from) ?? e.from;
+          const tgtId = idMap.get(e.to) ?? e.to;
+          const srcExists = get().nodes.find((n) => n.id === srcId);
+          const tgtExists = get().nodes.find((n) => n.id === tgtId);
+          if (srcExists && tgtExists) {
+            get().addEdge(srcId, tgtId, mapEdgeType(e.type));
+          }
+        }
+
+        set((state) => ({
+          chatHistory: state.chatHistory.map((m) =>
+            m.id === messageId ? { ...m, extractedNodeId: 'map-extract' } : m
           ),
         }));
       },
