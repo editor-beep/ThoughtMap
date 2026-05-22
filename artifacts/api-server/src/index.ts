@@ -1,6 +1,11 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
+if (!process.env.GEMINI_API_KEY) {
+  logger.error("GEMINI_API_KEY environment variable is not set. Add it to Replit Secrets and restart.");
+  process.exit(1);
+}
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
