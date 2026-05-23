@@ -194,7 +194,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
 
   return (
     <div
-      className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${isSearchMatch ? 'border-cosmic-cyan' : config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
+      className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${isSearchMatch ? 'border-cosmic-cyan' : config.border} max-w-[320px] min-w-[160px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
       style={{ boxShadow: isSearchMatch ? '0 0 0 2px rgba(6,182,212,0.5), 0 0 24px rgba(6,182,212,0.3)' : `0 0 20px ${config.glow}`, minHeight: `${COLLAPSED_MIN_HEIGHT}px` }}
     >
       <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
@@ -244,7 +244,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
       </div>
 
       {/* Title: always visible */}
-      <h4 className="font-sans text-sm font-semibold text-slate-100 mt-2 leading-snug">{node.title}</h4>
+      <h4 className="font-sans text-sm font-semibold text-slate-100 mt-2 leading-snug break-words">{node.title}</h4>
 
       {/* Collapsible body: content + realm tags + node tags */}
       <div

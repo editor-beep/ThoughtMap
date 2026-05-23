@@ -44,6 +44,7 @@ export interface ThoughtNode {
   tags?: string[];
   attachments?: Attachment[];
   comments?: NodeComment[];
+  isAnchor?: boolean;
 }
 
 export interface ThoughtEdge {
