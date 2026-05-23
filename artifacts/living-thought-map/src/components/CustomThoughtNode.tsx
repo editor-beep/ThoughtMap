@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
-  Archive, AlertTriangle, Package, Layers, X,
+  Archive, AlertTriangle, Package, Layers, X, ChevronDown,
   type LucideIcon
 } from 'lucide-react';
 
@@ -32,37 +32,54 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const { deleteNode } = useThoughtStore();
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
   const Icon = config.icon;
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div
-      className={`group p-4 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
+      className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
       style={{ boxShadow: `0 0 20px ${config.glow}` }}
     >
       <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
 
-      <button
-        onClick={(e) => { e.stopPropagation(); deleteNode(node.id); }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-void-700 text-slate-600 hover:text-cosmic-rose"
-        title="Delete node"
-      >
-        <X size={10} />
-      </button>
-
-      <div className="flex items-center gap-2 mb-2.5 pr-5">
+      {/* Header: type icon + label + caret + delete — always visible */}
+      <div className="flex items-center gap-2">
         <Icon size={13} className={config.iconColor} />
-        <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">{node.type}</span>
+        <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase flex-1">{node.type}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsExpanded(prev => !prev); }}
+          className="p-0.5 rounded hover:bg-void-700 text-slate-500 hover:text-slate-300 transition-colors"
+          title={isExpanded ? 'Collapse' : 'Expand'}
+        >
+          <ChevronDown
+            size={12}
+            className={`transition-transform duration-200 ease-in-out${isExpanded ? ' rotate-180' : ''}`}
+          />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); deleteNode(node.id); }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-void-700 text-slate-600 hover:text-cosmic-rose"
+          title="Delete node"
+        >
+          <X size={10} />
+        </button>
       </div>
 
-      <h4 className="font-sans text-sm font-semibold text-slate-100 mb-1.5 leading-snug">{node.title}</h4>
+      {/* Title: always visible */}
+      <h4 className="font-sans text-sm font-semibold text-slate-100 mt-2 leading-snug">{node.title}</h4>
 
-      <p className="font-sans text-xs text-slate-400 leading-relaxed break-words line-clamp-4">{node.content}</p>
-
-      <div className="flex flex-wrap gap-1 mt-3">
-        {node.realms.map((r) => (
-          <span key={r} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-void-700/60 text-slate-500">
-            @{r}
-          </span>
-        ))}
+      {/* Collapsible body: content + realm tags */}
+      <div
+        className="overflow-hidden transition-all duration-200 ease-in-out"
+        style={{ maxHeight: isExpanded ? '500px' : '0px', opacity: isExpanded ? 1 : 0 }}
+      >
+        <p className="font-sans text-xs text-slate-400 leading-relaxed break-words line-clamp-4 mt-1.5">{node.content}</p>
+        <div className="flex flex-wrap gap-1 mt-3">
+          {node.realms.map((r) => (
+            <span key={r} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-void-700/60 text-slate-500">
+              @{r}
+            </span>
+          ))}
+        </div>
       </div>
 
       <Handle
