@@ -65,7 +65,12 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
         ))}
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ left: 0, bottom: 0, width: '100%', height: '20px', transform: 'translateY(50%)', borderRadius: '0 0 8px 8px', border: 'none' }}
+        className="!bg-void-600/10 hover:!bg-void-600/40 transition-colors cursor-crosshair"
+      />
     </div>
   );
 }
