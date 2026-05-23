@@ -14,7 +14,7 @@ const TERRAIN_NAMES: Record<string, string> = {
 export default function ContextHistoryRail() {
   const { realms, toggleRealm, nodes, edges, deleteNode, focusNode, activeTerrain, importMap, undo, undoStack } = useThoughtStore();
   const [isSanctumOpen, setIsSanctumOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [nodeSearch, setNodeSearch] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useThoughtStore } from '../store';
-import { Send, Compass, Sparkles, User as UserIcon, X } from 'lucide-react';
+import { Send, Compass, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CartographerSuggestionPanel from './CartographerSuggestionPanel';
 import { NodeType } from '../types';
 
@@ -94,6 +94,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   const [showNewRealm, setShowNewRealm] = useState(false);
   const [newRealmInput, setNewRealmInput] = useState('');
   const [useManualMode, setUseManualMode] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -185,11 +186,41 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   const showCartographerPanel = (!!cartographerExtractingMessageId || cartographerLoading || !!cartographerSuggestions) && !useManualMode;
   const showManualPanel = extractTargetId && useManualMode;
 
+  if (railCollapsed && !isOpen) {
+    return (
+      <aside className="hidden md:flex w-12 h-full bg-void-900/90 flex-col items-center py-4 border-l border-void-800/40 gap-3 flex-shrink-0">
+        <button
+          onClick={() => setRailCollapsed(false)}
+          className="p-1.5 rounded hover:bg-void-800/60 text-slate-500 hover:text-slate-300 transition-colors"
+          title="Expand thought stream"
+        >
+          <ChevronLeft size={13} />
+        </button>
+        <div className="flex flex-col gap-2 mt-2 items-center">
+          <Sparkles size={12} className="text-cosmic-cyan/30" />
+          {isStreaming && (
+            <div className="w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse" />
+          )}
+          {chatHistory.length > 0 && (
+            <span className="text-[9px] font-mono text-slate-600 tabular-nums">{chatHistory.length}</span>
+          )}
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className={`fixed md:relative inset-0 md:inset-auto w-full md:w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden z-50 md:z-auto transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
       <div className="px-4 py-3.5 border-b border-void-800/60 bg-void-900/60 backdrop-blur-sm flex-shrink-0 flex items-center gap-2.5">
         <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
         <h3 className="font-mono text-xs tracking-wider uppercase text-slate-300 flex-1">Thought Stream</h3>
+        <button
+          onClick={() => setRailCollapsed(true)}
+          className="hidden md:block p-1 rounded hover:bg-void-800/60 text-slate-600 hover:text-slate-400 transition-colors"
+          title="Collapse panel"
+        >
+          <ChevronRight size={12} />
+        </button>
         <button onClick={onClose} className="md:hidden text-slate-600 hover:text-slate-300 transition-colors p-1">
           <X size={16} />
         </button>
