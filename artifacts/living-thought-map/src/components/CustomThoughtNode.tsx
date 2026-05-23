@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Handle, Position, useViewport, useReactFlow } from 'reactflow';
+
+import { Handle, Position, useViewport, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
 import { EXPAND_THRESHOLD, DOT_THRESHOLD } from '../lib/constants';
@@ -38,8 +39,10 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const [isExpanded, setIsExpanded] = useState(false);
   const { zoom } = useViewport();
   const { setCenter } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   const isDot = zoom < DOT_THRESHOLD;
   const showExpanded = isExpanded && zoom >= EXPAND_THRESHOLD;
+  const COLLAPSED_MIN_HEIGHT = 60;
 
   if (isDot) {
     const dotSize = 16;
@@ -96,7 +99,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   return (
     <div
       className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
-      style={{ boxShadow: `0 0 20px ${config.glow}` }}
+      style={{ boxShadow: `0 0 20px ${config.glow}`, minHeight: `${COLLAPSED_MIN_HEIGHT}px` }}
     >
       <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
 
@@ -105,7 +108,18 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
         <Icon size={13} className={config.iconColor} />
         <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase flex-1">{node.type}</span>
         <button
-          onClick={(e) => { e.stopPropagation(); setIsExpanded(prev => !prev); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log('[CustomThoughtNode] position before collapse toggle', node.id, { x: node.x, y: node.y });
+            setIsExpanded((prev) => {
+              const next = !prev;
+              requestAnimationFrame(() => {
+                console.log('[CustomThoughtNode] position after collapse toggle', node.id, { x: node.x, y: node.y });
+                updateNodeInternals(node.id);
+              });
+              return next;
+            });
+          }}
           className="p-0.5 rounded hover:bg-void-700 text-slate-500 hover:text-slate-300 transition-colors"
           title={isExpanded ? 'Collapse' : 'Expand'}
         >
