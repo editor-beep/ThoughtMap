@@ -33,8 +33,6 @@ const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
   fragment:      { icon: Layers,        border: 'border-slate-600/40',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.14)',   dotColor: '#64748b', dotShape: 'circle'  }
 };
 
-// AI-generated types — inline body editing is disabled for these
-const AI_GENERATED_TYPES: ThoughtNode['type'][] = ['artifact', 'myth', 'research', 'contradiction'];
 
 // ─── Inline mini toolbar ───────────────────────────────────────────────────
 
@@ -115,7 +113,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const showExpanded = isExpanded;
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
-  const canEditInline = !AI_GENERATED_TYPES.includes(node.type);
+  const canEditInline = true;
 
   // Keep inlineContent in sync with node.content when not editing
   useEffect(() => {
