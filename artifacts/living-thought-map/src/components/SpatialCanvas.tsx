@@ -1,23 +1,31 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, {
   Controls,
   MiniMap,
   NodeChange,
   Connection,
   useReactFlow,
+  useViewport,
   Node,
   Edge,
-  NodeMouseHandler
+  NodeMouseHandler,
+  Viewport
 } from 'reactflow';
 import { useThoughtStore } from '../store';
 import { EdgeType } from '../types';
 import { Compass } from 'lucide-react';
 import CustomThoughtNode from './CustomThoughtNode';
+import ClusterMarkerNode from './ClusterMarkerNode';
 import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 import CartographerPanel from './CartographerPanel';
+import { CLUSTER_THRESHOLD } from '../lib/constants';
+import { computeClusters, ClusterData } from '../lib/clustering';
 
-const nodeTypes = { thoughtMapNode: CustomThoughtNode };
+const nodeTypes = {
+  thoughtMapNode: CustomThoughtNode,
+  clusterMarker: ClusterMarkerNode,
+};
 
 const EDGE_COLORS: Record<EdgeType, string> = {
   evolves_from: '#06b6d4',
@@ -63,10 +71,28 @@ function CanvasController() {
   return null;
 }
 
+/** Syncs ReactFlow viewport zoom to the parent via a stable callback ref. */
+function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) {
+  const vp = useViewport();
+  const cbRef = useRef(onViewport);
+  cbRef.current = onViewport;
+
+  useEffect(() => {
+    cbRef.current(vp);
+  // Only re-run when the actual viewport values change, not the callback reference.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vp.zoom, vp.x, vp.y]);
+
+  return null;
+}
+
 export default function SpatialCanvas() {
   const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+
+  const handleViewport = useCallback((vp: Viewport) => setRfViewport(vp), []);
 
   const activeRealmIds = useMemo(
     () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
@@ -80,31 +106,65 @@ export default function SpatialCanvas() {
 
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
-  const flowNodes = useMemo(
-    () => visibleNodes.map((node) => ({
+  // Cluster computation: only active when zoom < CLUSTER_THRESHOLD.
+  // Keyed on zoom + visible node positions so it recomputes on pan/zoom.
+  const clusters: ClusterData[] | null = useMemo(() => {
+    if (rfViewport.zoom >= CLUSTER_THRESHOLD) return null;
+    return computeClusters(visibleNodes, rfViewport.zoom);
+  }, [visibleNodes, rfViewport.zoom]);
+
+  const flowNodes = useMemo(() => {
+    if (clusters !== null) {
+      const clusterNodes = clusters
+        .filter((c) => c.nodes.length > 1)
+        .map((c, i) => ({
+          id: `cluster-${i}`,
+          type: 'clusterMarker',
+          position: { x: c.x, y: c.y },
+          data: { cluster: c },
+          draggable: false,
+          selectable: false,
+        }));
+
+      // Isolated single-node "clusters" fall back to their regular dot rendering.
+      const singleNodes = clusters
+        .filter((c) => c.nodes.length === 1)
+        .map((c) => c.nodes[0])
+        .map((node) => ({
+          id: node.id,
+          type: 'thoughtMapNode',
+          position: { x: node.x, y: node.y },
+          data: { node },
+        }));
+
+      return [...clusterNodes, ...singleNodes];
+    }
+
+    return visibleNodes.map((node) => ({
       id: node.id,
       type: 'thoughtMapNode',
       position: { x: node.x, y: node.y },
       data: { node }
-    })),
-    [visibleNodes]
-  );
+    }));
+  }, [clusters, visibleNodes]);
 
   const flowEdges = useMemo(
     () =>
-      edges
-        .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
-        .map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          animated: true,
-          label: EDGE_LABELS[edge.type],
-          labelStyle: { fill: '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
-          labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
-          style: { stroke: EDGE_COLORS[edge.type], strokeWidth: 1.5, opacity: 0.75 }
-        })),
-    [edges, visibleNodeIds]
+      clusters !== null
+        ? []
+        : edges
+            .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
+            .map((edge) => ({
+              id: edge.id,
+              source: edge.source,
+              target: edge.target,
+              animated: true,
+              label: EDGE_LABELS[edge.type],
+              labelStyle: { fill: '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
+              labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
+              style: { stroke: EDGE_COLORS[edge.type], strokeWidth: 1.5, opacity: 0.75 }
+            })),
+    [clusters, edges, visibleNodeIds]
   );
 
   const onNodesChange = useCallback(
@@ -141,6 +201,8 @@ export default function SpatialCanvas() {
   };
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, rfNode) => {
+    // Cluster marker clicks are handled internally by the component.
+    if (rfNode.id.startsWith('cluster-')) return;
     setSelectedNodeId(rfNode.id);
   }, []);
 
@@ -187,6 +249,7 @@ export default function SpatialCanvas() {
           maskColor="rgba(3,7,18,0.7)"
         />
         <CanvasController />
+        <ViewportTracker onViewport={handleViewport} />
       </ReactFlow>
 
       {/* Edge type chooser */}
