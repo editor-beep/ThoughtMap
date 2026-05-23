@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useThoughtStore } from '../store';
-import { Compass, Sparkles, MapPin, X, ChevronRight } from 'lucide-react';
+import { Compass, Sparkles, MapPin, X, ChevronRight, Check } from 'lucide-react';
 import type { CartographerVariation, NodeType } from '../types';
 
 const NODE_TYPE_COLORS: Record<NodeType, string> = {
@@ -31,13 +31,15 @@ interface VariationCardProps {
   variation: CartographerVariation;
   index: number;
   onSelect: (index: number, customTitle?: string) => void;
+  isApplied: boolean;
 }
 
-function VariationCard({ variation, index, onSelect }: VariationCardProps) {
+function VariationCard({ variation, index, onSelect, isApplied }: VariationCardProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [customTitle, setCustomTitle] = useState(variation.title);
 
   const handleMaterialize = () => {
+    if (isApplied) return;
     onSelect(index, customTitle !== variation.title ? customTitle : undefined);
   };
 
@@ -47,9 +49,9 @@ function VariationCard({ variation, index, onSelect }: VariationCardProps) {
   };
 
   return (
-    <div className="bg-void-900/80 border border-void-700/50 rounded-lg p-3 space-y-3 hover:border-void-600/60 transition-colors">
+    <div className={`bg-void-900/80 border rounded-lg p-3 space-y-3 transition-colors ${isApplied ? 'border-green-800/40 opacity-70' : 'border-void-700/50 hover:border-void-600/60'}`}>
       <div className="flex items-start justify-between gap-2">
-        {editingTitle ? (
+        {editingTitle && !isApplied ? (
           <input
             type="text"
             value={customTitle}
@@ -61,9 +63,9 @@ function VariationCard({ variation, index, onSelect }: VariationCardProps) {
           />
         ) : (
           <h4
-            onClick={() => setEditingTitle(true)}
-            className="flex-1 font-mono text-sm text-slate-200 cursor-text hover:text-cosmic-cyan transition-colors"
-            title="Click to edit title"
+            onClick={() => !isApplied && setEditingTitle(true)}
+            className={`flex-1 font-mono text-sm text-slate-200 transition-colors ${isApplied ? 'cursor-default' : 'cursor-text hover:text-cosmic-cyan'}`}
+            title={isApplied ? undefined : 'Click to edit title'}
           >
             {customTitle}
           </h4>
@@ -103,11 +105,25 @@ function VariationCard({ variation, index, onSelect }: VariationCardProps) {
 
       <button
         onClick={handleMaterialize}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded bg-cosmic-cyan/10 border border-cosmic-cyan/30 text-cosmic-cyan text-[11px] font-mono hover:bg-cosmic-cyan/20 hover:border-cosmic-cyan/50 transition-all group"
+        disabled={isApplied}
+        className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded border text-[11px] font-mono transition-all group ${
+          isApplied
+            ? 'bg-green-900/20 border-green-800/40 text-green-400 cursor-default'
+            : 'bg-cosmic-cyan/10 border-cosmic-cyan/30 text-cosmic-cyan hover:bg-cosmic-cyan/20 hover:border-cosmic-cyan/50'
+        }`}
       >
-        <Sparkles size={12} className="group-hover:animate-pulse" />
-        <span>Materialize</span>
-        <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+        {isApplied ? (
+          <>
+            <Check size={12} />
+            <span>Materialized</span>
+          </>
+        ) : (
+          <>
+            <Sparkles size={12} className="group-hover:animate-pulse" />
+            <span>Materialize</span>
+            <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+          </>
+        )}
       </button>
     </div>
   );
@@ -123,6 +139,7 @@ export default function CartographerSuggestionPanel({ onSwitchToManual }: Cartog
     cartographerSuggestions,
     cartographerInsight,
     cartographerExtractingMessageId,
+    cartographerAppliedIndices,
     applyCartographerSuggestion,
     dismissCartographerSuggestions,
   } = useThoughtStore();
@@ -138,6 +155,10 @@ export default function CartographerSuggestionPanel({ onSwitchToManual }: Cartog
       dismissCartographerSuggestions();
     }
   };
+
+  const allApplied = cartographerSuggestions
+    ? cartographerSuggestions.every((_, i) => cartographerAppliedIndices.includes(i))
+    : false;
 
   return (
     <div className="flex-shrink-0 bg-void-800/95 border-t border-void-700/60 backdrop-blur-sm">
@@ -182,15 +203,30 @@ export default function CartographerSuggestionPanel({ onSwitchToManual }: Cartog
                   variation={variation}
                   index={index}
                   onSelect={applyCartographerSuggestion}
+                  isApplied={cartographerAppliedIndices.includes(index)}
                 />
               ))}
             </div>
-            <button
-              onClick={handleManualExtract}
-              className="w-full text-center py-2 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
-            >
-              I&apos;ll place it myself
-            </button>
+            <div className="flex flex-col gap-1 pt-1">
+              <button
+                onClick={dismissCartographerSuggestions}
+                className={`w-full text-center py-2 text-[10px] font-mono transition-colors ${
+                  cartographerAppliedIndices.length > 0
+                    ? 'text-cosmic-cyan/70 hover:text-cosmic-cyan'
+                    : 'text-slate-600 hover:text-slate-400'
+                }`}
+              >
+                {allApplied ? 'All materialized — Done' : cartographerAppliedIndices.length > 0 ? 'Done' : 'Dismiss'}
+              </button>
+              {cartographerExtractingMessageId && (
+                <button
+                  onClick={handleManualExtract}
+                  className="w-full text-center py-1 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
+                >
+                  I&apos;ll place it myself
+                </button>
+              )}
+            </div>
           </>
         )}
 

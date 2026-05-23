@@ -141,7 +141,7 @@ Survey the user's map and offer poetic, non-task-oriented observations. Surface 
 
 Speak as if you've been wandering the terrain and noticed something worth mentioning. Be evocative, not prescriptive.
 
-Respond with natural prose — this is a meditative observation, not a command.`;
+Respond with natural prose — this is a meditative observation, not a command. Do not include JSON, code blocks, or any structured data in your response.`;
   }
 
   return basePrompt + `
@@ -149,7 +149,7 @@ Respond with natural prose — this is a meditative observation, not a command.`
 ## Your Task: Spatial Conversation
 Engage in thoughtful dialogue about the user's map, their ideas, or spatial cognition in general. You may suggest extractions, point out interesting topological features, or simply explore ideas together.
 
-Keep responses concise (2-4 sentences) unless the user asks for elaboration.`;
+Keep responses concise (2-4 sentences) unless the user asks for elaboration. Do not include JSON, code blocks, or structured data in your response.`;
 }
 
 const nodeSchema = z.object({

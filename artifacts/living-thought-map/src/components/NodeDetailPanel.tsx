@@ -2,11 +2,21 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   X, Send, Edit3, MessageSquare, Link2,
   Sparkles, Smile, User, BookOpen, Microscope,
-  Archive, AlertTriangle, Package, Layers, Trash2,
+  Archive, AlertTriangle, Package, Layers, Trash2, Compass,
   type LucideIcon
 } from 'lucide-react';
 import { useThoughtStore } from '../store';
 import { NodeType } from '../types';
+
+function getDisplayContent(content: string): string {
+  const mapExtractIdx = content.search(/\*\*MAP EXTRACT\*\*|```json/);
+  if (mapExtractIdx === -1) return content;
+  return content
+    .slice(0, mapExtractIdx)
+    .replace(/^(?:\d+\.\s+)?\*\*REFLECTION & INSIGHTS\*\*\s*/i, '')
+    .replace(/\s*\d+\.\s*$/, '')
+    .trim();
+}
 
 const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
   { value: 'thought', label: 'Thought' },
@@ -53,6 +63,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const {
     nodes, realms, edges, updateNode, deleteNode, deleteEdge,
     nodeChats, nodeChatStreaming, sendNodeChatMessage,
+    requestCartographerExtractionFromContent, cartographerLoading,
   } = useThoughtStore();
 
   const node = nodes.find((n) => n.id === nodeId) ?? null;
@@ -183,7 +194,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
                       : undefined
                   }
                 >
-                  {msg.content}
+                  {msg.role === 'assistant' ? getDisplayContent(msg.content) : msg.content}
                   {isStreaming && msg.role === 'assistant' && msg === chat[chat.length - 1] && (
                     <span
                       className="inline-block w-[2px] h-[13px] ml-0.5 align-middle animate-pulse"
@@ -191,6 +202,16 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
                     />
                   )}
                 </div>
+                {msg.role === 'assistant' && msg.content && !msg.content.startsWith('⚠') && !isStreaming && (
+                  <button
+                    onClick={() => requestCartographerExtractionFromContent(getDisplayContent(msg.content))}
+                    disabled={cartographerLoading}
+                    className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Compass size={10} className={cartographerLoading ? 'animate-spin' : ''} />
+                    <span>Crystallize to canvas</span>
+                  </button>
+                )}
               </div>
             ))}
             <div ref={chatBottomRef} />
