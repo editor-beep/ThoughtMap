@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useThoughtStore } from '../store';
-import { Send, Compass, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Copy, Pin, GitBranchPlus } from 'lucide-react';
 import CartographerSuggestionPanel from './CartographerSuggestionPanel';
 import { NodeType } from '../types';
 
@@ -60,6 +60,17 @@ function MarkdownText({ text }: { text: string }) {
   );
 }
 
+
+
+function toTitleFromContent(content: string): string {
+  const plain = getDisplayContent(content).replace(/\s+/g, ' ').trim();
+  if (!plain) return 'Untitled note';
+  return plain.length > 56 ? `${plain.slice(0, 56).trimEnd()}…` : plain;
+}
+
+function normalizeFullText(content: string): string {
+  return content.trim();
+}
 const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
   { value: 'thought',       label: 'Thought' },
   { value: 'joke',          label: 'Joke' },
@@ -121,6 +132,19 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
     const msg = input;
     setInput('');
     await sendChatMessage(msg);
+  };
+
+  const handleCopyMessage = async (messageContent: string) => {
+    const text = getDisplayContent(messageContent);
+    await navigator.clipboard.writeText(text);
+  };
+
+  const quickPinMessage = (messageId: string, rawContent: string, kind: 'note' | 'research' | 'full') => {
+    const titlePrefix = kind === 'research' ? 'Research' : kind === 'full' ? 'Full text' : 'Note';
+    const content = kind === 'full' ? normalizeFullText(rawContent) : getDisplayContent(rawContent);
+    const nodeType: NodeType = kind === 'research' ? 'research' : kind === 'full' ? 'artifact' : 'thought';
+    const newTitle = `${titlePrefix}: ${toTitleFromContent(content)}`;
+    extractToMap(messageId, nodeType, newTitle);
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -275,15 +299,45 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
               )}
             </div>
 
-            {message.role === 'assistant' && !message.extractedNodeId && message.content && !message.content.startsWith('⚠') && (
-              <button
-                onClick={() => openExtract(message.id)}
-                disabled={cartographerLoading}
-                className="flex items-center gap-1.5 text-xs text-cosmic-cyan/50 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
-              >
-                <Compass size={11} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-45 transition-transform'}`} />
-                <span>Crystallize to canvas</span>
-              </button>
+            {!message.extractedNodeId && message.content && !message.content.startsWith('⚠') && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={() => handleCopyMessage(message.content)}
+                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <Copy size={11} />
+                  <span>Copy</span>
+                </button>
+                <button
+                  onClick={() => quickPinMessage(message.id, message.content, 'note')}
+                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <Pin size={11} />
+                  <span>Pin as note</span>
+                </button>
+                <button
+                  onClick={() => quickPinMessage(message.id, message.content, 'research')}
+                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <Pin size={11} />
+                  <span>Pin as research</span>
+                </button>
+                <button
+                  onClick={() => quickPinMessage(message.id, message.content, 'full')}
+                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <Pin size={11} />
+                  <span>Pin full text</span>
+                </button>
+                <button
+                  onClick={() => openExtract(message.id)}
+                  disabled={cartographerLoading}
+                  className="flex items-center gap-1 text-[11px] text-cosmic-cyan/50 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+                >
+                  <GitBranchPlus size={11} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-6 transition-transform'}`} />
+                  <span>Send to Cartographer</span>
+                </button>
+              </div>
             )}
 
             {message.extractedNodeId && (
