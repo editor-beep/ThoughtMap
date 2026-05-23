@@ -145,7 +145,7 @@ export default function SpatialCanvas() {
   }, []);
 
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full relative isolate">
       <TerrainBackground />
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 select-none">

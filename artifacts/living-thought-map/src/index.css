@@ -20,6 +20,10 @@
   background: transparent;
 }
 
+.react-flow {
+  background: transparent;
+}
+
 .react-flow__edge-path {
   stroke-dasharray: 5;
   animation: dash 20s linear infinite;
