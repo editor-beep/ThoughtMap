@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Handle, Position, useViewport, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
-import { EXPAND_THRESHOLD, DOT_THRESHOLD } from '../lib/constants';
+import { DOT_THRESHOLD } from '../lib/constants';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, X, ChevronDown,
@@ -41,7 +41,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const { setCenter } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const isDot = zoom < DOT_THRESHOLD;
-  const showExpanded = isExpanded && zoom >= EXPAND_THRESHOLD;
+  const showExpanded = isExpanded;
   const COLLAPSED_MIN_HEIGHT = 60;
 
   if (isDot) {
@@ -110,11 +110,9 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
         <button
           onClick={(e) => {
             e.stopPropagation();
-            console.log('[CustomThoughtNode] position before collapse toggle', node.id, { x: node.x, y: node.y });
             setIsExpanded((prev) => {
               const next = !prev;
               requestAnimationFrame(() => {
-                console.log('[CustomThoughtNode] position after collapse toggle', node.id, { x: node.x, y: node.y });
                 updateNodeInternals(node.id);
               });
               return next;
