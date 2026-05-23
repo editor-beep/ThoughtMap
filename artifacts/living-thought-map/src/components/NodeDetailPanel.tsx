@@ -137,7 +137,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
           <h3 className="text-sm font-semibold text-slate-100 truncate">{node.title}</h3>
           <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{node.type}</span>
         </div>
-        <button onClick={onClose} className="text-slate-600 hover:text-slate-300 transition-colors p-1 rounded">
+        <button onClick={onClose} className="flex-shrink-0 text-slate-600 hover:text-slate-300 transition-colors p-1 rounded">
           <X size={14} />
         </button>
       </div>

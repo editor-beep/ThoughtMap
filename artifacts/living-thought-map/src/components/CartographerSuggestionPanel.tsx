@@ -163,15 +163,15 @@ export default function CartographerSuggestionPanel({ onSwitchToManual }: Cartog
   return (
     <div className="flex-shrink-0 bg-void-800/95 border-t border-void-700/60 backdrop-blur-sm">
       <div className="flex items-center justify-between px-4 py-3 border-b border-void-700/40">
-        <div className="flex items-center gap-2">
-          <Compass size={14} className={`text-cosmic-cyan ${cartographerLoading ? 'animate-spin' : ''}`} />
-          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <Compass size={14} className={`flex-shrink-0 text-cosmic-cyan ${cartographerLoading ? 'animate-spin' : ''}`} />
+          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 truncate">
             {cartographerLoading ? 'The Cartographer is studying...' : 'The Cartographer suggests'}
           </span>
         </div>
         <button
           onClick={dismissCartographerSuggestions}
-          className="text-slate-600 hover:text-slate-300 transition-colors p-1"
+          className="flex-shrink-0 text-slate-600 hover:text-slate-300 transition-colors p-1"
         >
           <X size={14} />
         </button>
