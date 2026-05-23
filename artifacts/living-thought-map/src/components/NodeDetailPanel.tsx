@@ -1,12 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X, Send, Edit3, MessageSquare, Link2,
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, Trash2, Compass,
+  Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered,
+  Paperclip, Image, Link, FileText, MessageCircle, Tag, Plus,
   type LucideIcon
 } from 'lucide-react';
 import { useThoughtStore } from '../store';
-import { NodeType } from '../types';
+import { NodeType, Attachment, NodeComment } from '../types';
+import { renderMarkdown } from '../lib/markdown';
 
 function getDisplayContent(content: string): string {
   const mapExtractIdx = content.search(/\*\*MAP EXTRACT\*\*|```json/);
@@ -52,12 +55,473 @@ const TYPE_COLORS: Record<NodeType, string> = {
   artifact: '#64748b', fragment: '#475569',
 };
 
+// AI-generated node types that restrict body text editing
+const AI_GENERATED_TYPES: NodeType[] = ['artifact', 'myth', 'research', 'contradiction'];
+
 type Tab = 'chat' | 'edit' | 'links';
 
 interface Props {
   nodeId: string | null;
   onClose: () => void;
 }
+
+// ─── Rich text toolbar ─────────────────────────────────────────────────────
+
+interface ToolbarProps {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  value: string;
+  onChange: (v: string) => void;
+  inlineOnly?: boolean;
+  /** Position for floating toolbar: null means static */
+  position?: { top: number; left: number } | null;
+}
+
+function wrapSelection(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  prefix: string,
+  suffix: string,
+  onChange: (v: string) => void
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = value.slice(start, end);
+  const already = selected.startsWith(prefix) && selected.endsWith(suffix);
+  const newText = already
+    ? value.slice(0, start) + selected.slice(prefix.length, selected.length - suffix.length) + value.slice(end)
+    : value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+  onChange(newText);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    const newEnd = already ? end - prefix.length - suffix.length : end + prefix.length + suffix.length;
+    textarea.setSelectionRange(
+      already ? start : start + prefix.length,
+      newEnd
+    );
+  });
+}
+
+function prefixLine(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  prefix: string,
+  onChange: (v: string) => void
+) {
+  const start = textarea.selectionStart;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = value.indexOf('\n', start);
+  const end = lineEnd === -1 ? value.length : lineEnd;
+  const line = value.slice(lineStart, end);
+
+  // Remove any existing heading prefix or list prefix
+  const stripped = line.replace(/^#{1,3} /, '').replace(/^[-*] /, '').replace(/^\d+\. /, '');
+
+  const newLine = line.startsWith(prefix) ? stripped : prefix + stripped;
+  const newValue = value.slice(0, lineStart) + newLine + value.slice(end);
+  onChange(newValue);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    const delta = newLine.length - line.length;
+    textarea.setSelectionRange(start + delta, start + delta);
+  });
+}
+
+function prefixListItem(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  listType: 'ul' | 'ol',
+  onChange: (v: string) => void
+) {
+  const start = textarea.selectionStart;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = value.indexOf('\n', start);
+  const end = lineEnd === -1 ? value.length : lineEnd;
+  const line = value.slice(lineStart, end);
+  const stripped = line.replace(/^#{1,3} /, '').replace(/^[-*] /, '').replace(/^\d+\. /, '');
+  const prefix = listType === 'ul' ? '- ' : '1. ';
+  const alreadyUL = /^[-*] /.test(line);
+  const alreadyOL = /^\d+\. /.test(line);
+  const already = listType === 'ul' ? alreadyUL : alreadyOL;
+  const newLine = already ? stripped : prefix + stripped;
+  const newValue = value.slice(0, lineStart) + newLine + value.slice(end);
+  onChange(newValue);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    const delta = newLine.length - line.length;
+    textarea.setSelectionRange(start + delta, start + delta);
+  });
+}
+
+function RichToolbar({ textareaRef, value, onChange, inlineOnly = false, position = null }: ToolbarProps) {
+  const ta = textareaRef.current;
+
+  const btn = (Icon: LucideIcon, label: string, action: () => void) => (
+    <button
+      key={label}
+      type="button"
+      title={label}
+      onMouseDown={(e) => { e.preventDefault(); action(); }}
+      className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-void-700 transition-colors"
+    >
+      <Icon size={11} />
+    </button>
+  );
+
+  const buttons: React.ReactNode[] = [
+    btn(Bold, 'Bold', () => ta && wrapSelection(ta, value, '**', '**', onChange)),
+    btn(Italic, 'Italic', () => ta && wrapSelection(ta, value, '*', '*', onChange)),
+  ];
+
+  if (!inlineOnly) {
+    buttons.push(
+      <div key="sep1" className="w-px h-3 bg-void-600 mx-0.5" />,
+      btn(Heading1, 'Heading 1', () => ta && prefixLine(ta, value, '# ', onChange)),
+      btn(Heading2, 'Heading 2', () => ta && prefixLine(ta, value, '## ', onChange)),
+      btn(Heading3, 'Heading 3', () => ta && prefixLine(ta, value, '### ', onChange)),
+      <div key="sep2" className="w-px h-3 bg-void-600 mx-0.5" />,
+      btn(List, 'Unordered list', () => ta && prefixListItem(ta, value, 'ul', onChange)),
+      btn(ListOrdered, 'Ordered list', () => ta && prefixListItem(ta, value, 'ol', onChange)),
+    );
+  }
+
+  const style: React.CSSProperties = position
+    ? { position: 'fixed', top: position.top, left: position.left, zIndex: 100 }
+    : {};
+
+  return (
+    <div
+      className="flex items-center gap-0.5 px-1.5 py-1 rounded-md bg-void-800 border border-void-600/60 shadow-lg"
+      style={style}
+    >
+      {buttons}
+    </div>
+  );
+}
+
+// ─── Tags input ────────────────────────────────────────────────────────────
+
+interface TagsInputProps {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}
+
+function TagsInput({ tags, onChange }: TagsInputProps) {
+  const [input, setInput] = useState('');
+
+  const commit = () => {
+    const trimmed = input.trim().replace(/,+$/, '');
+    if (trimmed && !tags.includes(trimmed)) {
+      onChange([...tags, trimmed]);
+    }
+    setInput('');
+  };
+
+  return (
+    <div>
+      <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5 flex items-center gap-1">
+        <Tag size={9} /> Tags
+      </label>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-void-700/60 text-slate-400 border border-void-600/40"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => onChange(tags.filter((t) => t !== tag))}
+              className="text-slate-600 hover:text-cosmic-rose transition-colors"
+            >
+              <X size={9} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v.endsWith(',')) {
+            const trimmed = v.slice(0, -1).trim();
+            if (trimmed && !tags.includes(trimmed)) onChange([...tags, trimmed]);
+            setInput('');
+          } else {
+            setInput(v);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Backspace' && input === '' && tags.length > 0) {
+            onChange(tags.slice(0, -1));
+          }
+        }}
+        onBlur={commit}
+        placeholder="Add tag, press Enter or comma…"
+        className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors placeholder:text-slate-600"
+      />
+    </div>
+  );
+}
+
+// ─── Attachments section ───────────────────────────────────────────────────
+
+interface AttachmentsSectionProps {
+  attachments: Attachment[];
+  onChange: (attachments: Attachment[]) => void;
+}
+
+function AttachmentsSection({ attachments, onChange }: AttachmentsSectionProps) {
+  const [urlInput, setUrlInput] = useState('');
+  const [fetchingTitle, setFetchingTitle] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addUrl = async () => {
+    const raw = urlInput.trim();
+    if (!raw) return;
+    setUrlInput('');
+    setFetchingTitle(true);
+    let name = raw;
+    try {
+      // Try to fetch an Open Graph / page title via a CORS proxy isn't available,
+      // so we just use the URL as the name. Title fetching would require a server endpoint.
+      const url = new URL(raw);
+      name = url.hostname + (url.pathname !== '/' ? url.pathname : '');
+    } catch { /* not a valid URL */ }
+    setFetchingTitle(false);
+    const att: Attachment = { id: crypto.randomUUID(), type: 'url', url: raw, name };
+    onChange([...attachments, att]);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const url = ev.target?.result as string;
+        const type: Attachment['type'] = file.type.startsWith('image/') ? 'image' : 'file';
+        const att: Attachment = {
+          id: crypto.randomUUID(),
+          type,
+          url,
+          name: file.name,
+          mimeType: file.type,
+        };
+        onChange([...attachments, att]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const remove = (id: string) => onChange(attachments.filter((a) => a.id !== id));
+
+  return (
+    <div>
+      <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1">
+        <Paperclip size={9} /> Attachments
+      </label>
+
+      {/* Existing attachments */}
+      {attachments.length > 0 && (
+        <div className="space-y-1.5 mb-3">
+          {attachments.map((att) => (
+            <div
+              key={att.id}
+              className="flex items-center gap-2 p-2 rounded-lg bg-void-700/40 border border-void-600/30 group"
+            >
+              {att.type === 'image' ? (
+                <>
+                  <img src={att.url} alt={att.name} className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                  <span className="text-xs text-slate-400 truncate flex-1">{att.name}</span>
+                </>
+              ) : att.type === 'url' ? (
+                <>
+                  <Link size={14} className="text-cosmic-cyan flex-shrink-0" />
+                  <a
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-cosmic-cyan hover:text-cyan-300 truncate flex-1 transition-colors"
+                  >
+                    {att.name}
+                  </a>
+                </>
+              ) : (
+                <>
+                  <FileText size={14} className="text-slate-400 flex-shrink-0" />
+                  <span className="text-xs text-slate-400 truncate flex-1">{att.name}</span>
+                  <a
+                    href={att.url}
+                    download={att.name}
+                    className="text-[10px] text-slate-600 hover:text-slate-300 transition-colors"
+                  >
+                    ↓
+                  </a>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => remove(att.id)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-600 hover:text-cosmic-rose"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add URL */}
+      <div className="flex gap-1.5 mb-1.5">
+        <input
+          type="text"
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } }}
+          placeholder="Paste a URL…"
+          className="flex-1 bg-void-800/60 border border-void-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors placeholder:text-slate-600"
+        />
+        <button
+          type="button"
+          onClick={addUrl}
+          disabled={!urlInput.trim() || fetchingTitle}
+          className="px-2 py-1.5 rounded-lg bg-void-700/60 border border-void-600/40 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors"
+        >
+          <Plus size={11} />
+        </button>
+      </div>
+
+      {/* Add image/file */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf,.txt"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+      >
+        <Image size={10} />
+        <span>Add image or file</span>
+      </button>
+    </div>
+  );
+}
+
+// ─── Comments section ──────────────────────────────────────────────────────
+
+interface CommentsSectionProps {
+  content: string;
+  comments: NodeComment[];
+  onChange: (comments: NodeComment[]) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  pendingComment: { start: number; end: number } | null;
+  onClearPending: () => void;
+}
+
+function CommentsSection({ content, comments, onChange, textareaRef, pendingComment, onClearPending }: CommentsSectionProps) {
+  const [commentText, setCommentText] = useState('');
+
+  const addComment = () => {
+    if (!pendingComment || !commentText.trim()) return;
+    const c: NodeComment = {
+      id: crypto.randomUUID(),
+      spanStart: pendingComment.start,
+      spanEnd: pendingComment.end,
+      text: commentText.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    onChange([...comments, c]);
+    setCommentText('');
+    onClearPending();
+  };
+
+  const remove = (id: string) => onChange(comments.filter((c) => c.id !== id));
+
+  return (
+    <div>
+      <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1">
+        <MessageCircle size={9} /> Comments {comments.length > 0 && <span className="text-slate-600">({comments.length})</span>}
+      </label>
+
+      {comments.length === 0 && !pendingComment && (
+        <p className="text-[10px] text-slate-600 font-mono italic">
+          Select text above then click "Add comment"
+        </p>
+      )}
+
+      {/* Pending comment input */}
+      {pendingComment && (
+        <div className="mb-2 p-2 rounded-lg border border-cosmic-cyan/30 bg-cosmic-cyan/5">
+          <p className="text-[9px] text-cosmic-cyan/70 font-mono mb-1.5">
+            Commenting on: <em className="text-slate-300">"{content.slice(pendingComment.start, pendingComment.end).slice(0, 60)}"</em>
+          </p>
+          <textarea
+            autoFocus
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment(); } if (e.key === 'Escape') { onClearPending(); setCommentText(''); } }}
+            rows={2}
+            placeholder="Add a comment…"
+            className="w-full bg-void-800/60 border border-void-700/80 rounded-md px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors resize-none placeholder:text-slate-600"
+          />
+          <div className="flex gap-1.5 mt-1.5">
+            <button
+              type="button"
+              onClick={addComment}
+              disabled={!commentText.trim()}
+              className="px-2 py-0.5 rounded bg-cosmic-cyan/20 text-[10px] text-cosmic-cyan hover:bg-cosmic-cyan/30 disabled:opacity-40 transition-colors"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => { onClearPending(); setCommentText(''); }}
+              className="px-2 py-0.5 rounded bg-void-700/60 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Existing comments */}
+      {comments.length > 0 && (
+        <div className="space-y-1.5">
+          {comments.map((c) => (
+            <div
+              key={c.id}
+              className="group flex gap-2 p-2 rounded-lg bg-void-700/30 border border-void-600/20"
+            >
+              <MessageCircle size={10} className="text-slate-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-slate-600 font-mono mb-0.5 truncate">
+                  on: "<em>{content.slice(c.spanStart, c.spanEnd).slice(0, 40)}</em>"
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{c.text}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(c.id)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-600 hover:text-cosmic-rose flex-shrink-0"
+              >
+                <X size={9} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main panel ────────────────────────────────────────────────────────────
 
 export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const {
@@ -72,23 +536,98 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [nodeType, setNodeType] = useState<NodeType>('thought');
+  const [tags, setTags] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [comments, setComments] = useState<NodeComment[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [pendingComment, setPendingComment] = useState<{ start: number; end: number } | null>(null);
+  const [showAddComment, setShowAddComment] = useState(false);
+
+  // Floating toolbar state
+  const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number } | null>(null);
+  const contentRef = useRef<HTMLTextAreaElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const isAIGenerated = AI_GENERATED_TYPES.includes(node?.type ?? 'thought');
 
   useEffect(() => {
     if (node) {
       setTitle(node.title);
       setContent(node.content);
       setNodeType(node.type);
+      setTags(node.tags ?? []);
+      setAttachments(node.attachments ?? []);
+      setComments(node.comments ?? []);
     }
     setTab('chat');
     setChatInput('');
+    setPendingComment(null);
+    setShowAddComment(false);
+    setToolbarPos(null);
   }, [node?.id]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [nodeChats]);
+
+  // Track text selection in the content textarea to show floating toolbar + comment affordance
+  const handleContentSelect = useCallback(() => {
+    const ta = contentRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    if (start === end) {
+      setToolbarPos(null);
+      setShowAddComment(false);
+      return;
+    }
+    // Position toolbar above the textarea
+    const rect = ta.getBoundingClientRect();
+    setToolbarPos({ top: rect.top - 36, left: rect.left + 4 });
+    setShowAddComment(true);
+  }, []);
+
+  const handleContentBlur = useCallback(() => {
+    // Delay so toolbar button clicks are not cancelled
+    setTimeout(() => setToolbarPos(null), 200);
+  }, []);
+
+  const handleSave = useCallback(() => {
+    if (!node) return;
+    updateNode(node.id, {
+      title: title.trim() || node.title,
+      content,
+      type: nodeType,
+      tags,
+      attachments,
+      comments,
+    });
+  }, [node, title, content, nodeType, tags, attachments, comments, updateNode]);
+
+  const saveTagsNow = useCallback((next: string[]) => {
+    if (!node) return;
+    updateNode(node.id, { tags: next });
+  }, [node, updateNode]);
+
+  const saveAttachmentsNow = useCallback((next: Attachment[]) => {
+    if (!node) return;
+    updateNode(node.id, { attachments: next });
+  }, [node, updateNode]);
+
+  const saveCommentsNow = useCallback((next: NodeComment[]) => {
+    if (!node) return;
+    updateNode(node.id, { comments: next });
+  }, [node, updateNode]);
+
+  const handleSendChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isStreaming) return;
+    const msg = chatInput;
+    setChatInput('');
+    chatInputRef.current?.focus();
+    await sendNodeChatMessage(node!.id, node!.title, node!.content, msg);
+  };
 
   if (!node) return null;
 
@@ -99,23 +638,6 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const nodeEdges = edges.filter((e) => e.source === node.id || e.target === node.id);
   const realmMap = Object.fromEntries(realms.map((r) => [r.id, r]));
 
-  const handleSave = () => {
-    updateNode(node.id, {
-      title: title.trim() || node.title,
-      content,
-      type: nodeType,
-    });
-  };
-
-  const handleSendChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || isStreaming) return;
-    const msg = chatInput;
-    setChatInput('');
-    chatInputRef.current?.focus();
-    await sendNodeChatMessage(node.id, node.title, node.content, msg);
-  };
-
   const tabs: [Tab, string, LucideIcon][] = [
     ['chat', 'Chat', MessageSquare],
     ['edit', 'Edit', Edit3],
@@ -124,6 +646,16 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
 
   return (
     <div className="absolute right-0 top-0 h-full w-[380px] bg-void-900/98 border-l border-void-700/60 flex flex-col z-30 backdrop-blur-md shadow-2xl">
+
+      {/* Floating rich text toolbar (portal-style fixed positioning) */}
+      {toolbarPos && (
+        <RichToolbar
+          textareaRef={contentRef}
+          value={content}
+          onChange={setContent}
+          position={toolbarPos}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-void-800/70 flex-shrink-0">
@@ -254,7 +786,8 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
 
       {/* ── Edit tab ── */}
       {tab === 'edit' && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Title — always editable */}
           <div>
             <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Title</label>
             <input
@@ -265,17 +798,73 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
               className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cosmic-cyan transition-colors"
             />
           </div>
+
+          {/* Content / Notes — body text editing for user-created nodes only */}
           <div>
-            <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Content / Notes</label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onBlur={handleSave}
-              rows={6}
-              className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors resize-none leading-relaxed"
-              placeholder="Add notes, context, or additional detail…"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-slate-500">
+                Content / Notes
+              </label>
+              {!isAIGenerated && (
+                <div className="flex-shrink-0">
+                  <RichToolbar
+                    textareaRef={contentRef}
+                    value={content}
+                    onChange={setContent}
+                  />
+                </div>
+              )}
+            </div>
+
+            {isAIGenerated ? (
+              /* Read-only rendered markdown for AI-generated nodes */
+              <div className="w-full bg-void-800/30 border border-void-700/40 rounded-lg px-3 py-2 min-h-[80px]">
+                {renderMarkdown(content) ?? (
+                  <p className="text-xs text-slate-600 italic">No content</p>
+                )}
+              </div>
+            ) : (
+              <textarea
+                ref={contentRef}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onSelect={handleContentSelect}
+                onKeyUp={handleContentSelect}
+                onBlur={(e) => {
+                  handleContentBlur();
+                  handleSave();
+                }}
+                rows={8}
+                className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors resize-none leading-relaxed font-mono"
+                placeholder="Add notes, context, or additional detail… (supports **bold**, *italic*, # headings, - lists)"
+              />
+            )}
+
+            {/* Add comment affordance — only when text is selected */}
+            {showAddComment && !isAIGenerated && pendingComment === null && (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const ta = contentRef.current;
+                  if (!ta) return;
+                  const start = ta.selectionStart;
+                  const end = ta.selectionEnd;
+                  if (start !== end) {
+                    setPendingComment({ start, end });
+                    setShowAddComment(false);
+                    setToolbarPos(null);
+                  }
+                }}
+                className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-600 hover:text-cosmic-cyan transition-colors"
+              >
+                <MessageCircle size={10} />
+                <span>Add comment to selection</span>
+              </button>
+            )}
           </div>
+
+          {/* Type — always editable */}
           <div>
             <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Type</label>
             <select
@@ -288,6 +877,8 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
               ))}
             </select>
           </div>
+
+          {/* Realms — always display-only */}
           <div>
             <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Realms</label>
             <div className="flex flex-wrap gap-1.5">
@@ -308,6 +899,34 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
               )}
             </div>
           </div>
+
+          {/* Tags */}
+          <TagsInput
+            tags={tags}
+            onChange={(t) => { setTags(t); saveTagsNow(t); }}
+          />
+
+          {/* Attachments — panel-only, no inline editing */}
+          <div className="border-t border-void-800/60 pt-4">
+            <AttachmentsSection
+              attachments={attachments}
+              onChange={(a) => { setAttachments(a); saveAttachmentsNow(a); }}
+            />
+          </div>
+
+          {/* Comments */}
+          <div className="border-t border-void-800/60 pt-4">
+            <CommentsSection
+              content={content}
+              comments={comments}
+              onChange={(c) => { setComments(c); saveCommentsNow(c); }}
+              textareaRef={contentRef}
+              pendingComment={pendingComment}
+              onClearPending={() => setPendingComment(null)}
+            />
+          </div>
+
+          {/* Delete */}
           <div className="pt-3 border-t border-void-800/60">
             <button
               onClick={() => { deleteNode(node.id); onClose(); }}

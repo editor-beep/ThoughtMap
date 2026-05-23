@@ -95,7 +95,7 @@ interface MapState {
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
-  updateNode: (id: string, updates: Partial<Pick<ThoughtNode, 'title' | 'content' | 'type' | 'realms'>>) => void;
+  updateNode: (id: string, updates: Partial<Pick<ThoughtNode, 'title' | 'content' | 'type' | 'realms' | 'tags' | 'attachments' | 'comments'>>) => void;
   deleteNode: (id: string) => void;
   addEdge: (source: string, target: string, type: EdgeType) => void;
   deleteEdge: (id: string) => void;

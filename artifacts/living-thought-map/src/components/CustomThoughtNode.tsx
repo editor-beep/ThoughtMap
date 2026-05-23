@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 import { Handle, Position, useViewport, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
 import { DOT_THRESHOLD } from '../lib/constants';
+import { renderMarkdown } from '../lib/markdown';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, X, ChevronDown,
+  Paperclip, MessageCircle, Bold, Italic,
   type LucideIcon
 } from 'lucide-react';
 
@@ -31,9 +33,71 @@ const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
   fragment:      { icon: Layers,        border: 'border-slate-600/40',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.14)',   dotColor: '#64748b', dotShape: 'circle'  }
 };
 
+// AI-generated types — inline body editing is disabled for these
+const AI_GENERATED_TYPES: ThoughtNode['type'][] = ['artifact', 'myth', 'research', 'contradiction'];
+
+// ─── Inline mini toolbar ───────────────────────────────────────────────────
+
+function wrapSelection(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  prefix: string,
+  suffix: string,
+  onChange: (v: string) => void
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = value.slice(start, end);
+  const already = selected.startsWith(prefix) && selected.endsWith(suffix);
+  const newText = already
+    ? value.slice(0, start) + selected.slice(prefix.length, selected.length - suffix.length) + value.slice(end)
+    : value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+  onChange(newText);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    const newEnd = already ? end - prefix.length - suffix.length : end + prefix.length + suffix.length;
+    textarea.setSelectionRange(
+      already ? start : start + prefix.length,
+      newEnd
+    );
+  });
+}
+
+interface InlineToolbarProps {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  value: string;
+  onChange: (v: string) => void;
+}
+
+function InlineToolbar({ textareaRef, value, onChange }: InlineToolbarProps) {
+  const ta = textareaRef.current;
+  return (
+    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-void-700 border border-void-600/50 shadow">
+      <button
+        type="button"
+        title="Bold"
+        onMouseDown={(e) => { e.preventDefault(); ta && wrapSelection(ta, value, '**', '**', onChange); }}
+        className="p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-void-600 transition-colors"
+      >
+        <Bold size={9} />
+      </button>
+      <button
+        type="button"
+        title="Italic"
+        onMouseDown={(e) => { e.preventDefault(); ta && wrapSelection(ta, value, '*', '*', onChange); }}
+        className="p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-void-600 transition-colors"
+      >
+        <Italic size={9} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Node card ─────────────────────────────────────────────────────────────
+
 export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
   const { node } = data;
-  const { deleteNode, nodeSearchQuery } = useThoughtStore();
+  const { deleteNode, nodeSearchQuery, updateNode } = useThoughtStore();
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
   const isSearchMatch = nodeSearchQuery.length > 0 && (
     node.title.toLowerCase().includes(nodeSearchQuery) ||
@@ -41,12 +105,42 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   );
   const Icon = config.icon;
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
+  const [inlineContent, setInlineContent] = useState(node.content);
+  const [showInlineToolbar, setShowInlineToolbar] = useState(false);
   const { zoom } = useViewport();
   const { setCenter } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const isDot = zoom < DOT_THRESHOLD;
   const showExpanded = isExpanded;
   const COLLAPSED_MIN_HEIGHT = 60;
+  const inlineRef = useRef<HTMLTextAreaElement | null>(null);
+  const canEditInline = !AI_GENERATED_TYPES.includes(node.type);
+
+  // Keep inlineContent in sync with node.content when not editing
+  useEffect(() => {
+    if (!isInlineEditing) {
+      setInlineContent(node.content);
+    }
+  }, [node.content, isInlineEditing]);
+
+  const commitInline = useCallback(() => {
+    setIsInlineEditing(false);
+    setShowInlineToolbar(false);
+    updateNode(node.id, { content: inlineContent });
+  }, [node.id, inlineContent, updateNode]);
+
+  const handleInlineKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setInlineContent(node.content); // revert
+      setIsInlineEditing(false);
+      setShowInlineToolbar(false);
+    }
+  }, [node.content]);
+
+  const hasAttachments = (node.attachments ?? []).length > 0;
+  const commentCount = (node.comments ?? []).length;
+  const hasTags = (node.tags ?? []).length > 0;
 
   if (isDot) {
     const dotSize = 16;
@@ -111,6 +205,18 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
       <div className="flex items-center gap-2">
         <Icon size={13} className={config.iconColor} />
         <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase flex-1">{node.type}</span>
+
+        {/* Status badges — paperclip and comment count */}
+        {hasAttachments && (
+          <Paperclip size={9} className="text-slate-600 flex-shrink-0" title="Has attachments" />
+        )}
+        {commentCount > 0 && (
+          <span className="flex items-center gap-0.5 text-[9px] text-slate-600 flex-shrink-0" title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}`}>
+            <MessageCircle size={9} />
+            {commentCount}
+          </span>
+        )}
+
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -142,13 +248,78 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
       {/* Title: always visible */}
       <h4 className="font-sans text-sm font-semibold text-slate-100 mt-2 leading-snug">{node.title}</h4>
 
-      {/* Collapsible body: content + realm tags */}
+      {/* Collapsible body: content + realm tags + node tags */}
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{ maxHeight: showExpanded ? '500px' : '0px', opacity: showExpanded ? 1 : 0 }}
+        style={{ maxHeight: showExpanded ? '600px' : '0px', opacity: showExpanded ? 1 : 0 }}
       >
-        <p className="font-sans text-xs text-slate-400 leading-relaxed break-words line-clamp-4 mt-1.5">{node.content}</p>
-        <div className="flex flex-wrap gap-1 mt-3">
+        {/* Content: inline edit mode or read mode */}
+        {isInlineEditing ? (
+          <div className="mt-1.5">
+            {showInlineToolbar && (
+              <div className="mb-1">
+                <InlineToolbar
+                  textareaRef={inlineRef}
+                  value={inlineContent}
+                  onChange={setInlineContent}
+                />
+              </div>
+            )}
+            <textarea
+              ref={inlineRef}
+              value={inlineContent}
+              onChange={(e) => setInlineContent(e.target.value)}
+              onSelect={() => {
+                const ta = inlineRef.current;
+                if (ta && ta.selectionStart !== ta.selectionEnd) {
+                  setShowInlineToolbar(true);
+                }
+              }}
+              onKeyDown={handleInlineKeyDown}
+              onBlur={commitInline}
+              rows={4}
+              className="nodrag w-full bg-void-700/60 border border-void-600/60 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors resize-none leading-relaxed font-mono"
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+            />
+            <p className="text-[9px] text-slate-600 font-mono mt-0.5">Esc to cancel · click outside to save</p>
+          </div>
+        ) : (
+          <div
+            className={`nodrag mt-1.5 ${canEditInline ? 'cursor-text' : ''}`}
+            onClick={(e) => {
+              if (!canEditInline) return;
+              e.stopPropagation();
+              setIsInlineEditing(true);
+              setInlineContent(node.content);
+            }}
+            title={canEditInline ? 'Click to edit' : undefined}
+          >
+            <div className="text-xs text-slate-400 leading-relaxed break-words line-clamp-4">
+              {renderMarkdown(node.content) ?? <span className="text-slate-600 italic">No content</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Tag chips */}
+        {hasTags && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {(node.tags ?? []).slice(0, 4).map((tag) => (
+              <span
+                key={tag}
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-void-700/60 border border-void-600/40 text-slate-500"
+              >
+                {tag}
+              </span>
+            ))}
+            {(node.tags ?? []).length > 4 && (
+              <span className="text-[9px] font-mono text-slate-600">+{(node.tags ?? []).length - 4}</span>
+            )}
+          </div>
+        )}
+
+        {/* Realm tags */}
+        <div className="flex flex-wrap gap-1 mt-2">
           {node.realms.map((r) => (
             <span key={r} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-void-700/60 text-slate-500">
               @{r}
@@ -156,6 +327,23 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
           ))}
         </div>
       </div>
+
+      {/* Collapsed state badges: tags + paperclip + comment count (when collapsed) */}
+      {!showExpanded && (hasTags || hasAttachments || commentCount > 0) && (
+        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+          {(node.tags ?? []).slice(0, 2).map((tag) => (
+            <span
+              key={tag}
+              className="text-[9px] font-mono px-1 py-0 rounded bg-void-700/40 text-slate-600"
+            >
+              {tag}
+            </span>
+          ))}
+          {(node.tags ?? []).length > 2 && (
+            <span className="text-[9px] text-slate-600 font-mono">+{(node.tags ?? []).length - 2}</span>
+          )}
+        </div>
+      )}
 
       <Handle
         type="source"
