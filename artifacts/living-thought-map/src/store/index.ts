@@ -83,6 +83,7 @@ interface MapState {
   isStreaming: boolean;
   focusedNodeId: string | null;
   undoStack: UndoAction[];
+  nodeSearchQuery: string;
 
   cartographerLoading: boolean;
   cartographerSuggestions: CartographerVariation[] | null;
@@ -105,6 +106,7 @@ interface MapState {
   setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
+  setNodeSearchQuery: (q: string) => void;
   nodeChats: Record<string, ChatMessage[]>;
   nodeChatStreaming: string | null;
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
@@ -151,6 +153,7 @@ export const useThoughtStore = create<MapState>()(
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
+      nodeSearchQuery: '',
       nodeChats: {} as Record<string, ChatMessage[]>,
       nodeChatStreaming: null as string | null,
 
@@ -402,6 +405,7 @@ export const useThoughtStore = create<MapState>()(
       setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
       clearFocusedNode: () => set({ focusedNodeId: null }),
+      setNodeSearchQuery: (q) => set({ nodeSearchQuery: q }),
 
       sendNodeChatMessage: async (nodeId, nodeTitle, nodeContent, message) => {
         const previousChat = get().nodeChats[nodeId] ?? [];
