@@ -62,7 +62,7 @@ export default function SanctumModal({ onClose }: SanctumModalProps) {
       onClick={onClose}
     >
       <div
-        className="relative bg-void-800 border border-void-700/60 rounded-xl p-8 w-full max-w-2xl shadow-2xl"
+        className="relative bg-void-800 border border-void-700/60 rounded-xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-2">

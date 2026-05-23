@@ -50,7 +50,7 @@ function DropdownButton({ label, badge, isOpen, onClick }: DropdownButtonProps) 
 export default function TopNav() {
   const {
     nodes, edges, realms,
-    toggleRealm, addRealm, focusNode, deleteNode,
+    toggleRealm, addRealm, focusNode, deleteNode, addNode,
     activeTerrain, setTerrain,
     importMap,
     setNodeSearchQuery,
@@ -62,10 +62,14 @@ export default function TopNav() {
   const [isSanctumModalOpen, setIsSanctumModalOpen] = useState(false);
   const [newRealmInput, setNewRealmInput] = useState('');
   const [showNewRealmInput, setShowNewRealmInput] = useState(false);
+  const [showNewAnchorInput, setShowNewAnchorInput] = useState(false);
+  const [newAnchorTitle, setNewAnchorTitle] = useState('');
+  const [newAnchorNote, setNewAnchorNote] = useState('');
 
   const importInputRef = useRef<HTMLInputElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const newRealmInputRef = useRef<HTMLInputElement>(null);
+  const newAnchorInputRef = useRef<HTMLInputElement>(null);
 
   // Sync local search to store for canvas highlighting
   useEffect(() => {
@@ -79,6 +83,9 @@ export default function TopNav() {
         setOpenDropdown(null);
         setShowNewRealmInput(false);
         setNewRealmInput('');
+        setShowNewAnchorInput(false);
+        setNewAnchorTitle('');
+        setNewAnchorNote('');
       }
     };
     document.addEventListener('mousedown', handler);
@@ -92,6 +99,9 @@ export default function TopNav() {
         setOpenDropdown(null);
         setShowNewRealmInput(false);
         setNewRealmInput('');
+        setShowNewAnchorInput(false);
+        setNewAnchorTitle('');
+        setNewAnchorNote('');
       }
     };
     window.addEventListener('keydown', handler);
@@ -104,6 +114,13 @@ export default function TopNav() {
       newRealmInputRef.current?.focus();
     }
   }, [showNewRealmInput]);
+
+  // Focus anchor title input when it appears
+  useEffect(() => {
+    if (showNewAnchorInput) {
+      newAnchorInputRef.current?.focus();
+    }
+  }, [showNewAnchorInput]);
 
   const filteredNodes = useMemo(() => {
     const q = nodeSearch.trim().toLowerCase();
@@ -120,11 +137,25 @@ export default function TopNav() {
     return counts;
   }, [realms, nodes]);
 
+  const anchorNodes = useMemo(() => nodes.filter((n) => n.isAnchor), [nodes]);
+
+  const filteredAnchorNodes = useMemo(() => {
+    const q = nodeSearch.trim().toLowerCase();
+    return q
+      ? anchorNodes.filter((n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
+      : anchorNodes;
+  }, [anchorNodes, nodeSearch]);
+
   const toggleDropdown = (id: DropdownId) => {
     setOpenDropdown((prev) => (prev === id ? null : id));
     if (id !== 'realms') {
       setShowNewRealmInput(false);
       setNewRealmInput('');
+    }
+    if (id !== 'anchors') {
+      setShowNewAnchorInput(false);
+      setNewAnchorTitle('');
+      setNewAnchorNote('');
     }
   };
 
@@ -174,6 +205,25 @@ export default function TopNav() {
     setOpenDropdown(null);
   };
 
+  const handleAddAnchor = () => {
+    const trimmed = newAnchorTitle.trim();
+    if (!trimmed) return;
+    const id = addNode({
+      title: trimmed,
+      content: newAnchorNote.trim(),
+      type: 'thought',
+      isAnchor: true,
+      realms: [],
+      x: 0,
+      y: 0,
+    });
+    focusNode(id);
+    setNewAnchorTitle('');
+    setNewAnchorNote('');
+    setShowNewAnchorInput(false);
+    setOpenDropdown(null);
+  };
+
   return (
     <nav
       ref={navRef}
@@ -212,7 +262,7 @@ export default function TopNav() {
           label="Anchors"
           badge={
             <span className="bg-void-800 border border-void-700/50 rounded px-1 py-px text-[9px] text-slate-500 font-mono tabular-nums">
-              {nodes.length}
+              {anchorNodes.length}
             </span>
           }
           isOpen={openDropdown === 'anchors'}
@@ -220,13 +270,13 @@ export default function TopNav() {
         />
         {openDropdown === 'anchors' && (
           <div className="absolute top-full left-0 mt-1 w-60 bg-void-900 border border-void-700/60 rounded-lg shadow-2xl overflow-hidden">
-            {nodes.length === 0 ? (
+            {anchorNodes.length === 0 ? (
               <div className="px-3 py-3 text-xs font-mono text-slate-600 italic">No anchors yet.</div>
-            ) : filteredNodes.length === 0 ? (
+            ) : filteredAnchorNodes.length === 0 ? (
               <div className="px-3 py-3 text-xs font-mono text-slate-600 italic">No matches.</div>
             ) : (
               <div className="max-h-64 overflow-y-auto">
-                {filteredNodes.map((n) => (
+                {filteredAnchorNodes.map((n) => (
                   <div
                     key={n.id}
                     className="group flex items-center gap-2 px-3 py-2 hover:bg-void-800/60 cursor-pointer transition-colors"
@@ -247,6 +297,59 @@ export default function TopNav() {
                 ))}
               </div>
             )}
+            <div className="border-t border-void-700/40">
+              {showNewAnchorInput ? (
+                <div className="p-2 space-y-1.5">
+                  <input
+                    ref={newAnchorInputRef}
+                    type="text"
+                    value={newAnchorTitle}
+                    onChange={(e) => setNewAnchorTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddAnchor();
+                      if (e.key === 'Escape') { setShowNewAnchorInput(false); setNewAnchorTitle(''); setNewAnchorNote(''); }
+                      e.stopPropagation();
+                    }}
+                    placeholder="Anchor title…"
+                    className="w-full bg-void-800/60 border border-void-700/60 rounded px-2 py-1 text-[11px] font-mono text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-cosmic-cyan/50 min-w-0"
+                  />
+                  <input
+                    type="text"
+                    value={newAnchorNote}
+                    onChange={(e) => setNewAnchorNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddAnchor();
+                      if (e.key === 'Escape') { setShowNewAnchorInput(false); setNewAnchorTitle(''); setNewAnchorNote(''); }
+                      e.stopPropagation();
+                    }}
+                    placeholder="Note (optional)…"
+                    className="w-full bg-void-800/60 border border-void-700/60 rounded px-2 py-1 text-[11px] font-mono text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-cosmic-cyan/50 min-w-0"
+                  />
+                  <div className="flex gap-1 justify-end">
+                    <button
+                      onClick={handleAddAnchor}
+                      disabled={!newAnchorTitle.trim()}
+                      className="text-cosmic-cyan hover:text-cosmic-cyan/80 text-xs font-mono px-2 py-0.5 disabled:opacity-40 transition-colors"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => { setShowNewAnchorInput(false); setNewAnchorTitle(''); setNewAnchorNote(''); }}
+                      className="text-slate-600 hover:text-slate-300 text-xs font-mono px-2 py-0.5 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowNewAnchorInput(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono text-slate-500 hover:text-slate-300 hover:bg-void-800/40 transition-colors"
+                >
+                  ＋ Add anchor
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -342,7 +445,7 @@ export default function TopNav() {
           onClick={() => toggleDropdown('sanctum')}
         />
         {openDropdown === 'sanctum' && (
-          <div className="absolute top-full left-0 mt-1 w-48 bg-void-900 border border-void-700/60 rounded-lg shadow-2xl overflow-hidden">
+          <div className="absolute top-full left-0 mt-1 w-56 bg-void-900 border border-void-700/60 rounded-lg shadow-2xl overflow-hidden">
             {(Object.keys(TERRAIN_NAMES) as TerrainId[]).map((id) => (
               <button
                 key={id}
@@ -360,7 +463,7 @@ export default function TopNav() {
                     boxShadow: activeTerrain === id ? `0 0 6px ${TERRAIN_COLORS[id]}` : 'none',
                   }}
                 />
-                <span className="truncate">{TERRAIN_NAMES[id]}</span>
+                <span>{TERRAIN_NAMES[id]}</span>
                 {activeTerrain === id && (
                   <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse flex-shrink-0" />
                 )}

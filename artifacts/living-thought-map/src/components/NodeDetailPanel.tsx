@@ -878,6 +878,22 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
             </select>
           </div>
 
+          {/* Anchor toggle */}
+          <div>
+            <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Anchor</label>
+            <button
+              type="button"
+              onClick={() => updateNode(node.id, { isAnchor: !(node.isAnchor ?? false) })}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono transition-colors border ${
+                node.isAnchor
+                  ? 'text-cosmic-cyan border-cosmic-cyan/40 bg-cosmic-cyan/10 hover:bg-cosmic-cyan/20'
+                  : 'text-slate-500 border-void-700/80 bg-void-800/60 hover:text-slate-300 hover:border-void-600/80'
+              }`}
+            >
+              {node.isAnchor ? '⚓ Anchored' : 'Set as Anchor'}
+            </button>
+          </div>
+
           {/* Realms — always display-only */}
           <div>
             <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Realms</label>
