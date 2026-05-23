@@ -16,6 +16,22 @@ export type EdgeType =
   | 'remixes'
   | 'supports';
 
+export interface Attachment {
+  id: string;
+  type: 'image' | 'url' | 'file';
+  url: string;
+  name: string;
+  mimeType?: string;
+}
+
+export interface NodeComment {
+  id: string;
+  spanStart: number;
+  spanEnd: number;
+  text: string;
+  createdAt: string;
+}
+
 export interface ThoughtNode {
   id: string;
   title: string;
@@ -25,6 +41,9 @@ export interface ThoughtNode {
   x: number;
   y: number;
   createdAt: string;
+  tags?: string[];
+  attachments?: Attachment[];
+  comments?: NodeComment[];
 }
 
 export interface ThoughtEdge {
