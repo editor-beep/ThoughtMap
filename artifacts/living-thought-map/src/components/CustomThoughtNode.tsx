@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useViewport } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
+import { EXPAND_THRESHOLD } from '../lib/constants';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, X, ChevronDown,
@@ -33,6 +34,8 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
   const Icon = config.icon;
   const [isExpanded, setIsExpanded] = useState(false);
+  const { zoom } = useViewport();
+  const showExpanded = isExpanded && zoom >= EXPAND_THRESHOLD;
 
   return (
     <div
@@ -70,7 +73,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
       {/* Collapsible body: content + realm tags */}
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{ maxHeight: isExpanded ? '500px' : '0px', opacity: isExpanded ? 1 : 0 }}
+        style={{ maxHeight: showExpanded ? '500px' : '0px', opacity: showExpanded ? 1 : 0 }}
       >
         <p className="font-sans text-xs text-slate-400 leading-relaxed break-words line-clamp-4 mt-1.5">{node.content}</p>
         <div className="flex flex-wrap gap-1 mt-3">
