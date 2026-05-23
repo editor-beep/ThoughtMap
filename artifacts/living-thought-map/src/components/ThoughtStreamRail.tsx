@@ -88,6 +88,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
     chatHistory,
     sendChatMessage,
     extractToMap,
+    addNode,
     isStreaming,
     realms,
     addRealm,
@@ -106,6 +107,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   const [newRealmInput, setNewRealmInput] = useState('');
   const [useManualMode, setUseManualMode] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(true);
+  const [bubbleSelection, setBubbleSelection] = useState<{ msgId: string; text: string } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -125,6 +127,39 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
       setUseManualMode(false);
     }
   }, [cartographerExtractingMessageId, cartographerSuggestions]);
+
+  useEffect(() => {
+    const onSelectionChange = () => {
+      if (!window.getSelection()?.toString().trim()) {
+        setBubbleSelection(null);
+      }
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, []);
+
+  const handleBubbleMouseUp = (messageId: string) => {
+    const text = window.getSelection()?.toString().trim() ?? '';
+    if (text.length > 2) {
+      setBubbleSelection({ msgId: messageId, text });
+    }
+  };
+
+  const copyHighlight = async () => {
+    if (!bubbleSelection) return;
+    await navigator.clipboard.writeText(bubbleSelection.text);
+    setBubbleSelection(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const pinHighlight = () => {
+    if (!bubbleSelection) return;
+    const { text } = bubbleSelection;
+    const title = text.length > 56 ? `${text.slice(0, 56).trimEnd()}…` : text;
+    addNode({ title, content: text, type: 'fragment', realms: [], x: (Math.random() - 0.5) * 400, y: (Math.random() - 0.5) * 400 });
+    setBubbleSelection(null);
+    window.getSelection()?.removeAllRanges();
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,13 +309,14 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
               className={`px-3.5 py-2.5 rounded-xl text-sm max-w-[85%] border ${
                 message.role === 'user'
                   ? 'bg-void-700/80 text-slate-200 border-void-600/50 rounded-tr-sm leading-relaxed'
-                  : 'bg-void-900/60 text-slate-300 border-void-800/60 rounded-tl-sm'
+                  : 'bg-void-900/60 text-slate-300 border-void-800/60 rounded-tl-sm select-text cursor-text'
               }`}
               style={
                 message.role === 'assistant'
                   ? { borderLeftColor: 'rgba(6,182,212,0.65)', borderLeftWidth: '3px' }
                   : undefined
               }
+              onMouseUp={message.role === 'assistant' ? () => handleBubbleMouseUp(message.id) : undefined}
             >
               {message.role === 'assistant' ? (
                 <>
@@ -298,6 +334,34 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
                 </>
               )}
             </div>
+
+            {message.role === 'assistant' && bubbleSelection?.msgId === message.id && (
+              <div className="flex items-center gap-2 bg-void-800/80 border border-cosmic-cyan/30 rounded-lg px-2.5 py-1.5 max-w-[85%]">
+                <span className="text-[10px] text-cosmic-cyan/60 font-mono truncate flex-1 min-w-0">
+                  ✦ &ldquo;{bubbleSelection.text.length > 28 ? bubbleSelection.text.slice(0, 28) + '…' : bubbleSelection.text}&rdquo;
+                </span>
+                <button
+                  onClick={copyHighlight}
+                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-200 transition-colors flex-shrink-0"
+                >
+                  <Copy size={10} />
+                  <span>Copy</span>
+                </button>
+                <button
+                  onClick={pinHighlight}
+                  className="flex items-center gap-1 text-[10px] text-cosmic-cyan/60 hover:text-cosmic-cyan transition-colors flex-shrink-0"
+                >
+                  <GitBranchPlus size={10} />
+                  <span>Add to canvas</span>
+                </button>
+                <button
+                  onClick={() => { setBubbleSelection(null); window.getSelection()?.removeAllRanges(); }}
+                  className="text-slate-600 hover:text-slate-400 transition-colors flex-shrink-0"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )}
 
             {!message.extractedNodeId && message.content && !message.content.startsWith('⚠') && (
               <div className="flex items-center gap-3 flex-wrap">
@@ -329,14 +393,16 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
                   <Pin size={11} />
                   <span>Pin full text</span>
                 </button>
-                <button
-                  onClick={() => openExtract(message.id)}
-                  disabled={cartographerLoading}
-                  className="flex items-center gap-1 text-[11px] text-cosmic-cyan/50 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
-                >
-                  <GitBranchPlus size={11} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-6 transition-transform'}`} />
-                  <span>Send to Cartographer</span>
-                </button>
+                {message.role === 'assistant' && (
+                  <button
+                    onClick={() => openExtract(message.id)}
+                    disabled={cartographerLoading}
+                    className="flex items-center gap-1 text-[11px] text-cosmic-cyan/50 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+                  >
+                    <GitBranchPlus size={11} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-6 transition-transform'}`} />
+                    <span>Crystallize</span>
+                  </button>
+                )}
               </div>
             )}
 
