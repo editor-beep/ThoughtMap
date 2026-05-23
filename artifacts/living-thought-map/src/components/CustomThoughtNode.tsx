@@ -33,8 +33,12 @@ const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
 
 export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
   const { node } = data;
-  const { deleteNode } = useThoughtStore();
+  const { deleteNode, nodeSearchQuery } = useThoughtStore();
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
+  const isSearchMatch = nodeSearchQuery.length > 0 && (
+    node.title.toLowerCase().includes(nodeSearchQuery) ||
+    node.content.toLowerCase().includes(nodeSearchQuery)
+  );
   const Icon = config.icon;
   const [isExpanded, setIsExpanded] = useState(false);
   const { zoom } = useViewport();
@@ -98,8 +102,8 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
 
   return (
     <div
-      className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
-      style={{ boxShadow: `0 0 20px ${config.glow}`, minHeight: `${COLLAPSED_MIN_HEIGHT}px` }}
+      className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${isSearchMatch ? 'border-cosmic-cyan' : config.border} max-w-xs min-w-[200px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
+      style={{ boxShadow: isSearchMatch ? '0 0 0 2px rgba(6,182,212,0.5), 0 0 24px rgba(6,182,212,0.3)' : `0 0 20px ${config.glow}`, minHeight: `${COLLAPSED_MIN_HEIGHT}px` }}
     >
       <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
 
