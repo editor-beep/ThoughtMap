@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import 'reactflow/dist/style.css';
-import { Sparkles, Maximize2, Minimize2, Map } from 'lucide-react';
+import { Sparkles, Map } from 'lucide-react';
 import TopNav from './components/TopNav';
 import SpatialCanvas from './components/SpatialCanvas';
 import ThoughtStreamRail from './components/ThoughtStreamRail';
@@ -17,14 +17,7 @@ export default function App() {
       {/* Canvas + right rail row */}
       <div className="flex flex-1 min-h-0">
         <main className="flex-1 h-full relative min-w-0 pb-14 md:pb-0">
-          <SpatialCanvas />
-          <button
-            onClick={() => setImmersive(!immersive)}
-            title={immersive ? 'Exit immersive mode' : 'Enter immersive mode'}
-            className="hidden md:flex absolute top-3 right-3 z-30 w-7 h-7 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-void-800/60 transition-colors"
-          >
-            {immersive ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-          </button>
+          <SpatialCanvas immersive={immersive} onImmersiveToggle={() => setImmersive(!immersive)} />
         </main>
         <div className={`transition-all duration-300 flex-shrink-0 ${immersive ? 'w-0 overflow-hidden' : ''}`}>
           <ThoughtStreamRail isOpen={streamOpen} onClose={() => setStreamOpen(false)} />

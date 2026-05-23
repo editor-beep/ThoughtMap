@@ -13,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import { useThoughtStore } from '../store';
 import { EdgeType } from '../types';
-import { Compass } from 'lucide-react';
+import { Compass, Maximize2, Minimize2 } from 'lucide-react';
 import CustomThoughtNode from './CustomThoughtNode';
 import ClusterMarkerNode from './ClusterMarkerNode';
 import NodeDetailPanel from './NodeDetailPanel';
@@ -86,7 +86,12 @@ function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) 
   return null;
 }
 
-export default function SpatialCanvas() {
+interface SpatialCanvasProps {
+  immersive: boolean;
+  onImmersiveToggle: () => void;
+}
+
+export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialCanvasProps) {
   const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -215,6 +220,15 @@ export default function SpatialCanvas() {
           <p className="font-mono text-[10px] text-slate-600 mt-1">Every message can become a node.</p>
         </div>
       )}
+
+      {/* Immersive toggle — z-20 so NodeDetailPanel (z-30) covers it when open */}
+      <button
+        onClick={onImmersiveToggle}
+        title={immersive ? 'Exit immersive mode' : 'Enter immersive mode'}
+        className="hidden md:flex absolute top-3 right-3 z-20 w-7 h-7 items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-void-800/60 transition-colors"
+      >
+        {immersive ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+      </button>
 
       {/* Floating Cartographer Button */}
       <button
