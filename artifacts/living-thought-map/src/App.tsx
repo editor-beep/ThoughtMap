@@ -15,7 +15,7 @@ export default function App() {
   const openCanvas = () => { setRealmOpen(false);  setStreamOpen(false); };
 
   return (
-    <div className="flex w-screen h-screen bg-void-900 text-slate-300 font-sans antialiased overflow-hidden">
+    <div className="flex w-screen h-dvh bg-void-900 text-slate-300 font-sans antialiased overflow-hidden">
       <div className={`transition-all duration-300 flex-shrink-0 ${immersive ? 'w-0 overflow-hidden' : ''}`}>
         <ContextHistoryRail isOpen={realmOpen} onClose={() => setRealmOpen(false)} />
       </div>
