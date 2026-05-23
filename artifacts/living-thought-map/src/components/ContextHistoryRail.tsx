@@ -99,7 +99,7 @@ export default function ContextHistoryRail({ isOpen = false, onClose }: ContextH
             <div className="w-2.5 h-2.5 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
             <h1 className="font-mono text-xs tracking-widest uppercase text-slate-300">Thought Map</h1>
           </div>
-          <button onClick={onClose} className="text-slate-600 hover:text-slate-300 transition-colors p-1">
+          <button onClick={onClose} className="flex-shrink-0 text-slate-600 hover:text-slate-300 transition-colors p-1">
             <X size={16} />
           </button>
         </div>

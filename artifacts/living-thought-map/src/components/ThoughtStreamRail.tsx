@@ -236,16 +236,16 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   return (
     <aside className={`fixed md:relative inset-x-0 top-0 bottom-14 md:inset-auto md:bottom-auto w-full md:w-96 md:h-full bg-void-900/95 flex flex-col border-l border-void-800/40 overflow-hidden z-50 md:z-auto transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
       <div className="px-4 py-3.5 border-b border-void-800/60 bg-void-900/60 backdrop-blur-sm flex-shrink-0 flex items-center gap-2.5">
-        <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
-        <h3 className="font-mono text-xs tracking-wider uppercase text-slate-300 flex-1">Thought Stream</h3>
+        <div className="flex-shrink-0 w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
+        <h3 className="font-mono text-xs tracking-wider uppercase text-slate-300 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">Thought Stream</h3>
         <button
           onClick={() => setRailCollapsed(true)}
-          className="hidden md:block p-1 rounded hover:bg-void-800/60 text-slate-600 hover:text-slate-400 transition-colors"
+          className="flex-shrink-0 hidden md:block p-1 rounded hover:bg-void-800/60 text-slate-600 hover:text-slate-400 transition-colors"
           title="Collapse panel"
         >
           <ChevronRight size={12} />
         </button>
-        <button onClick={onClose} className="md:hidden text-slate-600 hover:text-slate-300 transition-colors p-1">
+        <button onClick={onClose} className="flex-shrink-0 md:hidden text-slate-600 hover:text-slate-300 transition-colors p-1">
           <X size={16} />
         </button>
       </div>

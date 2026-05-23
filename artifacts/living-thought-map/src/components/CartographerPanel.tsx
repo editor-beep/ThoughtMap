@@ -35,20 +35,20 @@ export default function CartographerPanel() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-void-700/60 bg-void-900/40">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-cosmic-cyan/10 border border-cosmic-cyan/30 flex items-center justify-center">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cosmic-cyan/10 border border-cosmic-cyan/30 flex items-center justify-center">
               <Compass size={16} className="text-cosmic-cyan" />
             </div>
-            <div>
-              <h2 className="font-mono text-sm text-slate-200">The Cartographer</h2>
-              <p className="font-mono text-[10px] text-slate-500">
+            <div className="min-w-0">
+              <h2 className="font-mono text-sm text-slate-200 truncate">The Cartographer</h2>
+              <p className="font-mono text-[10px] text-slate-500 truncate">
                 Guardian of the {terrainNames[activeTerrain] || 'Terrain'}
               </p>
             </div>
           </div>
           <button
             onClick={closeCartographerPanel}
-            className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+            className="flex-shrink-0 text-slate-500 hover:text-slate-300 transition-colors p-1"
           >
             <X size={16} />
           </button>
