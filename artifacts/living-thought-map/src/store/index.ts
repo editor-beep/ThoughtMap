@@ -88,6 +88,7 @@ interface MapState {
   cartographerSuggestions: CartographerVariation[] | null;
   cartographerInsight: string | null;
   cartographerExtractingMessageId: string | null;
+  cartographerAppliedIndices: number[];
   cartographerPanelOpen: boolean;
   cartographerWanderResponse: string | null;
 
@@ -112,6 +113,7 @@ interface MapState {
   importMap: (data: { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] }) => void;
 
   requestCartographerExtraction: (messageId: string) => Promise<void>;
+  requestCartographerExtractionFromContent: (content: string) => Promise<void>;
   applyCartographerSuggestion: (variationIndex: number, customTitle?: string) => void;
   dismissCartographerSuggestions: () => void;
   openCartographerPanel: () => void;
@@ -158,6 +160,7 @@ export const useThoughtStore = create<MapState>()(
       cartographerSuggestions: null,
       cartographerInsight: null,
       cartographerExtractingMessageId: null,
+      cartographerAppliedIndices: [],
       cartographerPanelOpen: false,
       cartographerWanderResponse: null,
 
@@ -480,6 +483,7 @@ export const useThoughtStore = create<MapState>()(
           cartographerSuggestions: null,
           cartographerInsight: null,
           cartographerExtractingMessageId: messageId,
+          cartographerAppliedIndices: [],
         });
 
         const state = get();
@@ -520,10 +524,57 @@ export const useThoughtStore = create<MapState>()(
         }
       },
 
+      requestCartographerExtractionFromContent: async (content) => {
+        set({
+          cartographerLoading: true,
+          cartographerSuggestions: null,
+          cartographerInsight: null,
+          cartographerExtractingMessageId: null,
+          cartographerAppliedIndices: [],
+        });
+
+        const state = get();
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
+          activeTerrain: state.activeTerrain,
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+        };
+
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'extract', message: content, context }),
+            signal: AbortSignal.timeout(30000),
+          });
+
+          if (!res.ok) {
+            let errorMsg = `API error: ${res.status}`;
+            try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
+            throw new Error(errorMsg);
+          }
+
+          const data = await res.json();
+          set({
+            cartographerLoading: false,
+            cartographerSuggestions: data.variations ?? [],
+            cartographerInsight: data.spatialInsight ?? null,
+          });
+        } catch (err) {
+          console.error('[Cartographer] Content extraction failed:', err);
+          set({
+            cartographerLoading: false,
+            cartographerSuggestions: null,
+            cartographerInsight: null,
+          });
+        }
+      },
+
       applyCartographerSuggestion: (variationIndex, customTitle) => {
         const suggestions = get().cartographerSuggestions;
         const messageId = get().cartographerExtractingMessageId;
-        if (!suggestions || !messageId || variationIndex >= suggestions.length) return;
+        if (!suggestions || variationIndex >= suggestions.length) return;
+        if (get().cartographerAppliedIndices.includes(variationIndex)) return;
 
         const variation = suggestions[variationIndex];
         const state = get();
@@ -560,11 +611,13 @@ export const useThoughtStore = create<MapState>()(
           y,
         });
 
+        // Mark message as extracted on first application; keep panel open for additional selections
+        const isFirst = get().cartographerAppliedIndices.length === 0;
         set((s) => ({
-          chatHistory: s.chatHistory.map((m) => (m.id === messageId ? { ...m, extractedNodeId: nodeId } : m)),
-          cartographerSuggestions: null,
-          cartographerInsight: null,
-          cartographerExtractingMessageId: null,
+          chatHistory: isFirst && messageId
+            ? s.chatHistory.map((m) => (m.id === messageId ? { ...m, extractedNodeId: nodeId } : m))
+            : s.chatHistory,
+          cartographerAppliedIndices: [...s.cartographerAppliedIndices, variationIndex],
         }));
       },
 
@@ -574,6 +627,7 @@ export const useThoughtStore = create<MapState>()(
           cartographerInsight: null,
           cartographerExtractingMessageId: null,
           cartographerLoading: false,
+          cartographerAppliedIndices: [],
         });
       },
 

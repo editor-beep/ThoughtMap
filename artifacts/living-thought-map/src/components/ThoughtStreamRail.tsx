@@ -7,7 +7,11 @@ import { NodeType } from '../types';
 function getDisplayContent(content: string): string {
   const mapExtractIdx = content.search(/\*\*MAP EXTRACT\*\*|```json/);
   if (mapExtractIdx === -1) return content;
-  return content.slice(0, mapExtractIdx).replace(/^1\.\s+\*\*REFLECTION & INSIGHTS\*\*\s*/i, '').trim();
+  return content
+    .slice(0, mapExtractIdx)
+    .replace(/^(?:\d+\.\s+)?\*\*REFLECTION & INSIGHTS\*\*\s*/i, '')
+    .replace(/\s*\d+\.\s*$/, '')
+    .trim();
 }
 
 function renderInline(text: string): React.ReactNode[] {
@@ -178,7 +182,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   };
 
   const lastMsgId = chatHistory[chatHistory.length - 1]?.id;
-  const showCartographerPanel = cartographerExtractingMessageId && !useManualMode;
+  const showCartographerPanel = (!!cartographerExtractingMessageId || cartographerLoading || !!cartographerSuggestions) && !useManualMode;
   const showManualPanel = extractTargetId && useManualMode;
 
   return (

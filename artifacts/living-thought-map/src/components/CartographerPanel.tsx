@@ -1,6 +1,6 @@
 import React from 'react';
 import { useThoughtStore } from '../store';
-import { Compass, X, Wind } from 'lucide-react';
+import { Compass, X, Wind, Sparkles } from 'lucide-react';
 
 export default function CartographerPanel() {
   const {
@@ -10,6 +10,7 @@ export default function CartographerPanel() {
     closeCartographerPanel,
     requestWanderMode,
     clearWanderResponse,
+    requestCartographerExtractionFromContent,
     nodes,
     activeTerrain,
   } = useThoughtStore();
@@ -66,12 +67,25 @@ export default function CartographerPanel() {
                 {cartographerWanderResponse}
               </p>
               {!cartographerLoading && (
-                <button
-                  onClick={clearWanderResponse}
-                  className="mt-3 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
-                >
-                  Dismiss
-                </button>
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      requestCartographerExtractionFromContent(cartographerWanderResponse);
+                      closeCartographerPanel();
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] font-mono text-cosmic-cyan/60 hover:text-cosmic-cyan transition-colors"
+                  >
+                    <Sparkles size={10} />
+                    <span>Crystallize to canvas</span>
+                  </button>
+                  <span className="text-void-600">·</span>
+                  <button
+                    onClick={clearWanderResponse}
+                    className="text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               )}
             </div>
           )}
