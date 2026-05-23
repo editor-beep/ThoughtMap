@@ -529,7 +529,9 @@ export const useThoughtStore = create<MapState>()(
           cartographerLoading: true,
           cartographerSuggestions: null,
           cartographerInsight: null,
-          cartographerExtractingMessageId: null,
+          // Keep a synthetic extraction id so the suggestion panel stays active
+          // for wander-mode crystallizations (which are not tied to chatHistory ids).
+          cartographerExtractingMessageId: `wander-${Date.now()}`,
           cartographerAppliedIndices: [],
         });
 
