@@ -210,7 +210,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   }
 
   return (
-    <aside className={`fixed md:relative inset-0 md:inset-auto w-full md:w-96 h-full bg-void-900/95 flex flex-col border-l border-void-800/40 relative overflow-hidden z-50 md:z-auto transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+    <aside className={`fixed md:relative inset-x-0 top-0 bottom-14 md:inset-auto md:bottom-auto w-full md:w-96 md:h-full bg-void-900/95 flex flex-col border-l border-void-800/40 overflow-hidden z-50 md:z-auto transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
       <div className="px-4 py-3.5 border-b border-void-800/60 bg-void-900/60 backdrop-blur-sm flex-shrink-0 flex items-center gap-2.5">
         <div className="w-2 h-2 rounded-full bg-cosmic-cyan animate-pulse" style={{ boxShadow: '0 0 8px rgba(6,182,212,0.7)' }} />
         <h3 className="font-mono text-xs tracking-wider uppercase text-slate-300 flex-1">Thought Stream</h3>
