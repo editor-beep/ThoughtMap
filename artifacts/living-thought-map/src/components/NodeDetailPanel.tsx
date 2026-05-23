@@ -55,8 +55,6 @@ const TYPE_COLORS: Record<NodeType, string> = {
   artifact: '#64748b', fragment: '#475569',
 };
 
-// AI-generated node types that restrict body text editing
-const AI_GENERATED_TYPES: NodeType[] = ['artifact', 'myth', 'research', 'contradiction'];
 
 type Tab = 'chat' | 'edit' | 'links';
 
@@ -549,8 +547,6 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const isAIGenerated = AI_GENERATED_TYPES.includes(node?.type ?? 'thought');
-
   useEffect(() => {
     if (node) {
       setTitle(node.title);
@@ -805,43 +801,32 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
               <label className="text-[9px] font-mono uppercase tracking-widest text-slate-500">
                 Content / Notes
               </label>
-              {!isAIGenerated && (
-                <div className="flex-shrink-0">
-                  <RichToolbar
-                    textareaRef={contentRef}
-                    value={content}
-                    onChange={setContent}
-                  />
-                </div>
-              )}
+              <div className="flex-shrink-0">
+                <RichToolbar
+                  textareaRef={contentRef}
+                  value={content}
+                  onChange={setContent}
+                />
+              </div>
             </div>
 
-            {isAIGenerated ? (
-              /* Read-only rendered markdown for AI-generated nodes */
-              <div className="w-full bg-void-800/30 border border-void-700/40 rounded-lg px-3 py-2 min-h-[80px]">
-                {renderMarkdown(content) ?? (
-                  <p className="text-xs text-slate-600 italic">No content</p>
-                )}
-              </div>
-            ) : (
-              <textarea
-                ref={contentRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onSelect={handleContentSelect}
-                onKeyUp={handleContentSelect}
-                onBlur={(e) => {
-                  handleContentBlur();
-                  handleSave();
-                }}
-                rows={8}
-                className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors resize-none leading-relaxed font-mono"
-                placeholder="Add notes, context, or additional detail… (supports **bold**, *italic*, # headings, - lists)"
-              />
-            )}
+            <textarea
+              ref={contentRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onSelect={handleContentSelect}
+              onKeyUp={handleContentSelect}
+              onBlur={() => {
+                handleContentBlur();
+                handleSave();
+              }}
+              rows={8}
+              className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-cosmic-cyan transition-colors resize-none leading-relaxed font-mono"
+              placeholder="Add notes, context, or additional detail… (supports **bold**, *italic*, # headings, - lists)"
+            />
 
             {/* Add comment affordance — only when text is selected */}
-            {showAddComment && !isAIGenerated && pendingComment === null && (
+            {showAddComment && pendingComment === null && (
               <button
                 type="button"
                 onMouseDown={(e) => {
