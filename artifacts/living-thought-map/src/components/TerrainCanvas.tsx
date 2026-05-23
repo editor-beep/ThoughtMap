@@ -31,21 +31,21 @@ function initVoid(w: number, h: number) {
   return (ctx: CanvasRenderingContext2D, t: number) => {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, w, h);
-    const breathe = 0.017 + 0.013 * Math.sin(t * 0.00030);
+    const breathe = 0.045 + 0.030 * Math.sin(t * 0.00055);
     const aura = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, w * 0.44);
     aura.addColorStop(0, `rgba(6,182,212,${breathe})`);
     aura.addColorStop(0.5, `rgba(6,182,212,${breathe * 0.35})`);
     aura.addColorStop(1, 'rgba(6,182,212,0)');
     ctx.fillStyle = aura; ctx.fillRect(0, 0, w, h);
-    const purpA = 0.010 + 0.008 * Math.sin(t * 0.00022 + 1.5);
+    const purpA = 0.028 + 0.018 * Math.sin(t * 0.00042 + 1.5);
     const purp = ctx.createRadialGradient(w * 0.27, h * 0.68, 0, w * 0.27, h * 0.68, w * 0.40);
     purp.addColorStop(0, `rgba(168,85,247,${purpA})`);
     purp.addColorStop(1, 'rgba(168,85,247,0)');
     ctx.fillStyle = purp; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(255,255,255,0.013)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
     for (let x = 0; x < w; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
     for (let y = 0; y < h; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-    const consAlpha = 0.036 + 0.018 * Math.sin(t * 0.00015);
+    const consAlpha = 0.09 + 0.04 * Math.sin(t * 0.00040);
     ctx.strokeStyle = `rgba(100,200,255,${consAlpha})`; ctx.lineWidth = 0.75;
     for (const [a, b] of cLines) {
       if (a < cStars.length && b < cStars.length) {
@@ -53,17 +53,17 @@ function initVoid(w: number, h: number) {
       }
     }
     for (const s of farStars) {
-      const alpha = 0.06 + 0.10 * Math.sin(t * s.speed + s.phase);
+      const alpha = 0.16 + 0.20 * Math.sin(t * s.speed + s.phase);
       ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(180,215,255,${alpha})`; ctx.fill();
     }
     for (const s of midStars) {
-      const alpha = 0.11 + 0.18 * Math.sin(t * s.speed + s.phase);
+      const alpha = 0.28 + 0.30 * Math.sin(t * s.speed + s.phase);
       ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(200,232,255,${alpha})`; ctx.fill();
     }
     for (const s of nearStars) {
-      const alpha = 0.22 + 0.38 * Math.sin(t * s.speed + s.phase);
+      const alpha = 0.48 + 0.42 * Math.sin(t * s.speed + s.phase);
       ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(220,245,255,${alpha})`; ctx.fill();
     }
@@ -126,7 +126,7 @@ function initInterstellar(w: number, h: number) {
     return {
       x: Math.cos(mwAngle) * along - Math.sin(mwAngle) * perp + w * 0.1,
       y: Math.sin(mwAngle) * along + Math.cos(mwAngle) * perp + h * 0.05,
-      size: rand(0.1, 0.5), alpha: rand(0.04, 0.22),
+      size: rand(0.1, 0.5), alpha: rand(0.12, 0.42),
     };
   });
 
@@ -136,7 +136,7 @@ function initInterstellar(w: number, h: number) {
     return {
       x: w * 0.5 + Math.cos(angle) * dist,
       y: h * 0.42 + Math.sin(angle) * dist * 0.7,
-      size: rand(0.15, 0.6), alpha: rand(0.08, 0.45),
+      size: rand(0.15, 0.6), alpha: rand(0.20, 0.65),
     };
   });
 
@@ -184,13 +184,13 @@ function initInterstellar(w: number, h: number) {
 
     const np = 0.6 + 0.4 * Math.sin(t * 0.000038);
     const nebDefs = [
-      { x: 0.28, y: 0.38, rx: 0.32, ry: 0.28, c: '6,182,212',  a: 0.14, drift: 0.00004 },
-      { x: 0.73, y: 0.62, rx: 0.30, ry: 0.24, c: '168,85,247', a: 0.11, drift: -0.000035 },
-      { x: 0.55, y: 0.78, rx: 0.26, ry: 0.18, c: '244,63,94',  a: 0.05, drift: 0.000028 },
-      { x: 0.16, y: 0.68, rx: 0.24, ry: 0.16, c: '245,158,11', a: 0.05, drift: -0.000042 },
-      { x: 0.87, y: 0.22, rx: 0.22, ry: 0.15, c: '16,185,129', a: 0.06, drift: 0.000031 },
-      { x: 0.48, y: 0.20, rx: 0.20, ry: 0.12, c: '99,102,241', a: 0.07, drift: -0.000025 },
-      { x: 0.82, y: 0.78, rx: 0.18, ry: 0.12, c: '6,182,212',  a: 0.045, drift: 0.000035 },
+      { x: 0.28, y: 0.38, rx: 0.32, ry: 0.28, c: '6,182,212',  a: 0.28, drift: 0.00004 },
+      { x: 0.73, y: 0.62, rx: 0.30, ry: 0.24, c: '168,85,247', a: 0.22, drift: -0.000035 },
+      { x: 0.55, y: 0.78, rx: 0.26, ry: 0.18, c: '244,63,94',  a: 0.12, drift: 0.000028 },
+      { x: 0.16, y: 0.68, rx: 0.24, ry: 0.16, c: '245,158,11', a: 0.12, drift: -0.000042 },
+      { x: 0.87, y: 0.22, rx: 0.22, ry: 0.15, c: '16,185,129', a: 0.14, drift: 0.000031 },
+      { x: 0.48, y: 0.20, rx: 0.20, ry: 0.12, c: '99,102,241', a: 0.16, drift: -0.000025 },
+      { x: 0.82, y: 0.78, rx: 0.18, ry: 0.12, c: '6,182,212',  a: 0.10, drift: 0.000035 },
     ];
     for (const n of nebDefs) {
       const dx = w * n.x + Math.sin(t * n.drift) * w * 0.02;
@@ -207,7 +207,7 @@ function initInterstellar(w: number, h: number) {
     const hexSize = 55;
     const hexW2 = Math.sqrt(3) * hexSize;
     const hexH2 = 2 * hexSize;
-    ctx.strokeStyle = 'rgba(100,180,255,0.018)'; ctx.lineWidth = 0.7;
+    ctx.strokeStyle = 'rgba(100,180,255,0.05)'; ctx.lineWidth = 0.7;
     for (let row = -1; row <= Math.ceil(h / (hexH2 * 0.75)) + 1; row++) {
       for (let col = -1; col <= Math.ceil(w / hexW2) + 1; col++) {
         const hx = col * hexW2 + (row % 2 !== 0 ? hexW2 / 2 : 0);
@@ -240,12 +240,12 @@ function initInterstellar(w: number, h: number) {
     }
 
     for (const s of farStars) {
-      const alpha = 0.05 + 0.12 * Math.sin(t * s.speed + s.phase);
+      const alpha = 0.15 + 0.25 * Math.sin(t * s.speed + s.phase);
       ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha})`; ctx.fill();
     }
     for (const s of midStars) {
-      const alpha = 0.20 + 0.35 * Math.sin(t * s.speed + s.phase);
+      const alpha = 0.40 + 0.45 * Math.sin(t * s.speed + s.phase);
       ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha})`; ctx.fill();
     }
@@ -261,12 +261,12 @@ function initInterstellar(w: number, h: number) {
       ctx.translate(ring.cx, ring.cy);
       ctx.rotate(ring.angle + rot);
       ctx.beginPath(); ctx.ellipse(0, 0, ring.rx, ring.ry, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(100,200,255,${0.038 + 0.018 * Math.sin(t * 0.00025)})`;
+      ctx.strokeStyle = `rgba(100,200,255,${0.09 + 0.04 * Math.sin(t * 0.00025)})`;
       ctx.lineWidth = 0.55; ctx.stroke();
       ctx.restore();
     }
 
-    const pathAlpha = 0.045 + 0.025 * Math.sin(t * 0.00022);
+    const pathAlpha = 0.10 + 0.05 * Math.sin(t * 0.00022);
     ctx.strokeStyle = `rgba(150,220,255,${pathAlpha})`; ctx.lineWidth = 0.7;
     for (let i = 0; i < pathNodes.length - 1; i++) {
       ctx.beginPath();
@@ -285,7 +285,7 @@ function initInterstellar(w: number, h: number) {
       ctx.fillStyle = `rgba(150,240,255,${0.7 * dotA})`; ctx.fill();
     }
 
-    const ca1 = 0.048 + 0.022 * Math.sin(t * 0.00012);
+    const ca1 = 0.11 + 0.05 * Math.sin(t * 0.00012);
     ctx.strokeStyle = `rgba(100,200,255,${ca1})`; ctx.lineWidth = 0.7;
     for (const [a, b] of cons1Lines) {
       if (a < cons1Nodes.length && b < cons1Nodes.length) {
@@ -425,7 +425,7 @@ function initMemoryPalace(w: number, h: number) {
 
     // Paper grain
     for (let i = 0; i < 1200; i++) {
-      ctx.fillStyle = 'rgba(180,200,220,0.012)';
+      ctx.fillStyle = 'rgba(180,200,220,0.028)';
       ctx.fillRect(Math.random() * w, Math.random() * h, 0.8, 0.8);
     }
 
@@ -438,13 +438,13 @@ function initMemoryPalace(w: number, h: number) {
       ctx.fillStyle = stain; ctx.fillRect(cs.x - cs.r, cs.y - cs.r, cs.r * 2, cs.r * 2);
     }
 
-    ctx.strokeStyle = 'rgba(0,160,200,0.022)'; ctx.lineWidth = 0.5;
+    ctx.strokeStyle = 'rgba(0,160,200,0.055)'; ctx.lineWidth = 0.5;
     const gs = 20 * scale;
     for (let x = 0; x < w; x += gs) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
     for (let y = 0; y < h; y += gs) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 
     // Fold line
-    const foldA = 0.018 + 0.008 * Math.sin(t * 0.00012);
+    const foldA = 0.045 + 0.020 * Math.sin(t * 0.00022);
     ctx.strokeStyle = `rgba(0,180,220,${foldA})`; ctx.lineWidth = 1;
     ctx.setLineDash([8, 5]);
     ctx.beginPath(); ctx.moveTo(w * 0.08, 0); ctx.lineTo(w, h * 0.85); ctx.stroke();
@@ -462,7 +462,7 @@ function initMemoryPalace(w: number, h: number) {
     ctx.fillStyle = 'rgba(0,160,200,0.008)';
     for (const r of rooms.filter(r => !r.hidden)) ctx.fillRect(r.x, r.y, r.width, r.height);
 
-    const wallA = 0.14 + 0.02 * Math.sin(t * 0.00010);
+    const wallA = 0.28 + 0.04 * Math.sin(t * 0.00020);
     ctx.strokeStyle = `rgba(0,180,220,${wallA})`; ctx.lineWidth = 1.8;
     for (const r of rooms.filter(r => !r.hidden)) ctx.strokeRect(r.x, r.y, r.width, r.height);
     const innerOff = 3.5 * scale;
@@ -473,7 +473,7 @@ function initMemoryPalace(w: number, h: number) {
 
     ctx.font = `${Math.max(7, 8 * scale)}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center';
-    const labelA = 0.28 + 0.08 * Math.sin(t * 0.00014);
+    const labelA = 0.46 + 0.10 * Math.sin(t * 0.00028);
     for (const r of rooms) {
       const lx = r.x + r.width / 2;
       const ly = r.y + r.height / 2;
@@ -512,12 +512,12 @@ function initMemoryPalace(w: number, h: number) {
 
     // Border frame
     const bM = 12 * scale;
-    ctx.strokeStyle = 'rgba(0,160,200,0.045)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,160,200,0.09)'; ctx.lineWidth = 1;
     ctx.strokeRect(bM, bM, w - bM * 2, h - bM * 2);
-    ctx.strokeStyle = 'rgba(0,160,200,0.025)';
+    ctx.strokeStyle = 'rgba(0,160,200,0.055)';
     ctx.strokeRect(bM + 6 * scale, bM + 6 * scale, w - (bM + 6 * scale) * 2, h - (bM + 6 * scale) * 2);
     const bkLen = 20 * scale;
-    ctx.strokeStyle = 'rgba(0,180,220,0.07)'; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(0,180,220,0.15)'; ctx.lineWidth = 1.2;
     for (const [bx, by] of [[bM, bM], [w - bM, bM], [bM, h - bM], [w - bM, h - bM]] as [number,number][]) {
       const sx = bx === bM ? 1 : -1, sy = by === bM ? 1 : -1;
       ctx.beginPath(); ctx.moveTo(bx + sx * bkLen, by); ctx.lineTo(bx, by); ctx.lineTo(bx, by + sy * bkLen); ctx.stroke();
@@ -615,7 +615,7 @@ function initMythicLandscape(w: number, h: number) {
     ctx.fillStyle = bg2; ctx.fillRect(0, 0, w, h);
 
     // Illuminated manuscript border
-    const borderA = 0.07 + 0.025 * Math.sin(t * 0.00018);
+    const borderA = 0.16 + 0.05 * Math.sin(t * 0.00035);
     const bM = 14;
     ctx.strokeStyle = `rgba(200,160,40,${borderA})`; ctx.lineWidth = 1.2;
     ctx.strokeRect(bM, bM, w - bM * 2, h - bM * 2);
@@ -659,7 +659,7 @@ function initMythicLandscape(w: number, h: number) {
     for (const [a, b] of leyLines) {
       const na = leyNodes[a], nb = leyNodes[b];
       const isSpoke = a === 0 || b === 0;
-      const totalA = (isSpoke ? 0.048 : 0.030) + (isSpoke ? 0.055 : 0.034) * leyPulse;
+      const totalA = (isSpoke ? 0.11 : 0.07) + (isSpoke ? 0.10 : 0.07) * leyPulse;
       const grad = ctx.createLinearGradient(na.x, na.y, nb.x, nb.y);
       grad.addColorStop(0,   `rgba(168,85,247,${totalA})`);
       grad.addColorStop(0.5, `rgba(200,150,255,${totalA * 1.5})`);
@@ -676,7 +676,7 @@ function initMythicLandscape(w: number, h: number) {
     }
 
     // Ceremonial paths
-    const cpA = 0.045 + 0.022 * Math.sin(t * 0.00028);
+    const cpA = 0.10 + 0.05 * Math.sin(t * 0.00050);
     for (const path of ceremPaths) {
       ctx.strokeStyle = `rgba(200,150,40,${cpA})`; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
@@ -711,10 +711,10 @@ function initMythicLandscape(w: number, h: number) {
       const rcPulse = 0.5 + 0.5 * Math.sin(t * 0.00058 + cs.spokes * 0.3);
       const rot = t * cs.rot;
       for (let ring = 0; ring < 3; ring++) {
-        ctx.strokeStyle = `rgba(168,85,247,${0.06 + 0.04 * rcPulse})`; ctx.lineWidth = 1;
+        ctx.strokeStyle = `rgba(168,85,247,${0.14 + 0.08 * rcPulse})`; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(cs.x, cs.y, cs.r * (1 - ring * 0.28), 0, Math.PI * 2); ctx.stroke();
       }
-      ctx.strokeStyle = `rgba(168,85,247,${0.055 + 0.035 * rcPulse})`; ctx.lineWidth = 0.85;
+      ctx.strokeStyle = `rgba(168,85,247,${0.13 + 0.07 * rcPulse})`; ctx.lineWidth = 0.85;
       for (let i = 0; i < cs.spokes; i++) {
         const angle = (i * Math.PI * 2 / cs.spokes) + rot;
         ctx.beginPath();
@@ -728,12 +728,12 @@ function initMythicLandscape(w: number, h: number) {
     const sigR = Math.min(w, h) * 0.115;
     const sigPulse = 0.5 + 0.5 * Math.sin(t * 0.00065);
     const sigRot = t * 0.000055;
-    ctx.strokeStyle = `rgba(168,85,247,${0.070 + 0.042 * sigPulse})`; ctx.lineWidth = 1.1;
+    ctx.strokeStyle = `rgba(168,85,247,${0.16 + 0.08 * sigPulse})`; ctx.lineWidth = 1.1;
     ctx.beginPath(); ctx.arc(cx, cy, sigR, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, cy, sigR * 0.72, 0, Math.PI * 2); ctx.stroke();
     for (let tri = 0; tri < 2; tri++) {
       const triRot = sigRot * (tri === 0 ? 1 : -1.3) + (tri === 1 ? Math.PI / 3 : 0);
-      ctx.strokeStyle = `rgba(${tri === 0 ? '168,85,247' : '6,182,212'},${0.055 + 0.032 * sigPulse})`; ctx.lineWidth = 0.9;
+      ctx.strokeStyle = `rgba(${tri === 0 ? '168,85,247' : '6,182,212'},${0.13 + 0.07 * sigPulse})`; ctx.lineWidth = 0.9;
       ctx.beginPath();
       for (let v = 0; v < 3; v++) {
         const a = triRot + (v * Math.PI * 2) / 3;
@@ -744,7 +744,7 @@ function initMythicLandscape(w: number, h: number) {
       ctx.closePath(); ctx.stroke();
     }
     const vesicaOff = sigR * 0.38;
-    ctx.strokeStyle = `rgba(200,150,40,${0.042 + 0.022 * sigPulse})`; ctx.lineWidth = 0.8;
+    ctx.strokeStyle = `rgba(200,150,40,${0.10 + 0.05 * sigPulse})`; ctx.lineWidth = 0.8;
     ctx.beginPath(); ctx.arc(cx - vesicaOff, cy, sigR * 0.5, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx + vesicaOff, cy, sigR * 0.5, 0, Math.PI * 2); ctx.stroke();
 
@@ -770,7 +770,7 @@ function initMythicLandscape(w: number, h: number) {
     }
 
     // Celestial alignment marks
-    const alignA = 0.028 + 0.012 * Math.sin(t * 0.00020);
+    const alignA = 0.07 + 0.025 * Math.sin(t * 0.00038);
     ctx.strokeStyle = `rgba(200,180,60,${alignA})`; ctx.lineWidth = 0.55;
     ctx.setLineDash([3, 8]);
     for (const angle of [Math.PI * 0.15, Math.PI * 0.52, Math.PI * 0.88, Math.PI * 1.22, Math.PI * 1.68, Math.PI * 1.92]) {
@@ -783,7 +783,7 @@ function initMythicLandscape(w: number, h: number) {
     ctx.setLineDash([]);
 
     // Fibonacci spiral
-    ctx.strokeStyle = `rgba(200,160,40,${0.025 + 0.010 * Math.sin(t * 0.00028)})`; ctx.lineWidth = 0.6;
+    ctx.strokeStyle = `rgba(200,160,40,${0.06 + 0.025 * Math.sin(t * 0.00050)})`; ctx.lineWidth = 0.6;
     const fibCx = cx + w * 0.15, fibCy = cy - h * 0.08;
     ctx.beginPath();
     let fibR = 3;
@@ -856,7 +856,7 @@ function initTerrestrialGlobe(w: number, h: number) {
     bg.addColorStop(1,   'rgba(3,10,15,0)');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = 'rgba(0,180,200,0.012)'; ctx.lineWidth = 0.5;
+    ctx.strokeStyle = 'rgba(0,180,200,0.035)'; ctx.lineWidth = 0.5;
     for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
     for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 
@@ -877,7 +877,7 @@ function initTerrestrialGlobe(w: number, h: number) {
     // Bathymetric depth rings
     for (let d = 1; d <= 4; d++) {
       ctx.beginPath(); ctx.arc(cx, cy, globeR * (1 - d * 0.12), 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(0,60,100,${0.04 + d * 0.02})`; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = `rgba(0,60,100,${0.09 + d * 0.04})`; ctx.lineWidth = 1; ctx.stroke();
     }
 
     // Latitude lines
@@ -887,26 +887,26 @@ function initTerrestrialGlobe(w: number, h: number) {
       const latR = Math.sqrt(Math.max(0, globeR * globeR - (lat - cy) * (lat - cy)));
       const isEquator = Math.abs(i - 4) < 1;
       ctx.beginPath(); ctx.ellipse(cx, lat, latR, latR * 0.14, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${isEquator ? '0,220,200' : '0,160,180'},${0.055 + 0.035 * Math.sin(t * 0.00025 + i * 0.4)})`;
+      ctx.strokeStyle = `rgba(${isEquator ? '0,220,200' : '0,160,180'},${0.13 + 0.07 * Math.sin(t * 0.00025 + i * 0.4)})`;
       ctx.lineWidth = isEquator ? 1.1 : 0.8; ctx.stroke();
     }
 
     // Longitude lines
     for (let i = 0; i < 8; i++) {
       const angle = (i * Math.PI / 8) + lonDrift;
-      ctx.strokeStyle = 'rgba(0,160,180,0.052)'; ctx.lineWidth = 0.75;
+      ctx.strokeStyle = 'rgba(0,160,180,0.13)'; ctx.lineWidth = 0.75;
       ctx.beginPath(); ctx.ellipse(cx, cy, globeR * Math.abs(Math.cos(angle)) + 0.5, globeR, 0, 0, Math.PI * 2); ctx.stroke();
     }
 
     // Elevation contour rings
     const contours = [
-      { r: 0.88, c: '0,80,120',   a: 0.06 },
-      { r: 0.74, c: '0,120,150',  a: 0.07 },
-      { r: 0.58, c: '0,180,200',  a: 0.09 },
-      { r: 0.44, c: '0,220,180',  a: 0.08 },
-      { r: 0.30, c: '80,220,140', a: 0.07 },
-      { r: 0.18, c: '200,200,80', a: 0.07 },
-      { r: 0.08, c: '255,220,100',a: 0.09 },
+      { r: 0.88, c: '0,80,120',   a: 0.14 },
+      { r: 0.74, c: '0,120,150',  a: 0.16 },
+      { r: 0.58, c: '0,180,200',  a: 0.20 },
+      { r: 0.44, c: '0,220,180',  a: 0.18 },
+      { r: 0.30, c: '80,220,140', a: 0.16 },
+      { r: 0.18, c: '200,200,80', a: 0.16 },
+      { r: 0.08, c: '255,220,100',a: 0.20 },
     ];
     for (const c of contours) {
       const pulse = 0.8 + 0.2 * Math.sin(t * 0.00022 + c.r * 8);
@@ -923,12 +923,12 @@ function initTerrestrialGlobe(w: number, h: number) {
         ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
       }
       ctx.quadraticCurveTo(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
-      ctx.fillStyle = 'rgba(100,160,60,0.055)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(0,200,160,0.18)'; ctx.lineWidth = 0.9; ctx.stroke();
+      ctx.fillStyle = 'rgba(100,160,60,0.13)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,200,160,0.35)'; ctx.lineWidth = 0.9; ctx.stroke();
     }
 
     // Energy/wind lines
-    const lineA = 0.055 + 0.025 * Math.sin(t * 0.00018);
+    const lineA = 0.13 + 0.05 * Math.sin(t * 0.00035);
     for (const el of energyLines) {
       ctx.beginPath();
       for (let x = 0; x <= w; x += 3) {
@@ -941,7 +941,7 @@ function initTerrestrialGlobe(w: number, h: number) {
     // Weather spirals
     for (const ws of weatherSpirals) {
       const rot = t * ws.speed * ws.dir;
-      const spiralA = 0.032 + 0.018 * Math.sin(t * 0.00028);
+      const spiralA = 0.08 + 0.04 * Math.sin(t * 0.00055);
       ctx.save(); ctx.translate(ws.cx, ws.cy);
       for (let arm = 0; arm < 3; arm++) {
         const armAngle = rot + (arm * Math.PI * 2) / 3;
@@ -960,13 +960,13 @@ function initTerrestrialGlobe(w: number, h: number) {
     ctx.restore(); // end globe clip
 
     // Globe rim
-    ctx.strokeStyle = `rgba(0,200,200,${0.20 + 0.07 * Math.sin(t * 0.00028)})`; ctx.lineWidth = 1.4;
+    ctx.strokeStyle = `rgba(0,200,200,${0.42 + 0.12 * Math.sin(t * 0.00055)})`; ctx.lineWidth = 1.4;
     ctx.beginPath(); ctx.arc(cx, cy, globeR, 0, Math.PI * 2); ctx.stroke();
 
     // Atmospheric bloom (multi-layer)
     for (let i = 0; i < 3; i++) {
       const atmR = globeR * (1.04 + i * 0.04);
-      const atmA = (0.06 - i * 0.015) + 0.025 * Math.sin(t * 0.00028);
+      const atmA = (0.13 - i * 0.03) + 0.05 * Math.sin(t * 0.00055);
       const atm = ctx.createRadialGradient(cx, cy, globeR * 0.96, cx, cy, atmR + globeR * 0.08);
       atm.addColorStop(0, `rgba(0,200,220,${atmA})`);
       atm.addColorStop(1, 'rgba(0,200,220,0)');
@@ -1005,9 +1005,10 @@ const TERRAIN_INIT: Record<TerrainId, InitFn> = {
 interface Props {
   terrain: TerrainId;
   style?: React.CSSProperties;
+  preview?: boolean;
 }
 
-export default function TerrainCanvas({ terrain, style }: Props) {
+export default function TerrainCanvas({ terrain, style, preview }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -1018,6 +1019,7 @@ export default function TerrainCanvas({ terrain, style }: Props) {
 
     let animId: number;
     let startTime: number | null = null;
+    let frameCount = 0;
     const container = canvas.parentElement!;
 
     const setupSize = () => {
@@ -1039,7 +1041,16 @@ export default function TerrainCanvas({ terrain, style }: Props) {
 
     const loop = (time: number) => {
       if (startTime === null) startTime = time;
-      renderFn(ctx, time - startTime);
+      if (preview) {
+        frameCount++;
+        if (frameCount % 3 !== 0) {
+          animId = requestAnimationFrame(loop);
+          return;
+        }
+        renderFn(ctx, (time - startTime) * 6 + 9000);
+      } else {
+        renderFn(ctx, time - startTime);
+      }
       animId = requestAnimationFrame(loop);
     };
     animId = requestAnimationFrame(loop);
@@ -1048,12 +1059,16 @@ export default function TerrainCanvas({ terrain, style }: Props) {
       cancelAnimationFrame(animId);
       ro.disconnect();
     };
-  }, [terrain]);
+  }, [terrain, preview]);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', ...style }}
+      style={{
+        position: 'absolute', inset: 0, width: '100%', height: '100%',
+        pointerEvents: preview ? 'none' : undefined,
+        ...style,
+      }}
     />
   );
 }

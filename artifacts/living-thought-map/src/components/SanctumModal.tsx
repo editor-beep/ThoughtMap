@@ -2,12 +2,12 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useThoughtStore } from '../store';
 import type { TerrainId } from '../types';
+import TerrainCanvas from './TerrainCanvas';
 
 interface TerrainDef {
   id: TerrainId;
   name: string;
   description: string;
-  previewClass: string;
 }
 
 const TERRAINS: TerrainDef[] = [
@@ -15,31 +15,26 @@ const TERRAINS: TerrainDef[] = [
     id: 'memory-palace',
     name: 'Memory Palace',
     description: 'Warm candlelight and parquet floors. A space of deep recall.',
-    previewClass: 'terrain-preview-memory-palace',
   },
   {
     id: 'interstellar-plane',
     name: 'Interstellar Plane',
     description: 'Infinite starfield threaded with nebulae. Ideas without gravity.',
-    previewClass: 'terrain-preview-interstellar-plane',
   },
   {
     id: 'terrestrial-globe',
     name: 'Terrestrial Globe',
     description: 'Antique parchment, cartographic lines, and the weight of place.',
-    previewClass: 'terrain-preview-terrestrial-globe',
   },
   {
     id: 'mythic-landscape',
     name: 'Mythic Landscape',
     description: 'Floating particles and glowing flora. The border of waking.',
-    previewClass: 'terrain-preview-mythic-landscape',
   },
   {
     id: 'the-void',
     name: 'The Void',
     description: 'Near-perfect darkness. Maximum focus on what you have built.',
-    previewClass: 'terrain-preview-the-void',
   },
 ];
 
@@ -100,9 +95,10 @@ export default function SanctumModal({ onClose }: SanctumModalProps) {
                     : 'border-void-700/50 hover:border-slate-600/80'
                 }`}
               >
-                <div className={`h-16 w-full relative ${terrain.previewClass}`}>
+                <div className="h-24 w-full relative overflow-hidden">
+                  <TerrainCanvas terrain={terrain.id} preview />
                   {isActive && (
-                    <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse" />
+                    <div className="absolute top-1.5 right-1.5 z-10 w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse" />
                   )}
                 </div>
                 <div className="p-2.5 bg-void-800/80">
