@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Handle, Position, useViewport } from 'reactflow';
+import { Handle, Position, useViewport, useReactFlow } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
-import { EXPAND_THRESHOLD } from '../lib/constants';
+import { EXPAND_THRESHOLD, DOT_THRESHOLD } from '../lib/constants';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, X, ChevronDown,
@@ -14,18 +14,20 @@ interface TypeConfig {
   border: string;
   iconColor: string;
   glow: string;
+  dotColor: string;
+  dotShape: 'circle' | 'diamond';
 }
 
 const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
-  thought:       { icon: Sparkles,      border: 'border-cosmic-cyan/50',    iconColor: 'text-cosmic-cyan',    glow: 'rgba(6,182,212,0.22)' },
-  joke:          { icon: Smile,         border: 'border-cosmic-amber/50',   iconColor: 'text-cosmic-amber',   glow: 'rgba(245,158,11,0.22)' },
-  character:     { icon: User,          border: 'border-cosmic-purple/50',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.22)' },
-  myth:          { icon: BookOpen,      border: 'border-cosmic-purple/70',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.30)' },
-  research:      { icon: Microscope,    border: 'border-cosmic-blue/50',    iconColor: 'text-cosmic-blue',    glow: 'rgba(59,130,246,0.22)' },
-  canon:         { icon: Archive,       border: 'border-cosmic-emerald/60', iconColor: 'text-cosmic-emerald', glow: 'rgba(16,185,129,0.22)' },
-  contradiction: { icon: AlertTriangle, border: 'border-cosmic-rose/70',    iconColor: 'text-cosmic-rose',    glow: 'rgba(244,63,94,0.30)' },
-  artifact:      { icon: Package,       border: 'border-slate-500/50',      iconColor: 'text-slate-400',      glow: 'rgba(100,116,139,0.18)' },
-  fragment:      { icon: Layers,        border: 'border-slate-600/40',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.14)' }
+  thought:       { icon: Sparkles,      border: 'border-cosmic-cyan/50',    iconColor: 'text-cosmic-cyan',    glow: 'rgba(6,182,212,0.22)',    dotColor: '#c4b5fd', dotShape: 'circle'  },
+  joke:          { icon: Smile,         border: 'border-cosmic-amber/50',   iconColor: 'text-cosmic-amber',   glow: 'rgba(245,158,11,0.22)',   dotColor: '#f59e0b', dotShape: 'circle'  },
+  character:     { icon: User,          border: 'border-cosmic-purple/50',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.22)',   dotColor: '#a855f7', dotShape: 'circle'  },
+  myth:          { icon: BookOpen,      border: 'border-cosmic-purple/70',  iconColor: 'text-cosmic-purple',  glow: 'rgba(168,85,247,0.30)',   dotColor: '#e879f9', dotShape: 'circle'  },
+  research:      { icon: Microscope,    border: 'border-cosmic-blue/50',    iconColor: 'text-cosmic-blue',    glow: 'rgba(59,130,246,0.22)',   dotColor: '#3b82f6', dotShape: 'circle'  },
+  canon:         { icon: Archive,       border: 'border-cosmic-emerald/60', iconColor: 'text-cosmic-emerald', glow: 'rgba(16,185,129,0.22)',   dotColor: '#10b981', dotShape: 'circle'  },
+  contradiction: { icon: AlertTriangle, border: 'border-cosmic-rose/70',    iconColor: 'text-cosmic-rose',    glow: 'rgba(244,63,94,0.30)',    dotColor: '#f43f5e', dotShape: 'diamond' },
+  artifact:      { icon: Package,       border: 'border-slate-500/50',      iconColor: 'text-slate-400',      glow: 'rgba(100,116,139,0.18)', dotColor: '#06b6d4', dotShape: 'diamond' },
+  fragment:      { icon: Layers,        border: 'border-slate-600/40',      iconColor: 'text-slate-500',      glow: 'rgba(71,85,105,0.14)',   dotColor: '#64748b', dotShape: 'circle'  }
 };
 
 export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
@@ -35,7 +37,61 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const Icon = config.icon;
   const [isExpanded, setIsExpanded] = useState(false);
   const { zoom } = useViewport();
+  const { setCenter } = useReactFlow();
+  const isDot = zoom < DOT_THRESHOLD;
   const showExpanded = isExpanded && zoom >= EXPAND_THRESHOLD;
+
+  if (isDot) {
+    const dotSize = 16;
+    const containerSize = 20;
+    const offset = (containerSize - dotSize) / 2;
+    return (
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setCenter(node.x + containerSize / 2, node.y + containerSize / 2, { zoom: 0.6, duration: 600 });
+        }}
+        title={node.title}
+        className="cursor-pointer relative"
+        style={{ width: containerSize, height: containerSize }}
+      >
+        <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
+        {config.dotShape === 'diamond' ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: offset,
+              left: offset,
+              width: dotSize,
+              height: dotSize,
+              backgroundColor: config.dotColor,
+              transform: 'rotate(45deg)',
+              boxShadow: `0 0 10px ${config.dotColor}99`,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              top: offset,
+              left: offset,
+              width: dotSize,
+              height: dotSize,
+              borderRadius: '50%',
+              backgroundColor: config.dotColor,
+              boxShadow: `0 0 10px ${config.dotColor}99`,
+            }}
+          />
+        )}
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!bg-void-600/10 hover:!bg-void-600/40 transition-colors cursor-crosshair"
+          style={{ width: 8, height: 8, bottom: 0, left: '50%', transform: 'translate(-50%, 50%)', border: 'none', borderRadius: '50%' }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
