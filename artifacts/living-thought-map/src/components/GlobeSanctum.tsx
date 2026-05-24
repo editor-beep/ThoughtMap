@@ -126,6 +126,29 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
           <filter id="gs-halo-blur" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="6" />
           </filter>
+
+          {/* L4 — volumetric haze gradients */}
+          <radialGradient id="gs-fog-cyan-a" gradientUnits="userSpaceOnUse" cx={cx + r * 0.30} cy={cy - r * 0.36} r={r * 0.72}>
+            <stop offset="0%" stopColor="#7FFFD4" stopOpacity="0.10" />
+            <stop offset="100%" stopColor="#7FFFD4" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="gs-fog-green-b" gradientUnits="userSpaceOnUse" cx={cx - r * 0.18} cy={cy + r * 0.14} r={r * 0.62}>
+            <stop offset="0%" stopColor="#3D6B5A" stopOpacity="0.11" />
+            <stop offset="100%" stopColor="#3D6B5A" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="gs-fog-navy-c" gradientUnits="userSpaceOnUse" cx={cx - r * 0.12} cy={cy + r * 0.20} r={r * 0.74}>
+            <stop offset="0%" stopColor="#050D1A" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="#050D1A" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="gs-fog-cyan-d" gradientUnits="userSpaceOnUse" x1={cx - r * 0.72} y1={cy - r * 0.12} x2={cx + r * 0.58} y2={cy + r * 0.44}>
+            <stop offset="0%" stopColor="#7FFFD4" stopOpacity="0.07" />
+            <stop offset="100%" stopColor="#7FFFD4" stopOpacity="0" />
+          </linearGradient>
+
+          {/* L4 — clip to sphere boundary */}
+          <clipPath id="gs-planet-clip">
+            <circle cx={cx} cy={cy} r={r} />
+          </clipPath>
         </defs>
 
         {/* ── Background ── */}
@@ -150,6 +173,39 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
 
         {/* ── L1: Planetary shell ── */}
         <circle cx={cx} cy={cy} r={r} fill="url(#gs-sphere-grad)" />
+
+        {/* ── L4: Volumetric fog & internal atmospheric haze ── */}
+        <g id="gs-volumetric-fog" clipPath="url(#gs-planet-clip)">
+          <ellipse
+            cx={cx + r * 0.28}
+            cy={cy - r * 0.33}
+            rx={r * 0.62}
+            ry={r * 0.38}
+            fill="url(#gs-fog-cyan-a)"
+          />
+          <ellipse
+            cx={cx - r * 0.22}
+            cy={cy + r * 0.09}
+            rx={r * 0.54}
+            ry={r * 0.31}
+            fill="url(#gs-fog-green-b)"
+          />
+          <ellipse
+            cx={cx - r * 0.11}
+            cy={cy + r * 0.21}
+            rx={r * 0.67}
+            ry={r * 0.47}
+            fill="url(#gs-fog-navy-c)"
+          />
+          <ellipse
+            cx={cx + r * 0.06}
+            cy={cy - r * 0.05}
+            rx={r * 0.77}
+            ry={r * 0.42}
+            fill="url(#gs-fog-cyan-d)"
+            opacity={0.9}
+          />
+        </g>
       </svg>
     </div>
   );
