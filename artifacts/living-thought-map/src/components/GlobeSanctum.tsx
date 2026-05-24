@@ -69,6 +69,109 @@ function generateStars(): Star[] {
 // Computed once at module load — never re-randomises
 const STARS = generateStars();
 
+// ─── L7: Glyph system (module-level constant — stable across renders) ─────────
+type GlyphKind = 'circle' | 'crosshair' | 'diamond' | 'triangle' | 'symbol' | 'annotation';
+
+interface GlyphDef {
+  kind:       GlyphKind;
+  fx:         number;   // fractional viewport x (0-1)
+  fy:         number;   // fractional viewport y (0-1)
+  size:       number;   // px
+  op:         number;   // opacity 0.1-0.2
+  col:        string;
+  char?:      string;   // symbol glyphs only
+  angle?:     number;   // annotation fragments — degrees
+  len?:       number;   // annotation fragments — px
+  terminals?: 'start' | 'end' | 'both';
+}
+
+const GLYPHS: GlyphDef[] = [
+  // ── Geometric marks (10) ──
+  // Scattered: some outside sphere (corners/margins), some inside
+  { kind: 'circle',     fx: 0.08, fy: 0.20, size: 2.0, op: 0.16, col: '#7FFFD4' },
+  { kind: 'circle',     fx: 0.93, fy: 0.37, size: 1.8, op: 0.14, col: '#3D6B5A' },
+  { kind: 'circle',     fx: 0.37, fy: 0.91, size: 2.2, op: 0.15, col: '#7FFFD4' },
+  { kind: 'crosshair',  fx: 0.16, fy: 0.55, size: 7,   op: 0.13, col: '#3D6B5A' },
+  { kind: 'crosshair',  fx: 0.85, fy: 0.72, size: 8,   op: 0.13, col: '#7FFFD4' },
+  { kind: 'crosshair',  fx: 0.51, fy: 0.17, size: 6,   op: 0.14, col: '#3D6B5A' },
+  { kind: 'diamond',    fx: 0.72, fy: 0.14, size: 5,   op: 0.15, col: '#7FFFD4' },
+  { kind: 'diamond',    fx: 0.11, fy: 0.79, size: 6,   op: 0.13, col: '#3D6B5A' },
+  { kind: 'triangle',   fx: 0.65, fy: 0.86, size: 7,   op: 0.14, col: '#7FFFD4' },
+  { kind: 'triangle',   fx: 0.27, fy: 0.05, size: 5,   op: 0.12, col: '#3D6B5A' },
+  // ── Symbolic glyphs (5) — Unicode marks suggesting instrument or notation ──
+  { kind: 'symbol', char: '⊕', fx: 0.17, fy: 0.33, size: 10, op: 0.13, col: '#7FFFD4' },
+  { kind: 'symbol', char: '⊗', fx: 0.89, fy: 0.57, size:  9, op: 0.15, col: '#3D6B5A' },
+  { kind: 'symbol', char: '∇', fx: 0.42, fy: 0.73, size: 11, op: 0.12, col: '#7FFFD4' },
+  { kind: 'symbol', char: '⌖', fx: 0.76, fy: 0.41, size: 12, op: 0.12, col: '#3D6B5A' },
+  { kind: 'symbol', char: '⊙', fx: 0.06, fy: 0.67, size: 10, op: 0.13, col: '#7FFFD4' },
+  // ── Annotation fragments (4) — line + perpendicular terminal marks ──
+  { kind: 'annotation', fx: 0.04, fy: 0.44, angle:   0, len: 22, terminals: 'start', op: 0.15, col: '#7FFFD4' },
+  { kind: 'annotation', fx: 0.57, fy: 0.04, angle: -35, len: 18, terminals: 'both',  op: 0.15, col: '#3D6B5A' },
+  { kind: 'annotation', fx: 0.97, fy: 0.25, angle:  90, len: 15, terminals: 'end',   op: 0.15, col: '#7FFFD4' },
+  { kind: 'annotation', fx: 0.45, fy: 0.97, angle: 160, len: 20, terminals: 'start', op: 0.15, col: '#3D6B5A' },
+];
+
+function renderGlyph(g: GlyphDef, w: number, h: number, i: number): React.ReactNode {
+  const x = g.fx * w;
+  const y = g.fy * h;
+
+  switch (g.kind) {
+    case 'circle':
+      return <circle key={i} cx={x} cy={y} r={g.size} fill="none" stroke={g.col} strokeWidth="0.5" opacity={g.op} />;
+
+    case 'crosshair':
+      return (
+        <g key={i} transform={`translate(${x}, ${y})`} stroke={g.col} strokeWidth="0.5" opacity={g.op}>
+          <line x1={-g.size} y1={0} x2={g.size} y2={0} />
+          <line x1={0} y1={-g.size} x2={0} y2={g.size} />
+          <circle cx={0} cy={0} r={1} fill={g.col} stroke="none" />
+        </g>
+      );
+
+    case 'diamond':
+      return (
+        <path key={i}
+          d={`M ${x},${y - g.size} L ${x + g.size * 0.55},${y} L ${x},${y + g.size} L ${x - g.size * 0.55},${y} Z`}
+          stroke={g.col} strokeWidth="0.5" fill="none" opacity={g.op}
+        />
+      );
+
+    case 'triangle':
+      return (
+        <path key={i}
+          d={`M ${x},${y - g.size} L ${x + g.size * 0.866},${y + g.size * 0.5} L ${x - g.size * 0.866},${y + g.size * 0.5} Z`}
+          stroke={g.col} strokeWidth="0.5" fill="none" opacity={g.op}
+        />
+      );
+
+    case 'symbol':
+      return (
+        <text key={i} x={x} y={y} fontSize={g.size} fill={g.col} opacity={g.op}
+          fontFamily="monospace" textAnchor="middle" dominantBaseline="central">
+          {g.char}
+        </text>
+      );
+
+    case 'annotation': {
+      const len  = g.len ?? 18;
+      const term = 3;
+      const showStart = g.terminals === 'start' || g.terminals === 'both';
+      const showEnd   = g.terminals === 'end'   || g.terminals === 'both';
+      return (
+        <g key={i} transform={`translate(${x}, ${y}) rotate(${g.angle ?? 0})`}
+           stroke={g.col} strokeWidth="0.4" opacity={g.op} strokeLinecap="square">
+          <line x1={0} y1={0} x2={len} y2={0} />
+          {showStart && <line x1={0}   y1={-term} x2={0}   y2={term} />}
+          {showEnd   && <line x1={len} y1={-term} x2={len} y2={term} />}
+        </g>
+      );
+    }
+
+    default:
+      return null;
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 interface Dims { w: number; h: number }
 
@@ -269,6 +372,11 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
 
         {/* ── L1: Outer atmospheric halo ── */}
         <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
+
+        {/* ── L7: Glyph systems and occult annotation ── */}
+        <g id="gs-glyphs">
+          {GLYPHS.map((g, i) => renderGlyph(g, w, h, i))}
+        </g>
       </svg>
     </div>
   );
