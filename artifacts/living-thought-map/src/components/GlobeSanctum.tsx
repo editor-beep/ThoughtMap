@@ -241,6 +241,21 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         style={{ position: 'absolute', inset: 0, display: 'block' }}
       >
         <defs>
+          <filter id="gs-phosphor-soften" x="-2%" y="-2%" width="104%" height="104%">
+            <feGaussianBlur stdDeviation="0.38" />
+          </filter>
+
+          <filter id="gs-noise-overlay" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise" />
+            <feBlend in="SourceGraphic" in2="noise" mode="overlay" />
+          </filter>
+
+          <radialGradient id="gs-edge-vignette" cx="50%" cy="50%" r="72%">
+            <stop offset="0%" stopColor="#050D1A" stopOpacity="0" />
+            <stop offset="70%" stopColor="#050D1A" stopOpacity="0.05" />
+            <stop offset="100%" stopColor="#050D1A" stopOpacity="1" />
+          </radialGradient>
+
           {/* L1 — sphere gradient: dark core → bright limb */}
           <radialGradient id="gs-sphere-grad" gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={r}>
             <stop offset="0%"   stopColor="#050D1A" stopOpacity="1" />
@@ -269,22 +284,23 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
           </filter>
         </defs>
 
-        {/* ── Background ── */}
-        <rect width="100%" height="100%" fill="#050D1A" />
+        <g id="gs-main-composition" filter="url(#gs-phosphor-soften)">
+          {/* ── Background ── */}
+          <rect width="100%" height="100%" fill="#050D1A" />
 
-        {/* ── L2: Starfield (behind planetary shell) ── */}
-        <g id="gs-starfield">
-          {STARS.map((s, i) => (
-            <circle
-              key={i}
-              cx={s.fx * w}
-              cy={s.fy * h}
-              r={s.r}
-              fill={s.color}
-              opacity={s.op}
-            />
-          ))}
-        </g>
+          {/* ── L2: Starfield (behind planetary shell) ── */}
+          <g id="gs-starfield">
+            {STARS.map((s, i) => (
+              <circle
+                key={i}
+                cx={s.fx * w}
+                cy={s.fy * h}
+                r={s.r}
+                fill={s.color}
+                opacity={s.op}
+              />
+            ))}
+          </g>
 
         {/* ── L3: Orbital rings behind shell ── */}
         <g id="gs-rings-behind" fill="none" strokeLinecap="round">
@@ -373,9 +389,31 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         {/* ── L1: Outer atmospheric halo ── */}
         <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
 
-        {/* ── L7: Glyph systems and occult annotation ── */}
-        <g id="gs-glyphs">
-          {GLYPHS.map((g, i) => renderGlyph(g, w, h, i))}
+          {/* ── L7: Glyph systems and occult annotation ── */}
+          <g id="gs-glyphs">
+            {GLYPHS.map((g, i) => renderGlyph(g, w, h, i))}
+          </g>
+        </g>
+
+        {/* ── L8: Full-screen finishing overlays ── */}
+        <g id="gs-screen-fx">
+          <rect width="100%" height="100%" fill="#FFFFFF" filter="url(#gs-noise-overlay)" opacity="0.045" />
+          <rect width="100%" height="100%" fill="url(#gs-edge-vignette)" opacity="0.42" />
+          {Array.from({ length: Math.ceil(h / 2.5) }).map((_, i) => {
+            const y = i * 2.5;
+            return (
+              <line
+                key={`scanline-${i}`}
+                x1={0}
+                y1={y}
+                x2={w}
+                y2={y}
+                stroke="#050D1A"
+                strokeWidth="0.5"
+                opacity="0.055"
+              />
+            );
+          })}
         </g>
       </svg>
     </div>
