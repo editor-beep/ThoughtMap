@@ -4,46 +4,51 @@ export interface ClusterData {
   nodes: ThoughtNode[];
   x: number;
   y: number;
+  id?: string;
+  dominantType?: string;
+}
+
+function getDominantNodeType(nodes: ThoughtNode[]): string {
+  const counts = nodes.reduce((acc, n) => {
+    acc[n.type] = (acc[n.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
 }
 
 /**
- * Groups nodes into screen-space clusters using a greedy proximity algorithm.
- * Threshold is given in screen pixels; it's converted to canvas units via zoom.
+ * Groups nodes into clusters using an adaptive grid algorithm.
+ * Grid cell size stays ~220 screen pixels regardless of zoom level, so
+ * clusters grow naturally as the user zooms out further.
  * Pure function — does not mutate node data.
  */
-export function computeClusters(
-  nodes: ThoughtNode[],
-  zoom: number,
-  screenThreshold = 40
-): ClusterData[] {
+export function computeClusters(nodes: ThoughtNode[], zoom: number): ClusterData[] {
   if (nodes.length === 0) return [];
 
-  const canvasThreshold = screenThreshold / zoom;
-  const thresholdSq = canvasThreshold * canvasThreshold;
+  const gridSize = 220 / Math.max(zoom, 0.05);
+  const grid = new Map<string, ThoughtNode[]>();
 
-  const assigned = new Set<string>();
+  for (const node of nodes) {
+    const gx = Math.floor(node.x / gridSize);
+    const gy = Math.floor(node.y / gridSize);
+    const key = `${gx},${gy}`;
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key)!.push(node);
+  }
+
   const clusters: ClusterData[] = [];
 
-  for (const seed of nodes) {
-    if (assigned.has(seed.id)) continue;
-
-    const members: ThoughtNode[] = [seed];
-    assigned.add(seed.id);
-
-    for (const candidate of nodes) {
-      if (assigned.has(candidate.id)) continue;
-      const dx = seed.x - candidate.x;
-      const dy = seed.y - candidate.y;
-      if (dx * dx + dy * dy <= thresholdSq) {
-        members.push(candidate);
-        assigned.add(candidate.id);
-      }
-    }
-
-    const cx = members.reduce((sum, n) => sum + n.x, 0) / members.length;
-    const cy = members.reduce((sum, n) => sum + n.y, 0) / members.length;
-    clusters.push({ nodes: members, x: cx, y: cy });
-  }
+  grid.forEach((group, key) => {
+    const avgX = group.reduce((sum, n) => sum + n.x, 0) / group.length;
+    const avgY = group.reduce((sum, n) => sum + n.y, 0) / group.length;
+    clusters.push({
+      id: `cluster-${key}`,
+      x: avgX,
+      y: avgY,
+      nodes: group,
+      dominantType: getDominantNodeType(group),
+    });
+  });
 
   return clusters;
 }

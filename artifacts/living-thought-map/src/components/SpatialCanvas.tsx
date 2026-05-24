@@ -4,6 +4,7 @@ import ReactFlow, {
   MiniMap,
   NodeChange,
   Connection,
+  Panel,
   useReactFlow,
   useViewport,
   Node,
@@ -20,8 +21,9 @@ import SemanticFieldNode from './SemanticFieldNode';
 import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 import CartographerPanel from './CartographerPanel';
-import { CLUSTER_THRESHOLD } from '../lib/constants';
-import { computeClusters, ClusterData } from '../lib/clustering';
+import DebugZoom from './DebugZoom';
+import MapDensityIndicator from './MapDensityIndicator';
+import { useClusters } from '../hooks/useClusters';
 
 const nodeTypes = {
   thoughtMapNode: CustomThoughtNode,
@@ -113,36 +115,26 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
-  // Cluster computation: only active when zoom < CLUSTER_THRESHOLD.
-  // Keyed on zoom + visible node positions so it recomputes on pan/zoom.
-  const clusters: ClusterData[] | null = useMemo(() => {
-    if (rfViewport.zoom >= CLUSTER_THRESHOLD) return null;
-    return computeClusters(visibleNodes, rfViewport.zoom);
-  }, [visibleNodes, rfViewport.zoom]);
+  const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
 
   const flowNodes = useMemo(() => {
-    if (clusters !== null) {
-      const clusterNodes = clusters
-        .filter((c) => c.nodes.length > 1)
-        .map((c, i) => ({
-          id: `cluster-${i}`,
-          type: 'clusterMarker',
-          position: { x: c.x, y: c.y },
-          data: { cluster: c },
-          draggable: false,
-          selectable: false,
-        }));
+    if (isClusterMode) {
+      const clusterNodes = clusters.map((c, i) => ({
+        id: `cluster-${i}`,
+        type: 'clusterMarker',
+        position: { x: c.x, y: c.y },
+        data: { cluster: c },
+        draggable: false,
+        selectable: false,
+      }));
 
-      // Isolated single-node "clusters" fall back to their regular dot rendering.
-      const singleNodes = clusters
-        .filter((c) => c.nodes.length === 1)
-        .map((c) => c.nodes[0])
-        .map((node) => ({
-          id: node.id,
-          type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-          position: { x: node.x, y: node.y },
-          data: { node, onOpen: openSubMap },
-        }));
+      // Isolated single nodes fall back to their regular dot rendering.
+      const singleNodes = isolatedNodes.map((node) => ({
+        id: node.id,
+        type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
+        position: { x: node.x, y: node.y },
+        data: { node, onOpen: openSubMap },
+      }));
 
       return [...clusterNodes, ...singleNodes];
     }
@@ -153,11 +145,11 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       position: { x: node.x, y: node.y },
       data: { node, onOpen: openSubMap }
     }));
-  }, [clusters, visibleNodes, openSubMap]);
+  }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap]);
 
   const flowEdges = useMemo(
     () =>
-      clusters !== null
+      isClusterMode
         ? []
         : edges
             .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
@@ -171,7 +163,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
               labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
               style: { stroke: EDGE_COLORS[edge.type], strokeWidth: 1.5, opacity: 0.75 }
             })),
-    [clusters, edges, visibleNodeIds]
+    [isClusterMode, edges, visibleNodeIds]
   );
 
   const onNodesChange = useCallback(
@@ -283,6 +275,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         />
         <CanvasController />
         <ViewportTracker onViewport={handleViewport} />
+        <Panel position="top-left"><DebugZoom /></Panel>
+        <Panel position="bottom-left"><MapDensityIndicator /></Panel>
       </ReactFlow>
 
       {/* Edge type chooser */}
