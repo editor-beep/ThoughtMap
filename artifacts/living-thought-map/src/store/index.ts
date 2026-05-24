@@ -145,6 +145,8 @@ interface MapState {
   undoStack: UndoAction[];
   nodeSearchQuery: string;
   masterMapSearchQuery: string;
+  masterMapViewMode: 'grid' | 'archive';
+  masterMapSortMode: 'recently-active' | 'recently-created' | 'alphabetical' | 'largest';
 
   cartographerLoading: boolean;
   cartographerSuggestions: CartographerVariation[] | null;
@@ -169,6 +171,8 @@ interface MapState {
   clearFocusedNode: () => void;
   setNodeSearchQuery: (q: string) => void;
   setMasterMapSearchQuery: (q: string) => void;
+  setMasterMapViewMode: (mode: 'grid' | 'archive') => void;
+  setMasterMapSortMode: (mode: 'recently-active' | 'recently-created' | 'alphabetical' | 'largest') => void;
   nodeChats: Record<string, ChatMessage[]>;
   nodeChatStreaming: string | null;
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
@@ -225,6 +229,8 @@ export const useThoughtStore = create<MapState>()(
       focusedNodeId: null,
       nodeSearchQuery: '',
       masterMapSearchQuery: '',
+      masterMapViewMode: 'grid',
+      masterMapSortMode: 'recently-active',
       nodeChats: {} as Record<string, ChatMessage[]>,
       nodeChatStreaming: null as string | null,
 
@@ -553,6 +559,8 @@ export const useThoughtStore = create<MapState>()(
       clearFocusedNode: () => set({ focusedNodeId: null }),
       setNodeSearchQuery: (q) => set({ nodeSearchQuery: q }),
       setMasterMapSearchQuery: (q) => set({ masterMapSearchQuery: q }),
+      setMasterMapViewMode: (mode) => set({ masterMapViewMode: mode }),
+      setMasterMapSortMode: (mode) => set({ masterMapSortMode: mode }),
 
       sendNodeChatMessage: async (nodeId, nodeTitle, nodeContent, message) => {
         const previousChat = get().nodeChats[nodeId] ?? [];
