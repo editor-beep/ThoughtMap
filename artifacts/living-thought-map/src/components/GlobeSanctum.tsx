@@ -126,6 +126,16 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
           <filter id="gs-halo-blur" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="6" />
           </filter>
+
+          {/* L5 — sector fragment feathering */}
+          <filter id="gs-sector-soften" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="5.2" />
+          </filter>
+
+          {/* Shared sphere boundary for interior clipping */}
+          <clipPath id="gs-sphere-clip">
+            <circle cx={cx} cy={cy} r={r} />
+          </clipPath>
         </defs>
 
         {/* ── Background ── */}
@@ -150,6 +160,58 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
 
         {/* ── L1: Planetary shell ── */}
         <circle cx={cx} cy={cy} r={r} fill="url(#gs-sphere-grad)" />
+
+        {/* ── L5: Drifting sector fragments / territorial masses ── */}
+        <g id="gs-sectors" clipPath="url(#gs-sphere-clip)" filter="url(#gs-sector-soften)">
+          <path
+            d={`M ${cx - r * 0.55} ${cy - r * 0.12}
+                C ${cx - r * 0.37} ${cy - r * 0.28}, ${cx - r * 0.20} ${cy - r * 0.20}, ${cx - r * 0.22} ${cy + r * 0.02}
+                C ${cx - r * 0.25} ${cy + r * 0.20}, ${cx - r * 0.45} ${cy + r * 0.23}, ${cx - r * 0.60} ${cy + r * 0.08}
+                C ${cx - r * 0.66} ${cy - r * 0.03}, ${cx - r * 0.66} ${cy - r * 0.07}, ${cx - r * 0.55} ${cy - r * 0.12} Z`}
+            fill="#3D6B5A"
+            opacity="0.15"
+          />
+          <path
+            d={`M ${cx + r * 0.06} ${cy - r * 0.46}
+                C ${cx + r * 0.22} ${cy - r * 0.56}, ${cx + r * 0.44} ${cy - r * 0.50}, ${cx + r * 0.45} ${cy - r * 0.34}
+                C ${cx + r * 0.46} ${cy - r * 0.17}, ${cx + r * 0.20} ${cy - r * 0.08}, ${cx + r * 0.02} ${cy - r * 0.17}
+                C ${cx - r * 0.06} ${cy - r * 0.24}, ${cx - r * 0.07} ${cy - r * 0.37}, ${cx + r * 0.06} ${cy - r * 0.46} Z`}
+            fill="#2E8B8B"
+            opacity="0.11"
+          />
+          <path
+            d={`M ${cx + r * 0.36} ${cy - r * 0.03}
+                C ${cx + r * 0.56} ${cy - r * 0.12}, ${cx + r * 0.74} ${cy + r * 0.02}, ${cx + r * 0.67} ${cy + r * 0.16}
+                C ${cx + r * 0.61} ${cy + r * 0.29}, ${cx + r * 0.44} ${cy + r * 0.31}, ${cx + r * 0.33} ${cy + r * 0.18}
+                C ${cx + r * 0.25} ${cy + r * 0.08}, ${cx + r * 0.25} ${cy + r * 0.01}, ${cx + r * 0.36} ${cy - r * 0.03} Z`}
+            fill="#4A7C8E"
+            opacity="0.16"
+          />
+          <path
+            d={`M ${cx - r * 0.04} ${cy + r * 0.23}
+                C ${cx + r * 0.06} ${cy + r * 0.17}, ${cx + r * 0.21} ${cy + r * 0.21}, ${cx + r * 0.25} ${cy + r * 0.31}
+                C ${cx + r * 0.28} ${cy + r * 0.40}, ${cx + r * 0.13} ${cy + r * 0.49}, ${cx + r * 0.00} ${cy + r * 0.46}
+                C ${cx - r * 0.13} ${cy + r * 0.43}, ${cx - r * 0.18} ${cy + r * 0.29}, ${cx - r * 0.04} ${cy + r * 0.23} Z`}
+            fill="#3D6B5A"
+            opacity="0.10"
+          />
+          <path
+            d={`M ${cx - r * 0.50} ${cy + r * 0.35}
+                C ${cx - r * 0.45} ${cy + r * 0.29}, ${cx - r * 0.37} ${cy + r * 0.29}, ${cx - r * 0.33} ${cy + r * 0.35}
+                C ${cx - r * 0.30} ${cy + r * 0.42}, ${cx - r * 0.34} ${cy + r * 0.49}, ${cx - r * 0.42} ${cy + r * 0.50}
+                C ${cx - r * 0.50} ${cy + r * 0.50}, ${cx - r * 0.55} ${cy + r * 0.42}, ${cx - r * 0.50} ${cy + r * 0.35} Z`}
+            fill="#4A7C8E"
+            opacity="0.13"
+          />
+          <path
+            d={`M ${cx + r * 0.58} ${cy - r * 0.30}
+                C ${cx + r * 0.66} ${cy - r * 0.34}, ${cx + r * 0.74} ${cy - r * 0.30}, ${cx + r * 0.76} ${cy - r * 0.23}
+                C ${cx + r * 0.77} ${cy - r * 0.15}, ${cx + r * 0.70} ${cy - r * 0.09}, ${cx + r * 0.60} ${cy - r * 0.10}
+                C ${cx + r * 0.54} ${cy - r * 0.11}, ${cx + r * 0.52} ${cy - r * 0.24}, ${cx + r * 0.58} ${cy - r * 0.30} Z`}
+            fill="#2E8B8B"
+            opacity="0.09"
+          />
+        </g>
       </svg>
     </div>
   );
