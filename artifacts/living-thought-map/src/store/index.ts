@@ -320,9 +320,15 @@ export const useThoughtStore = create<MapState>()(
             finite: Number.isFinite(x) && Number.isFinite(y),
             overlapCandidates: existingNodes.filter((n) => Math.abs(n.x - x) < 24 && Math.abs(n.y - y) < 24).map((n) => n.id),
             totalNodesAfterInsert: existingNodes.length + 1,
+            realms: newNode.realms,
           });
         }
-        set((state) => ({ nodes: [...state.nodes, newNode] }));
+        set((state) => ({
+          nodes: [...state.nodes, newNode],
+          realms: state.realms.map((realm) => (
+            newNode.realms.includes(realm.id) ? { ...realm, isActive: true } : realm
+          )),
+        }));
         return id;
       },
 
