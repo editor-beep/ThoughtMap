@@ -1,6 +1,5 @@
 import React from 'react';
 import { useViewport } from 'reactflow';
-import { useThoughtStore } from '../store';
 import { useDisplayMode } from '../hooks/useDisplayMode';
 
 const MODE_LABELS: Record<string, string> = {
@@ -15,11 +14,10 @@ const MODE_COLORS: Record<string, string> = {
   cluster: '#a855f7',
 };
 
-export default function MapDensityIndicator() {
+export default function MapDensityIndicator({ totalNodes, renderedNodes }: { totalNodes: number; renderedNodes: number }) {
   const { zoom } = useViewport();
   const { mode } = useDisplayMode();
-  const nodeCount = useThoughtStore((s) => s.nodes.length);
-  const isDense = nodeCount > 30;
+  const isDense = totalNodes > 30;
 
   return (
     <div
@@ -50,7 +48,7 @@ export default function MapDensityIndicator() {
       />
       <span style={{ color: '#94a3b8' }}>{MODE_LABELS[mode]}</span>
       <span style={{ color: '#334155' }}>·</span>
-      <span>{nodeCount} nodes · {zoom.toFixed(2)}x</span>
+      <span>{totalNodes} total · {renderedNodes} rendered · {zoom.toFixed(2)}x</span>
       {isDense && (
         <>
           <span style={{ color: '#334155' }}>·</span>

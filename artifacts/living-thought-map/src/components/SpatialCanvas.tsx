@@ -166,6 +166,21 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     }));
   }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap]);
 
+
+  const realmFilteredNodeCount = nodes.length - visibleNodes.length;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    console.log('[NODE STATE]', {
+      total: nodes.length,
+      rendered: flowNodes.length,
+      hiddenByRealm: realmFilteredNodeCount,
+      hiddenByClustering: Math.max(0, visibleNodes.length - flowNodes.length),
+      zoom: rfViewport.zoom,
+      isClusterMode,
+    });
+  }, [nodes.length, visibleNodes.length, flowNodes.length, realmFilteredNodeCount, rfViewport.zoom, isClusterMode]);
+
   const flowEdges = useMemo(
     () =>
       isClusterMode
@@ -354,7 +369,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
             ))}
           </div>
         </Panel>
-        <Panel position="bottom-left"><MapDensityIndicator /></Panel>
+        <Panel position="bottom-left"><MapDensityIndicator totalNodes={nodes.length} renderedNodes={flowNodes.length} /></Panel>
       </ReactFlow>
 
       {/* Edge type chooser */}
