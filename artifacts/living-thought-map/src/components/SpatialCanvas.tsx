@@ -12,13 +12,14 @@ import ReactFlow, {
   NodeMouseHandler,
   Viewport
 } from 'reactflow';
-import { useThoughtStore } from '../store';
+import { useThoughtStore, MASTER_MAP_ID } from '../store';
 import { EdgeType } from '../types';
 import { Compass, Maximize2, Minimize2 } from 'lucide-react';
 import CustomThoughtNode from './CustomThoughtNode';
 import ClusterMarkerNode from './ClusterMarkerNode';
 import SemanticFieldNode from './SemanticFieldNode';
 import MapHeader from './MapHeader';
+import MasterMapView from './MasterMapView';
 import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 import CartographerPanel from './CartographerPanel';
@@ -97,7 +98,7 @@ interface SpatialCanvasProps {
 }
 
 export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialCanvasProps) {
-  const { nodes, edges, realms, maps, currentMapId, switchMap, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent } = useThoughtStore();
+  const { nodes, edges, realms, maps, currentMapId, switchMap, renameMap, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -240,11 +241,34 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     return () => window.removeEventListener('keydown', onKey);
   }, [exitToParent]);
 
+  if (currentMapId === MASTER_MAP_ID) {
+    return (
+      <div className="w-full h-full relative isolate">
+        {currentMap && (
+          <MapHeader
+            crumbs={breadcrumbs}
+            title={currentMap.title}
+            onExit={exitToParent}
+            isDetail={false}
+            onRename={(title) => renameMap(currentMapId, title)}
+          />
+        )}
+        <MasterMapView />
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full relative isolate">
       <TerrainBackground />
       {currentMap && (
-        <MapHeader crumbs={breadcrumbs} title={currentMap.title} onExit={exitToParent} isDetail={isDetail} />
+        <MapHeader
+          crumbs={breadcrumbs}
+          title={currentMap.title}
+          onExit={exitToParent}
+          isDetail={isDetail}
+          onRename={(title) => renameMap(currentMapId, title)}
+        />
       )}
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 select-none">
