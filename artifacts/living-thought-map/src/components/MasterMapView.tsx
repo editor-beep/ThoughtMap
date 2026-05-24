@@ -55,9 +55,17 @@ function NewMapCard({ onCreate }: { onCreate: (title: string) => void }) {
 }
 
 export default function MasterMapView() {
-  const { maps, createMap, switchMap, masterMapSearchQuery, realms } = useThoughtStore();
+  const {
+    maps,
+    createMap,
+    switchMap,
+    masterMapSearchQuery,
+    realms,
+    masterMapViewMode,
+    masterMapSortMode,
+  } = useThoughtStore();
 
-  const userMaps = useMemo(() => {
+  const filteredMaps = useMemo(() => {
     const query = masterMapSearchQuery.trim().toLowerCase();
     const rank = (m: (typeof maps)[string]) => {
       const searchable = [
@@ -75,9 +83,33 @@ export default function MasterMapView() {
 
     return Object.values(maps)
       .filter((m) => m.id !== MASTER_MAP_ID)
-      .filter((m) => (query ? rank(m) : true))
-      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+      .filter((m) => (query ? rank(m) : true));
   }, [maps, masterMapSearchQuery, realms]);
+
+  const userMaps = useMemo(() => {
+    const sortedMaps = [...filteredMaps].sort((a, b) => {
+      if (masterMapSortMode === 'recently-created') {
+        return +new Date(b.createdAt || 0) - +new Date(a.createdAt || 0);
+      }
+      if (masterMapSortMode === 'alphabetical') {
+        return (a.title ?? '').localeCompare(b.title ?? '', undefined, { sensitivity: 'base' });
+      }
+      if (masterMapSortMode === 'largest') {
+        return (b.nodes?.length ?? 0) - (a.nodes?.length ?? 0);
+      }
+      return +new Date(b.updatedAt || 0) - +new Date(a.updatedAt || 0);
+    });
+    return sortedMaps;
+  }, [filteredMaps, masterMapSortMode]);
+
+  useEffect(() => {
+    console.log('[MASTER MAP VIEW]', {
+      viewMode: masterMapViewMode,
+      sortMode: masterMapSortMode,
+      renderedCount: userMaps.length,
+      renderedOrder: userMaps.map((m) => m.title),
+    });
+  }, [masterMapSortMode, masterMapViewMode, userMaps]);
 
   const handleCreate = (title: string) => {
     const newId = createMap(title, MASTER_MAP_ID);
@@ -92,25 +124,54 @@ export default function MasterMapView() {
           <p className="text-xs text-slate-500 mt-1 font-mono">Your worlds and archives</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {userMaps.map((map) => (
-            <button
-              key={map.id}
-              onClick={() => switchMap(map.id)}
-              className="flex flex-col gap-3 rounded-lg border border-void-700 bg-void-800/50 p-5 text-left hover:border-cosmic-cyan/40 hover:bg-void-800 transition-colors min-h-[120px]"
-            >
-              <div className="flex items-start gap-2">
-                <Map size={14} className="text-cosmic-cyan mt-0.5 shrink-0" />
-                <span className="text-sm text-slate-200 font-medium leading-snug">{map.title}</span>
+        {masterMapViewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {userMaps.map((map) => (
+              <button
+                key={map.id}
+                onClick={() => switchMap(map.id)}
+                className="flex flex-col gap-3 rounded-lg border border-void-700 bg-void-800/50 p-5 text-left hover:border-cosmic-cyan/40 hover:bg-void-800 transition-colors min-h-[120px]"
+              >
+                <div className="flex items-start gap-2">
+                  <Map size={14} className="text-cosmic-cyan mt-0.5 shrink-0" />
+                  <span className="text-sm text-slate-200 font-medium leading-snug">{map.title}</span>
+                </div>
+                <div className="mt-auto flex items-center justify-between text-[10px] font-mono text-slate-500">
+                  <span>{map.nodes.length} {map.nodes.length === 1 ? 'node' : 'nodes'}</span>
+                  <span>{formatDate(map.updatedAt)}</span>
+                </div>
+              </button>
+            ))}
+            <NewMapCard onCreate={handleCreate} />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {userMaps.length === 0 && (
+              <div className="rounded-lg border border-void-700 bg-void-800/40 px-4 py-5 text-xs font-mono text-slate-500">
+                No archived maps found.
               </div>
-              <div className="mt-auto flex items-center justify-between text-[10px] font-mono text-slate-500">
-                <span>{map.nodes.length} {map.nodes.length === 1 ? 'node' : 'nodes'}</span>
-                <span>{formatDate(map.updatedAt)}</span>
-              </div>
-            </button>
-          ))}
-          <NewMapCard onCreate={handleCreate} />
-        </div>
+            )}
+            {userMaps.map((map) => (
+              <button
+                key={map.id}
+                onClick={() => switchMap(map.id)}
+                className="w-full rounded-lg border border-void-700 bg-void-800/30 px-4 py-3 text-left hover:border-cosmic-cyan/40 hover:bg-void-800/60 transition-colors"
+              >
+                <div className="flex items-start gap-2">
+                  <Map size={13} className="text-cosmic-cyan mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-200 truncate">{map.title || 'Untitled map'}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{map.metadata?.description || 'No description yet.'}</p>
+                    <p className="text-[10px] font-mono text-slate-500 mt-2">
+                      Updated {formatDate(map.updatedAt || map.createdAt)} • Created {formatDate(map.createdAt)} • {(map.nodes?.length ?? 0)} {(map.nodes?.length ?? 0) === 1 ? 'node' : 'nodes'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+            <NewMapCard onCreate={handleCreate} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -57,6 +57,10 @@ export default function TopNav() {
     currentMapId,
     masterMapSearchQuery,
     setMasterMapSearchQuery,
+    masterMapViewMode,
+    setMasterMapViewMode,
+    masterMapSortMode,
+    setMasterMapSortMode,
   } = useThoughtStore();
 
   const [nodeSearch, setNodeSearch] = useState('');
@@ -130,13 +134,6 @@ export default function TopNav() {
       newAnchorInputRef.current?.focus();
     }
   }, [showNewAnchorInput]);
-
-  const filteredNodes = useMemo(() => {
-    const q = nodeSearch.trim().toLowerCase();
-    return q
-      ? nodes.filter((n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
-      : nodes;
-  }, [nodes, nodeSearch]);
 
   const realmCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -259,12 +256,24 @@ export default function TopNav() {
 
         <div className="w-px h-5 bg-void-700/50 mx-1 flex-shrink-0" />
 
-        <select className="bg-void-800/60 border border-void-700/50 rounded px-2.5 py-1 text-[11px] font-mono text-slate-400 focus:outline-none focus:border-cosmic-cyan/50">
-          <option>Recently Active</option><option>Recently Created</option><option>Largest</option><option>Most Nodes</option><option>Alphabetical</option>
+        <select
+          value={masterMapSortMode}
+          onChange={(e) => setMasterMapSortMode(e.target.value as 'recently-active' | 'recently-created' | 'alphabetical' | 'largest')}
+          className="bg-void-800/60 border border-void-700/50 rounded px-2.5 py-1 text-[11px] font-mono text-slate-400 focus:outline-none focus:border-cosmic-cyan/50"
+        >
+          <option value="recently-active">Recently Active</option>
+          <option value="recently-created">Recently Created</option>
+          <option value="largest">Largest</option>
+          <option value="alphabetical">Alphabetical</option>
         </select>
 
-        <select className="bg-void-800/60 border border-void-700/50 rounded px-2.5 py-1 text-[11px] font-mono text-slate-400 focus:outline-none focus:border-cosmic-cyan/50">
-          <option>Grid</option><option>Archive</option>
+        <select
+          value={masterMapViewMode}
+          onChange={(e) => setMasterMapViewMode(e.target.value as 'grid' | 'archive')}
+          className="bg-void-800/60 border border-void-700/50 rounded px-2.5 py-1 text-[11px] font-mono text-slate-400 focus:outline-none focus:border-cosmic-cyan/50"
+        >
+          <option value="grid">Grid</option>
+          <option value="archive">Archive</option>
         </select>
 
         <div className="ml-auto flex-shrink-0">
