@@ -2,8 +2,10 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Plus, Map } from 'lucide-react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
 
-function formatDate(iso: string): string {
+function formatDate(iso?: string): string {
+  if (!iso) return 'Unknown date';
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Unknown date';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -68,14 +70,15 @@ export default function MasterMapView() {
   const filteredMaps = useMemo(() => {
     const query = masterMapSearchQuery.trim().toLowerCase();
     const rank = (m: (typeof maps)[string]) => {
+      const mapNodes = Array.isArray(m.nodes) ? m.nodes : [];
       const searchable = [
         m.title,
         m.metadata?.description ?? '',
-        ...m.nodes.flatMap((n) => [
+        ...mapNodes.flatMap((n) => [
           n.title,
           n.content,
           ...(n.tags ?? []),
-          ...n.realms.map((id) => realms.find((r) => r.id === id)?.name ?? id),
+          ...(Array.isArray(n.realms) ? n.realms : []).map((id) => realms.find((r) => r.id === id)?.name ?? id),
         ]),
       ].join(' ').toLowerCase();
       return searchable.includes(query);
@@ -111,6 +114,20 @@ export default function MasterMapView() {
     });
   }, [masterMapSortMode, masterMapViewMode, userMaps]);
 
+  useEffect(() => {
+    if (masterMapViewMode !== 'archive') return;
+    console.log('[DOT VIEW DATA]', {
+      mapCount: userMaps.length,
+      mapDiagnostics: userMaps.map((m) => ({
+        id: m.id,
+        title: m.title,
+        nodesCount: Array.isArray(m.nodes) ? m.nodes.length : 0,
+        hasCreatedAt: Boolean(m.createdAt),
+        hasUpdatedAt: Boolean(m.updatedAt),
+      })),
+    });
+  }, [masterMapViewMode, userMaps]);
+
   const handleCreate = (title: string) => {
     const newId = createMap(title, MASTER_MAP_ID);
     switchMap(newId);
@@ -137,7 +154,7 @@ export default function MasterMapView() {
                   <span className="text-sm text-slate-200 font-medium leading-snug">{map.title}</span>
                 </div>
                 <div className="mt-auto flex items-center justify-between text-[10px] font-mono text-slate-500">
-                  <span>{map.nodes.length} {map.nodes.length === 1 ? 'node' : 'nodes'}</span>
+                  <span>{map.nodes?.length ?? 0} {(map.nodes?.length ?? 0) === 1 ? 'node' : 'nodes'}</span>
                   <span>{formatDate(map.updatedAt)}</span>
                 </div>
               </button>
