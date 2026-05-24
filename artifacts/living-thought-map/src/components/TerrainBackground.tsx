@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useThoughtStore } from '../store';
 import type { TerrainId } from '../types';
 import TerrainCanvas from './TerrainCanvas';
+import GlobeSanctum from './GlobeSanctum';
 
 export default function TerrainBackground() {
   const activeTerrain = useThoughtStore((s) => s.activeTerrain);
@@ -34,16 +35,30 @@ export default function TerrainBackground() {
 
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ zIndex: -10 }}>
-      <TerrainCanvas terrain={displayedTerrain} />
+      {displayedTerrain === 'terrestrial-globe' ? (
+        <GlobeSanctum />
+      ) : (
+        <TerrainCanvas terrain={displayedTerrain} />
+      )}
       {incomingTerrain && (
-        <TerrainCanvas
-          terrain={incomingTerrain}
-          style={{
-            opacity: incomingOpacity,
-            transition: 'opacity 1500ms cubic-bezier(0.4,0,0.2,1)',
-            willChange: 'opacity',
-          }}
-        />
+        incomingTerrain === 'terrestrial-globe' ? (
+          <GlobeSanctum
+            style={{
+              opacity: incomingOpacity,
+              transition: 'opacity 1500ms cubic-bezier(0.4,0,0.2,1)',
+              willChange: 'opacity',
+            }}
+          />
+        ) : (
+          <TerrainCanvas
+            terrain={incomingTerrain}
+            style={{
+              opacity: incomingOpacity,
+              transition: 'opacity 1500ms cubic-bezier(0.4,0,0.2,1)',
+              willChange: 'opacity',
+            }}
+          />
+        )
       )}
     </div>
   );
