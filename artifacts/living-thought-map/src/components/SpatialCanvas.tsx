@@ -16,6 +16,7 @@ import { EdgeType } from '../types';
 import { Compass, Maximize2, Minimize2 } from 'lucide-react';
 import CustomThoughtNode from './CustomThoughtNode';
 import ClusterMarkerNode from './ClusterMarkerNode';
+import SemanticFieldNode from './SemanticFieldNode';
 import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 import CartographerPanel from './CartographerPanel';
@@ -25,6 +26,7 @@ import { computeClusters, ClusterData } from '../lib/clustering';
 const nodeTypes = {
   thoughtMapNode: CustomThoughtNode,
   clusterMarker: ClusterMarkerNode,
+  semanticFieldNode: SemanticFieldNode,
 };
 
 const EDGE_COLORS: Record<EdgeType, string> = {
@@ -92,7 +94,7 @@ interface SpatialCanvasProps {
 }
 
 export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialCanvasProps) {
-  const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel } = useThoughtStore();
+  const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -137,9 +139,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         .map((c) => c.nodes[0])
         .map((node) => ({
           id: node.id,
-          type: 'thoughtMapNode',
+          type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
           position: { x: node.x, y: node.y },
-          data: { node },
+          data: { node, onOpen: openSubMap },
         }));
 
       return [...clusterNodes, ...singleNodes];
@@ -147,11 +149,11 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
     return visibleNodes.map((node) => ({
       id: node.id,
-      type: 'thoughtMapNode',
+      type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
       position: { x: node.x, y: node.y },
-      data: { node }
+      data: { node, onOpen: openSubMap }
     }));
-  }, [clusters, visibleNodes]);
+  }, [clusters, visibleNodes, openSubMap]);
 
   const flowEdges = useMemo(
     () =>
@@ -208,8 +210,25 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const onNodeClick: NodeMouseHandler = useCallback((_event, rfNode) => {
     // Cluster marker clicks are handled internally by the component.
     if (rfNode.id.startsWith('cluster-')) return;
+    const selected = nodes.find((n) => n.id === rfNode.id);
+    if (selected?.isSemanticField && selected.subMapId) {
+      openSubMap(selected.id);
+      return;
+    }
     setSelectedNodeId(rfNode.id);
-  }, []);
+  }, [nodes, openSubMap]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const isCmdCtrl = event.metaKey || event.ctrlKey;
+      if (event.key === 'Escape' || (isCmdCtrl && event.key === 'ArrowUp')) {
+        event.preventDefault();
+        exitToParent();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [exitToParent]);
 
   return (
     <div className="w-full h-full relative isolate">

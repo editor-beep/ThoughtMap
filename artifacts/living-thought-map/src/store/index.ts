@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext } from '../types';
+import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, MapDocument } from '../types';
 
 // ─── Auto-terrain detection ────────────────────────────────────────────────
 
@@ -74,6 +74,8 @@ function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
 type UndoAction = { type: 'deleteNode'; node: ThoughtNode; edges: ThoughtEdge[] } | { type: 'deleteEdge'; edge: ThoughtEdge };
 
 interface MapState {
+  maps: Record<string, MapDocument>;
+  currentMapId: string;
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
   realms: Realm[];
@@ -122,6 +124,11 @@ interface MapState {
   closeCartographerPanel: () => void;
   requestWanderMode: () => Promise<void>;
   clearWanderResponse: () => void;
+  createMap: (title: string, parentMapId?: string, parentNodeId?: string) => string;
+  switchMap: (mapId: string) => void;
+  createSemanticField: (parentMapId: string, nodeData: Partial<ThoughtNode>) => string;
+  openSubMap: (nodeId: string) => void;
+  exitToParent: () => void;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -145,6 +152,8 @@ const INITIAL_CHAT: ChatMessage[] = [
 export const useThoughtStore = create<MapState>()(
   persist(
     (set, get) => ({
+      maps: {},
+      currentMapId: 'master-map',
       nodes: [],
       edges: [],
       realms: INITIAL_REALMS,
@@ -166,6 +175,56 @@ export const useThoughtStore = create<MapState>()(
       cartographerAppliedIndices: [],
       cartographerPanelOpen: false,
       cartographerWanderResponse: null,
+      createMap: (title, parentMapId, parentNodeId) => {
+        const id = `map_${crypto.randomUUID()}`;
+        const now = new Date().toISOString();
+        const map: MapDocument = {
+          id,
+          title,
+          level: parentMapId ? 'detail' : 'master',
+          parentMapId: parentMapId ?? null,
+          parentNodeId: parentNodeId ?? null,
+          nodes: [],
+          edges: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((state) => ({ maps: { ...state.maps, [id]: map } }));
+        return id;
+      },
+      switchMap: (mapId) => {
+        const map = get().maps[mapId];
+        if (!map) return;
+        set({ currentMapId: mapId, nodes: map.nodes, edges: map.edges });
+      },
+      createSemanticField: (parentMapId, nodeData) => {
+        const subMapId = get().createMap(nodeData.title ?? 'New Detail Map', parentMapId);
+        const id = `node_${crypto.randomUUID()}`;
+        const now = new Date().toISOString();
+        const semanticNode: ThoughtNode = {
+          id,
+          title: nodeData.title ?? 'Semantic Field',
+          content: nodeData.content ?? '',
+          type: nodeData.type ?? 'thought',
+          realms: nodeData.realms ?? [],
+          x: nodeData.x ?? 0,
+          y: nodeData.y ?? 0,
+          createdAt: now,
+          isSemanticField: true,
+          subMapId,
+        };
+        set((state) => ({ nodes: [...state.nodes, semanticNode] }));
+        return id;
+      },
+      openSubMap: (nodeId) => {
+        const node = get().nodes.find((n) => n.id === nodeId);
+        if (node?.isSemanticField && node.subMapId) get().switchMap(node.subMapId);
+      },
+      exitToParent: () => {
+        const { maps, currentMapId } = get();
+        const current = maps[currentMapId];
+        if (current?.parentMapId) get().switchMap(current.parentMapId);
+      },
 
       addNode: (nodeData) => {
         const id = `node_${crypto.randomUUID()}`;

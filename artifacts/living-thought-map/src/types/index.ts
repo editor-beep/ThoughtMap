@@ -45,6 +45,9 @@ export interface ThoughtNode {
   attachments?: Attachment[];
   comments?: NodeComment[];
   isAnchor?: boolean;
+  isSemanticField?: boolean;
+  subMapId?: string | null;
+  importance?: number;
 }
 
 export interface ThoughtEdge {
@@ -53,6 +56,32 @@ export interface ThoughtEdge {
   target: string;
   type: EdgeType;
 }
+
+export type MapLevel = 'master' | 'detail';
+
+export interface MapDocument {
+  id: string;
+  title: string;
+  level: MapLevel;
+  parentMapId: string | null;
+  parentNodeId: string | null;
+  nodes: ThoughtNode[];
+  edges: ThoughtEdge[];
+  createdAt: string;
+  updatedAt: string;
+  viewport?: { x: number; y: number; zoom: number };
+  metadata?: {
+    description?: string;
+    icon?: string;
+    color?: string;
+    [key: string]: unknown;
+  };
+}
+
+export type NodeOrMapReference = {
+  mapId: string;
+  nodeId?: string;
+};
 
 export interface Realm {
   id: string;
@@ -108,4 +137,9 @@ export interface CartographerContext {
   }>;
   activeTerrain: TerrainId;
   activeRealms: string[];
+  mapContext?: {
+    mapLevel: MapLevel;
+    mapTitle: string;
+    parentMapTitle?: string;
+  };
 }
