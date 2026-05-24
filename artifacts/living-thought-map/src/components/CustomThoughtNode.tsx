@@ -106,7 +106,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [inlineContent, setInlineContent] = useState(node.content);
   const [showInlineToolbar, setShowInlineToolbar] = useState(false);
-  const { isDot } = useDisplayMode();
+  const { isDot, isCluster } = useDisplayMode();
   const { setCenter } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const showExpanded = isExpanded;
@@ -143,7 +143,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const commentCount = (node.comments ?? []).length;
   const hasTags = (node.tags ?? []).length > 0;
 
-  if (isDot) {
+  if (isDot || isCluster) {
     const dotSize = 16;
     const containerSize = 20;
     const offset = (containerSize - dotSize) / 2;
