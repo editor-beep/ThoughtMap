@@ -93,6 +93,39 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
   const r     = Math.min(w, h) * 0.48;
   const haloR = r * 1.14;
 
+
+  const tickData = [
+    { a: -154, kind: 'major' }, { a: -146, kind: 'minor' }, { a: -138, kind: 'minor' }, { a: -131, kind: 'major' },
+    { a: -124, kind: 'minor' }, { a: -96, kind: 'major' }, { a: -90, kind: 'minor' }, { a: -84, kind: 'minor' },
+    { a: -79, kind: 'major' }, { a: -72, kind: 'minor' }, { a: -41, kind: 'major' }, { a: -36, kind: 'minor' },
+    { a: -30, kind: 'minor' }, { a: -25, kind: 'major' }, { a: -6, kind: 'minor' }, { a: 2, kind: 'major' },
+    { a: 8, kind: 'minor' }, { a: 17, kind: 'minor' }, { a: 23, kind: 'major' }, { a: 47, kind: 'minor' },
+    { a: 53, kind: 'major' }, { a: 60, kind: 'minor' }, { a: 67, kind: 'minor' }, { a: 75, kind: 'major' },
+    { a: 111, kind: 'major' }, { a: 119, kind: 'minor' }, { a: 126, kind: 'minor' }, { a: 134, kind: 'major' },
+    { a: 142, kind: 'minor' },
+  ] as const;
+
+  const coordinateLabels = [
+    { x: -0.72, y: -0.56, t: '47.2' },
+    { x: -0.58, y: -0.34, t: 'C-9' },
+    { x: -0.36, y: -0.63, t: '∆04' },
+    { x: -0.17, y: -0.29, t: 'REF-7' },
+    { x: 0.11, y: -0.49, t: '3A.17' },
+    { x: 0.42, y: -0.28, t: 'Z-13' },
+    { x: 0.66, y: -0.07, t: 'K2' },
+    { x: 0.36, y: 0.17, t: '91.0' },
+    { x: 0.06, y: 0.34, t: 'C-77' },
+    { x: -0.29, y: 0.52, t: 'REF...' },
+    { x: -0.56, y: 0.18, t: '∆19' },
+  ] as const;
+
+  const sectorLabels = [
+    { x: -0.44, y: -0.12, t: '[SECTOR 7]' },
+    { x: 0.24, y: -0.02, t: '[NULL ZONE]' },
+    { x: -0.12, y: 0.29, t: '[REG-4]' },
+    { x: 0.43, y: 0.37, t: '[DEEP]' },
+  ] as const;
+
   return (
     <div
       ref={containerRef}
@@ -121,6 +154,11 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
             <stop offset="88%"  stopColor="#7FFFD4" stopOpacity="0.18" />
             <stop offset="100%" stopColor="#7FFFD4" stopOpacity="0" />
           </radialGradient>
+
+          {/* L6 — sphere clipping for instrumentation */}
+          <clipPath id="gs-sphere-clip">
+            <circle cx={cx} cy={cy} r={r * 0.985} />
+          </clipPath>
 
           {/* L1 — halo blur */}
           <filter id="gs-halo-blur" x="-20%" y="-20%" width="140%" height="140%">
@@ -170,6 +208,63 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
 
           {/* Partial arc with abrupt terminal (no fade) */}
           <path d={`M ${cx - r * 0.22} ${cy + r * 0.74} A ${r * 0.90} ${r * 0.26} -63 0 1 ${cx + r * 0.64} ${cy - r * 0.22}`} stroke="#4A7C8E" strokeWidth="0.68" opacity="0.24" />
+        </g>
+
+        {/* ── L6: Measurement overlays and coordinate instrumentation ── */}
+        <g id="gs-instrumentation" fill="none">
+          {/* Circumference tick marks — irregular clusters and gaps */}
+          <g stroke="#4A7C8E" strokeWidth="0.5" strokeOpacity="0.38" strokeLinecap="round">
+            {tickData.map((tick, i) => {
+              const major = tick.kind === 'major';
+              const len = major ? r * 0.024 : r * 0.011;
+              const a = (tick.a * Math.PI) / 180;
+              const x1 = cx + Math.cos(a) * (r * 0.99);
+              const y1 = cy + Math.sin(a) * (r * 0.99);
+              const x2 = cx + Math.cos(a) * (r * 0.99 + len);
+              const y2 = cy + Math.sin(a) * (r * 0.99 + len);
+              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} opacity={major ? 0.42 : 0.3} />;
+            })}
+          </g>
+
+          {/* Projected axis lines and textual overlays inside the sphere */}
+          <g clipPath="url(#gs-sphere-clip)">
+            <g stroke="#7FFFD4" strokeWidth="0.4" strokeOpacity="0.16" strokeDasharray="1.8 3.2" strokeLinecap="round">
+              <path d={`M ${cx - r * 0.84} ${cy - r * 0.12} Q ${cx - r * 0.16} ${cy - r * 0.31}, ${cx + r * 0.77} ${cy - r * 0.11}`} />
+              <path d={`M ${cx - r * 0.71} ${cy + r * 0.33} Q ${cx + r * 0.02} ${cy + r * 0.09}, ${cx + r * 0.78} ${cy + r * 0.26}`} />
+              <path d={`M ${cx - r * 0.21} ${cy - r * 0.72} Q ${cx + r * 0.08} ${cy - r * 0.06}, ${cx + r * 0.24} ${cy + r * 0.68}`} opacity="0.11" />
+            </g>
+
+            <g fill="#7FFFD4" fontFamily="'IBM Plex Mono', 'Menlo', monospace" textRendering="geometricPrecision" letterSpacing="0.28px">
+              {coordinateLabels.map((label, i) => (
+                <text
+                  key={i}
+                  x={cx + label.x * r}
+                  y={cy + label.y * r}
+                  fontSize={i % 4 === 0 ? 8 : 6.4}
+                  opacity={0.27 + (i % 5) * 0.03}
+                >
+                  {label.t}
+                </text>
+              ))}
+
+              {sectorLabels.map((label, i) => (
+                <text
+                  key={`sector-${i}`}
+                  x={cx + label.x * r}
+                  y={cy + label.y * r}
+                  fontSize={7}
+                  opacity={0.22 + (i % 3) * 0.03}
+                >
+                  {label.t}
+                </text>
+              ))}
+
+              {/* Broken mid-sequence annotation crossing beyond viewport bounds */}
+              <text x={cx + r * 0.91} y={cy - r * 0.42} fontSize={6.2} opacity={0.31}>
+                ...-17 / C-9 / REF-7 →
+              </text>
+            </g>
+          </g>
         </g>
 
         {/* ── L1: Outer atmospheric halo ── */}
