@@ -110,6 +110,10 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const { setCenter } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const showExpanded = isExpanded;
+
+  useEffect(() => {
+    updateNodeInternals(node.id);
+  }, [isDot, node.id, updateNodeInternals]);
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
   const canEditInline = true;
