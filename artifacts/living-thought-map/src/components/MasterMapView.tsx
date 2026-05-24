@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Plus, Map } from 'lucide-react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
 
@@ -55,9 +55,29 @@ function NewMapCard({ onCreate }: { onCreate: (title: string) => void }) {
 }
 
 export default function MasterMapView() {
-  const { maps, createMap, switchMap } = useThoughtStore();
+  const { maps, createMap, switchMap, masterMapSearchQuery, realms } = useThoughtStore();
 
-  const userMaps = Object.values(maps).filter((m) => m.id !== MASTER_MAP_ID);
+  const userMaps = useMemo(() => {
+    const query = masterMapSearchQuery.trim().toLowerCase();
+    const rank = (m: (typeof maps)[string]) => {
+      const searchable = [
+        m.title,
+        m.metadata?.description ?? '',
+        ...m.nodes.flatMap((n) => [
+          n.title,
+          n.content,
+          ...(n.tags ?? []),
+          ...n.realms.map((id) => realms.find((r) => r.id === id)?.name ?? id),
+        ]),
+      ].join(' ').toLowerCase();
+      return searchable.includes(query);
+    };
+
+    return Object.values(maps)
+      .filter((m) => m.id !== MASTER_MAP_ID)
+      .filter((m) => (query ? rank(m) : true))
+      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+  }, [maps, masterMapSearchQuery, realms]);
 
   const handleCreate = (title: string) => {
     const newId = createMap(title, MASTER_MAP_ID);
@@ -69,7 +89,7 @@ export default function MasterMapView() {
       <div className="max-w-4xl mx-auto px-6 py-12">
         <div className="mb-8">
           <h1 className="text-lg font-mono text-slate-200 tracking-wide">Master Map</h1>
-          <p className="text-xs text-slate-500 mt-1 font-mono">Your canvases</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono">Your worlds and archives</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
