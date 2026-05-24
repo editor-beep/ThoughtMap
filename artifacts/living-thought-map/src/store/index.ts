@@ -69,6 +69,21 @@ function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
   return detected;
 }
 
+// ─── Map constants ─────────────────────────────────────────────────────────
+
+const MASTER_MAP_ID = 'master-map';
+const INITIAL_MASTER_MAP: MapDocument = {
+  id: MASTER_MAP_ID,
+  title: 'Master Map',
+  level: 'master',
+  parentMapId: null,
+  parentNodeId: null,
+  nodes: [],
+  edges: [],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 // ─── Store ─────────────────────────────────────────────────────────────────
 
 type UndoAction = { type: 'deleteNode'; node: ThoughtNode; edges: ThoughtEdge[] } | { type: 'deleteEdge'; edge: ThoughtEdge };
@@ -152,8 +167,8 @@ const INITIAL_CHAT: ChatMessage[] = [
 export const useThoughtStore = create<MapState>()(
   persist(
     (set, get) => ({
-      maps: {},
-      currentMapId: 'master-map',
+      maps: { [MASTER_MAP_ID]: INITIAL_MASTER_MAP },
+      currentMapId: MASTER_MAP_ID,
       nodes: [],
       edges: [],
       realms: INITIAL_REALMS,
@@ -193,13 +208,21 @@ export const useThoughtStore = create<MapState>()(
         return id;
       },
       switchMap: (mapId) => {
-        const map = get().maps[mapId];
-        if (!map) return;
-        set({ currentMapId: mapId, nodes: map.nodes, edges: map.edges });
+        const { maps, currentMapId, nodes, edges } = get();
+        if (mapId === currentMapId) return;
+        const target = maps[mapId];
+        if (!target) return;
+        const now = new Date().toISOString();
+        set({
+          maps: { ...maps, [currentMapId]: { ...maps[currentMapId], nodes, edges, updatedAt: now } },
+          currentMapId: mapId,
+          nodes: target.nodes,
+          edges: target.edges,
+        });
       },
       createSemanticField: (parentMapId, nodeData) => {
-        const subMapId = get().createMap(nodeData.title ?? 'New Detail Map', parentMapId);
         const id = `node_${crypto.randomUUID()}`;
+        const subMapId = get().createMap(nodeData.title ?? 'New Detail Map', parentMapId, id);
         const now = new Date().toISOString();
         const semanticNode: ThoughtNode = {
           id,
@@ -550,10 +573,17 @@ export const useThoughtStore = create<MapState>()(
         });
 
         const state = get();
+        const currentMapDoc = state.maps[state.currentMapId];
+        const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
           activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          mapContext: currentMapDoc ? {
+            mapLevel: currentMapDoc.level,
+            mapTitle: currentMapDoc.title,
+            parentMapTitle: parentMapDoc?.title,
+          } : undefined,
         };
 
         try {
@@ -599,10 +629,17 @@ export const useThoughtStore = create<MapState>()(
         });
 
         const state = get();
+        const currentMapDoc = state.maps[state.currentMapId];
+        const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
           activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          mapContext: currentMapDoc ? {
+            mapLevel: currentMapDoc.level,
+            mapTitle: currentMapDoc.title,
+            parentMapTitle: parentMapDoc?.title,
+          } : undefined,
         };
 
         try {
@@ -703,10 +740,17 @@ export const useThoughtStore = create<MapState>()(
         set({ cartographerLoading: true, cartographerWanderResponse: null });
 
         const state = get();
+        const currentMapDoc = state.maps[state.currentMapId];
+        const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
           activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          mapContext: currentMapDoc ? {
+            mapLevel: currentMapDoc.level,
+            mapTitle: currentMapDoc.title,
+            parentMapTitle: parentMapDoc?.title,
+          } : undefined,
         };
 
         try {
@@ -783,23 +827,43 @@ export const useThoughtStore = create<MapState>()(
     }),
     {
       name: 'thought-map-storage',
-      partialize: (state) => ({
-        nodes: state.nodes,
-        edges: state.edges,
-        realms: state.realms,
-        chatHistory: state.chatHistory,
-        activeTerrain: state.activeTerrain,
-        nodeChats: state.nodeChats,
-      }),
+      partialize: (state) => {
+        const now = new Date().toISOString();
+        const syncedMaps = {
+          ...state.maps,
+          [state.currentMapId]: {
+            ...state.maps[state.currentMapId],
+            nodes: state.nodes,
+            edges: state.edges,
+            updatedAt: now,
+          },
+        };
+        return {
+          maps: syncedMaps,
+          currentMapId: state.currentMapId,
+          nodes: state.nodes,
+          edges: state.edges,
+          realms: state.realms,
+          chatHistory: state.chatHistory,
+          activeTerrain: state.activeTerrain,
+          nodeChats: state.nodeChats,
+        };
+      },
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         // Mark any assistant messages that were incomplete (mid-stream on last close) as failed
-        const repaired = state.chatHistory.map((m) =>
+        state.chatHistory = state.chatHistory.map((m) =>
           m.role === 'assistant' && m.complete === false
             ? { ...m, content: m.content || '⚠ Message interrupted — please resend.', complete: true }
             : m
         );
-        state.chatHistory = repaired;
+        // Absorb legacy flat nodes/edges into master map for users upgrading from pre-maps storage
+        if (!state.maps[MASTER_MAP_ID]) {
+          state.maps = {
+            ...state.maps,
+            [MASTER_MAP_ID]: { ...INITIAL_MASTER_MAP, nodes: state.nodes, edges: state.edges },
+          };
+        }
       },
     }
   )

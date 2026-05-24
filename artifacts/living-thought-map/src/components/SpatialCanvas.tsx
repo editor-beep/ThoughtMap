@@ -17,6 +17,7 @@ import { Compass, Maximize2, Minimize2 } from 'lucide-react';
 import CustomThoughtNode from './CustomThoughtNode';
 import ClusterMarkerNode from './ClusterMarkerNode';
 import SemanticFieldNode from './SemanticFieldNode';
+import MapHeader from './MapHeader';
 import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 import CartographerPanel from './CartographerPanel';
@@ -94,7 +95,7 @@ interface SpatialCanvasProps {
 }
 
 export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialCanvasProps) {
-  const { nodes, edges, realms, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent } = useThoughtStore();
+  const { nodes, edges, realms, maps, currentMapId, switchMap, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -105,6 +106,23 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
     [realms]
   );
+
+  const currentMap = maps[currentMapId] ?? null;
+  const isDetail = currentMap?.level === 'detail';
+
+  const breadcrumbs = useMemo(() => {
+    if (!currentMap) return [];
+    const chain: typeof currentMap[] = [];
+    let cursor: typeof currentMap | null = currentMap;
+    while (cursor) {
+      chain.unshift(cursor);
+      cursor = cursor.parentMapId ? (maps[cursor.parentMapId] ?? null) : null;
+    }
+    return chain.map((m, idx) => {
+      const isLast = idx === chain.length - 1;
+      return { label: m.title, onClick: isLast ? undefined : () => switchMap(m.id) };
+    });
+  }, [currentMap, maps, switchMap]);
 
   const visibleNodes = useMemo(
     () => nodes.filter((n) => n.realms.length === 0 || n.realms.some((r) => activeRealmIds.has(r))),
@@ -233,6 +251,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   return (
     <div className="w-full h-full relative isolate">
       <TerrainBackground />
+      {currentMap && (
+        <MapHeader crumbs={breadcrumbs} title={currentMap.title} onExit={exitToParent} isDetail={isDetail} />
+      )}
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 select-none">
           <p className="font-mono text-xs tracking-widest text-slate-500 uppercase animate-pulse">Begin thinking.</p>
