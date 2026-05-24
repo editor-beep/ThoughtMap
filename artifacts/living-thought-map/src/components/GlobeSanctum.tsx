@@ -145,11 +145,35 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
           ))}
         </g>
 
-        {/* ── L1: Outer atmospheric halo ── */}
-        <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
+        {/* ── L3: Orbital rings behind shell ── */}
+        <g id="gs-rings-behind" fill="none" strokeLinecap="round">
+          {/* Primary orbital rings */}
+          <ellipse cx={cx} cy={cy} rx={r * 1.08} ry={r * 0.44} transform={`rotate(19 ${cx} ${cy})`} stroke="#7FFFD4" strokeWidth="0.7" opacity="0.29" />
+          <ellipse cx={cx} cy={cy} rx={r * 0.88} ry={r * 0.36} transform={`rotate(52 ${cx} ${cy})`} stroke="#4A7C8E" strokeWidth="0.76" opacity="0.31" />
+
+          {/* Partial arcs */}
+          <path d={`M ${cx - r * 0.72} ${cy - r * 0.10} A ${r * 0.94} ${r * 0.40} 33 0 1 ${cx + r * 0.58} ${cy + r * 0.20}`} stroke="#7FFFD4" strokeWidth="0.66" opacity="0.26" />
+          <path d={`M ${cx - r * 0.34} ${cy + r * 0.58} A ${r * 0.82} ${r * 0.34} -48 0 1 ${cx + r * 0.40} ${cy - r * 0.47}`} stroke="#4A7C8E" strokeWidth="0.7" opacity="0.22" />
+
+          {/* Broken trajectories */}
+          <ellipse cx={cx} cy={cy} rx={r * 1.20} ry={r * 0.30} transform={`rotate(68 ${cx} ${cy})`} stroke="#7FFFD4" strokeWidth="0.64" opacity="0.18" strokeDasharray="4 7 1 5 2 9" />
+          <ellipse cx={cx} cy={cy} rx={r * 0.64} ry={r * 0.24} transform={`rotate(34 ${cx} ${cy})`} stroke="#4A7C8E" strokeWidth="0.62" opacity="0.2" strokeDasharray="6 3 2 8 1 6" />
+        </g>
 
         {/* ── L1: Planetary shell ── */}
         <circle cx={cx} cy={cy} r={r} fill="url(#gs-sphere-grad)" />
+
+        {/* ── L3: Orbital rings crossing through shell (impossible geometry) ── */}
+        <g id="gs-rings-front" fill="none" strokeLinecap="round">
+          {/* Primary near-full crossing ring */}
+          <ellipse cx={cx} cy={cy} rx={r * 1.03} ry={r * 0.38} transform={`rotate(73 ${cx} ${cy})`} stroke="#7FFFD4" strokeWidth="0.72" opacity="0.27" />
+
+          {/* Partial arc with abrupt terminal (no fade) */}
+          <path d={`M ${cx - r * 0.22} ${cy + r * 0.74} A ${r * 0.90} ${r * 0.26} -63 0 1 ${cx + r * 0.64} ${cy - r * 0.22}`} stroke="#4A7C8E" strokeWidth="0.68" opacity="0.24" />
+        </g>
+
+        {/* ── L1: Outer atmospheric halo ── */}
+        <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
       </svg>
     </div>
   );
