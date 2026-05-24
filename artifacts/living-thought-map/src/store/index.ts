@@ -71,7 +71,7 @@ function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
 
 // ─── Map constants ─────────────────────────────────────────────────────────
 
-const MASTER_MAP_ID = 'master-map';
+export const MASTER_MAP_ID = 'master-map';
 const INITIAL_MASTER_MAP: MapDocument = {
   id: MASTER_MAP_ID,
   title: 'Master Map',
@@ -141,6 +141,7 @@ interface MapState {
   clearWanderResponse: () => void;
   createMap: (title: string, parentMapId?: string, parentNodeId?: string) => string;
   switchMap: (mapId: string) => void;
+  renameMap: (id: string, title: string) => void;
   createSemanticField: (parentMapId: string, nodeData: Partial<ThoughtNode>) => string;
   openSubMap: (nodeId: string) => void;
   exitToParent: () => void;
@@ -219,6 +220,11 @@ export const useThoughtStore = create<MapState>()(
           nodes: target.nodes,
           edges: target.edges,
         });
+      },
+      renameMap: (id, title) => {
+        set((s) => ({
+          maps: { ...s.maps, [id]: { ...s.maps[id], title, updatedAt: new Date().toISOString() } },
+        }));
       },
       createSemanticField: (parentMapId, nodeData) => {
         const id = `node_${crypto.randomUUID()}`;
@@ -712,6 +718,8 @@ export const useThoughtStore = create<MapState>()(
           x,
           y,
         });
+
+        get().focusNode(nodeId);
 
         // Mark message as extracted on first application; keep panel open for additional selections
         const isFirst = get().cartographerAppliedIndices.length === 0;
