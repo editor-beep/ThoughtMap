@@ -161,7 +161,7 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         {/* ── L1: Planetary shell ── */}
         <circle cx={cx} cy={cy} r={r} fill="url(#gs-sphere-grad)" />
 
-        {/* ── L5: Drifting sector fragments / territorial masses ── */}
+        {/* ── L5: Sector fragments / territorial masses ── */}
         <g id="gs-sectors" clipPath="url(#gs-sphere-clip)" filter="url(#gs-sector-soften)">
           <path
             d={`M ${cx - r * 0.55} ${cy - r * 0.12}
@@ -210,6 +210,14 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
                 C ${cx + r * 0.54} ${cy - r * 0.11}, ${cx + r * 0.52} ${cy - r * 0.24}, ${cx + r * 0.58} ${cy - r * 0.30} Z`}
             fill="#2E8B8B"
             opacity="0.09"
+          />
+          <path
+            d={`M ${cx + r * 0.18} ${cy + r * 0.04}
+                C ${cx + r * 0.29} ${cy - r * 0.02}, ${cx + r * 0.38} ${cy + r * 0.03}, ${cx + r * 0.39} ${cy + r * 0.11}
+                C ${cx + r * 0.41} ${cy + r * 0.20}, ${cx + r * 0.31} ${cy + r * 0.25}, ${cx + r * 0.21} ${cy + r * 0.22}
+                C ${cx + r * 0.12} ${cy + r * 0.19}, ${cx + r * 0.08} ${cy + r * 0.10}, ${cx + r * 0.18} ${cy + r * 0.04} Z`}
+            fill="#3D6B5A"
+            opacity="0.12"
           />
         </g>
       </svg>
