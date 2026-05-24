@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useThoughtStore } from '../store';
+import { useThoughtStore, MASTER_MAP_ID } from '../store';
 import { Search, X, ChevronDown, Download, Upload, Info, Trash2 } from 'lucide-react';
 import SanctumModal from './SanctumModal';
 import type { TerrainId } from '../types';
@@ -54,6 +54,9 @@ export default function TopNav() {
     activeTerrain, setTerrain,
     importMap,
     setNodeSearchQuery,
+    currentMapId,
+    masterMapSearchQuery,
+    setMasterMapSearchQuery,
   } = useThoughtStore();
 
   const [nodeSearch, setNodeSearch] = useState('');
@@ -65,6 +68,12 @@ export default function TopNav() {
   const [showNewAnchorInput, setShowNewAnchorInput] = useState(false);
   const [newAnchorTitle, setNewAnchorTitle] = useState('');
   const [newAnchorNote, setNewAnchorNote] = useState('');
+
+  const isMasterMap = currentMapId === MASTER_MAP_ID;
+
+  useEffect(() => {
+    if (isMasterMap) setNodeSearchQuery('');
+  }, [isMasterMap, setNodeSearchQuery]);
 
   const importInputRef = useRef<HTMLInputElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -223,6 +232,50 @@ export default function TopNav() {
     setShowNewAnchorInput(false);
     setOpenDropdown(null);
   };
+
+  if (isMasterMap) {
+    return (
+      <nav className="relative flex-shrink-0 h-11 bg-void-900/95 border-b border-void-800/60 flex items-center px-3 gap-2 z-40 backdrop-blur-sm">
+        <div className="relative flex-shrink-0">
+          <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
+          <input
+            type="text"
+            value={masterMapSearchQuery}
+            onChange={(e) => setMasterMapSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Search maps…"
+            className={`bg-void-800/60 border border-void-700/50 rounded pl-6 ${masterMapSearchQuery ? 'pr-6' : 'pr-2'} py-1 text-[11px] font-mono text-slate-400 placeholder:text-slate-600 focus:outline-none focus:border-cosmic-cyan/50 transition-all duration-200 ${searchFocused || masterMapSearchQuery ? 'w-64' : 'w-[140px]'}`}
+          />
+          {masterMapSearchQuery && (
+            <button
+              onClick={() => setMasterMapSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 transition-colors"
+            >
+              <X size={10} />
+            </button>
+          )}
+        </div>
+
+        <div className="w-px h-5 bg-void-700/50 mx-1 flex-shrink-0" />
+
+        <select className="bg-void-800/60 border border-void-700/50 rounded px-2.5 py-1 text-[11px] font-mono text-slate-400 focus:outline-none focus:border-cosmic-cyan/50">
+          <option>Recently Active</option><option>Recently Created</option><option>Largest</option><option>Most Nodes</option><option>Alphabetical</option>
+        </select>
+
+        <select className="bg-void-800/60 border border-void-700/50 rounded px-2.5 py-1 text-[11px] font-mono text-slate-400 focus:outline-none focus:border-cosmic-cyan/50">
+          <option>Grid</option><option>Archive</option>
+        </select>
+
+        <div className="ml-auto flex-shrink-0">
+          <a href="/info" className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors">
+            <Info size={12} />
+            <span>INFO</span>
+          </a>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav
