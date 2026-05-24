@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-import { Handle, Position, useViewport, useReactFlow, useUpdateNodeInternals } from 'reactflow';
+import { Handle, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
-import { DOT_THRESHOLD } from '../lib/constants';
+import { useDisplayMode } from '../hooks/useDisplayMode';
 import { renderMarkdown } from '../lib/markdown';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
@@ -106,10 +106,9 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [inlineContent, setInlineContent] = useState(node.content);
   const [showInlineToolbar, setShowInlineToolbar] = useState(false);
-  const { zoom } = useViewport();
+  const { isDot } = useDisplayMode();
   const { setCenter } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
-  const isDot = zoom < DOT_THRESHOLD;
   const showExpanded = isExpanded;
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
