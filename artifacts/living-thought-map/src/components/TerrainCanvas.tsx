@@ -459,12 +459,61 @@ function initMemoryPalace(w: number, h: number) {
     }
     ctx.setLineDash([]);
 
+    // Layer 5 — erased construction lines (drawn before room revisions)
+    ctx.strokeStyle = '#4A7C8E';
+    ctx.lineWidth = 0.3;
+    const constructionLines: [number, number, number, number, number][] = [
+      [w * 0.06, h * 0.18, w * 0.94, h * 0.30, 0.05],
+      [w * 0.08, h * 0.80, w * 0.92, h * 0.64, 0.06],
+      [w * 0.12, h * 0.10, w * 0.52, h * 0.90, 0.045],
+      [w * 0.76, h * 0.06, w * 0.30, h * 0.92, 0.055],
+      [w * 0.02, h * 0.46, w * 0.98, h * 0.46, 0.06],
+      [w * 0.22, h * 0.04, w * 0.80, h * 0.96, 0.04],
+      [w * 0.04, h * 0.62, w * 0.74, h * 0.08, 0.07],
+      [w * 0.26, h * 0.96, w * 0.90, h * 0.22, 0.05],
+      [w * 0.40, h * 0.05, w * 0.44, h * 0.95, 0.05],
+      [w * 0.58, h * 0.04, w * 0.62, h * 0.94, 0.06],
+    ];
+    for (const [x1, y1, x2, y2, alpha] of constructionLines) {
+      ctx.globalAlpha = alpha;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Layer 5 — faded revision ghosts for old room positions
+    const revisionGhosts = [
+      { room: rooms[1], dx: -7 * scale, dy: 4 * scale, a: 0.09 },
+      { room: rooms[2], dx: 8 * scale,  dy: -5 * scale, a: 0.08 },
+      { room: rooms[4], dx: -6 * scale, dy: 7 * scale, a: 0.11 },
+      { room: rooms[10], dx: 7 * scale, dy: 3 * scale, a: 0.07 },
+    ];
+    ctx.lineWidth = 1.1;
+    for (const g of revisionGhosts) {
+      ctx.strokeStyle = `rgba(0,180,220,${g.a})`;
+      ctx.strokeRect(g.room.x + g.dx, g.room.y + g.dy, g.room.width, g.room.height);
+    }
+
     ctx.fillStyle = 'rgba(0,160,200,0.008)';
     for (const r of rooms.filter(r => !r.hidden)) ctx.fillRect(r.x, r.y, r.width, r.height);
 
     const wallA = 0.28 + 0.04 * Math.sin(t * 0.00020);
     ctx.strokeStyle = `rgba(0,180,220,${wallA})`; ctx.lineWidth = 1.8;
     for (const r of rooms.filter(r => !r.hidden)) ctx.strokeRect(r.x, r.y, r.width, r.height);
+
+    // Layer 5 — plotting misalignment on corridor/wall segments
+    ctx.beginPath();
+    ctx.moveTo(rooms[11].x, rooms[11].y + rooms[11].height * 0.5);
+    ctx.lineTo(rooms[5].x + rooms[5].width - 1.5 * scale, rooms[5].y + rooms[5].height * 0.5 + 1.2 * scale);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rooms[0].x + rooms[0].width, rooms[0].y + rooms[0].height * 0.64);
+    ctx.lineTo(rooms[2].x + 1.4 * scale, rooms[2].y + rooms[2].height * 0.64 - 1.3 * scale);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rooms[0].x, rooms[0].y + rooms[0].height * 0.34);
+    ctx.lineTo(rooms[1].x + rooms[1].width - 1.2 * scale, rooms[1].y + rooms[1].height * 0.34 + 1.5 * scale);
+    ctx.stroke();
+
     const innerOff = 3.5 * scale;
     ctx.strokeStyle = `rgba(0,180,220,${wallA * 0.45})`; ctx.lineWidth = 0.7;
     for (const r of rooms.filter(r => !r.hidden)) {
@@ -540,6 +589,47 @@ function initMemoryPalace(w: number, h: number) {
     ctx.textAlign = 'center';
     ctx.fillStyle = `rgba(0,200,230,${cloudA * 1.5})`;
     ctx.fillText('REV.3', cloudX, cloudY + 3);
+
+    // Layer 5 — revision stamps
+    const stamps = [
+      { x: rooms[1].x + 12 * scale, y: rooms[1].y - 14 * scale, text: 'REV 04', a: 0.24 },
+      { x: rooms[2].x + rooms[2].width - 48 * scale, y: rooms[2].y - 12 * scale, text: 'AUTH B7', a: 0.22 },
+      { x: rooms[4].x + rooms[4].width - 56 * scale, y: rooms[4].y + rooms[4].height + 8 * scale, text: 'SUPERSEDED', a: 0.2 },
+    ];
+    ctx.font = `${Math.max(5, 6 * scale)}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    for (const st of stamps) {
+      ctx.strokeStyle = `rgba(0,200,230,${st.a})`; ctx.lineWidth = 0.6;
+      ctx.strokeRect(st.x, st.y, 28 * scale, 10 * scale);
+      ctx.fillStyle = `rgba(0,200,230,${Math.min(0.3, st.a + 0.04)})`;
+      ctx.fillText(st.text, st.x + 2.2 * scale, st.y + 6.8 * scale);
+    }
+
+    // Layer 5 — crossed-out decommissioned zone
+    const crossed = rooms[8];
+    ctx.strokeStyle = 'rgba(0,200,230,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(crossed.x + 2 * scale, crossed.y + 2 * scale); ctx.lineTo(crossed.x + crossed.width - 2 * scale, crossed.y + crossed.height - 2 * scale); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(crossed.x + crossed.width - 2 * scale, crossed.y + 2 * scale); ctx.lineTo(crossed.x + 2 * scale, crossed.y + crossed.height - 2 * scale); ctx.stroke();
+
+    // Layer 5 — corner calibration drift artifacts
+    const calX = w * 0.11, calY = h * 0.84, calR = 12 * scale;
+    ctx.strokeStyle = 'rgba(0,200,230,0.2)';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.arc(calX, calY, calR, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(calX - calR * 1.3, calY); ctx.lineTo(calX + calR * 1.3, calY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(calX, calY - calR * 1.3); ctx.lineTo(calX, calY + calR * 1.3); ctx.stroke();
+    for (let i = 0; i < 10; i++) {
+      const a = (Math.PI * 2 * i) / 10;
+      const r0 = calR * 1.45, r1 = calR * 1.75;
+      ctx.beginPath();
+      ctx.moveTo(calX + Math.cos(a) * r0, calY + Math.sin(a) * r0);
+      ctx.lineTo(calX + Math.cos(a) * r1, calY + Math.sin(a) * r1);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(calX + 24 * scale, calY - 16 * scale, 8 * scale, Math.PI * 0.15, Math.PI * 1.4);
+    ctx.stroke();
 
     const coreGlow2 = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.4);
     coreGlow2.addColorStop(0, 'rgba(0,160,200,0.03)');
