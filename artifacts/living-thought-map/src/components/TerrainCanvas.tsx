@@ -460,6 +460,25 @@ function initMemoryPalace(w: number, h: number) {
     { x: 736, y: 329, width: 12, height: 9 },
     { x: 750, y: 330, width: 13, height: 9 },
   ];
+
+  const blueprintLayer3DoorArcs = [
+    { x: 520, y: 380, cx: 520, cy: 340, ex: 560, ey: 340 },
+    { x: 680, y: 310, cx: 680, cy: 272, ex: 718, ey: 272 },
+    { x: 480, y: 620, cx: 520, cy: 620, ex: 520, ey: 580 },
+    { x: 360, y: 340, cx: 360, cy: 300, ex: 400, ey: 300 },
+    { x: 900, y: 420, cx: 900, cy: 380, ex: 940, ey: 380 },
+    { x: 420, y: 280, cx: 458, cy: 280, ex: 458, ey: 318 },
+    { x: 650, y: 480, cx: 684, cy: 480, ex: 684, ey: 514 },
+    { x: 580, y: 455, cx: 580, cy: 423, ex: 612, ey: 423 },
+    { x: 725, y: 470, cx: 759, cy: 470, ex: 759, ey: 504 },
+  ];
+
+  const blueprintLayer3TickWalls = [
+    { x1: 380, y1: 220, x2: 900, y2: 220, ticks: 10 },
+    { x1: 380, y1: 700, x2: 900, y2: 700, ticks: 10 },
+    { x1: 380, y1: 220, x2: 380, y2: 700, ticks: 8 },
+    { x1: 900, y1: 220, x2: 900, y2: 700, ticks: 8 },
+  ];
   return (ctx: CanvasRenderingContext2D, t: number) => {
     ctx.fillStyle = '#020912';
     ctx.fillRect(0, 0, w, h);
@@ -528,6 +547,64 @@ function initMemoryPalace(w: number, h: number) {
     for (const room of blueprintLayer2MicroRooms) {
       ctx.strokeRect(room.x * sx, room.y * sy, room.width * sx, room.height * sy);
     }
+
+    // Layer 3 drafting language: hatch, door arcs, ticks, and section cut
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(400 * sx, 250 * sy, 180 * sx, 140 * sy);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(46,139,139,0.12)';
+    ctx.lineWidth = 0.8 * scale;
+    const hatchStep = 8 * scale;
+    for (let x = (400 - 140) * sx; x < 580 * sx; x += hatchStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, 250 * sy);
+      ctx.lineTo(x + 140 * sy, 390 * sy);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(74,124,142,0.42)';
+    ctx.lineWidth = 0.5 * scale;
+    for (const arc of blueprintLayer3DoorArcs) {
+      ctx.beginPath();
+      ctx.moveTo(arc.x * sx, arc.y * sy);
+      ctx.quadraticCurveTo(arc.cx * sx, arc.cy * sy, arc.ex * sx, arc.ey * sy);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(74,124,142,0.28)';
+    ctx.lineWidth = 0.7 * scale;
+    for (const wall of blueprintLayer3TickWalls) {
+      const wx1 = wall.x1 * sx;
+      const wy1 = wall.y1 * sy;
+      const wx2 = wall.x2 * sx;
+      const wy2 = wall.y2 * sy;
+      const dx = wx2 - wx1;
+      const dy = wy2 - wy1;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / (len || 1);
+      const ny = dx / (len || 1);
+      for (let i = 0; i <= wall.ticks; i++) {
+        const u = i / wall.ticks;
+        const px = wx1 + dx * u;
+        const py = wy1 + dy * u;
+        const tick = 4 * scale;
+        ctx.beginPath();
+        ctx.moveTo(px - nx * tick, py - ny * tick);
+        ctx.lineTo(px + nx * tick, py + ny * tick);
+        ctx.stroke();
+      }
+    }
+
+    ctx.strokeStyle = 'rgba(74,124,142,0.25)';
+    ctx.lineWidth = 1 * scale;
+    ctx.setLineDash([8 * scale, 4 * scale]);
+    ctx.beginPath();
+    ctx.moveTo(200 * sx, 300 * sy);
+    ctx.lineTo(950 * sx, 620 * sy);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
     // Layer 2 infrastructure shaft
     ctx.strokeStyle = 'rgba(74,124,142,0.45)';
