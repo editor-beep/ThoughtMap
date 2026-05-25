@@ -230,8 +230,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [lastGestureSource, setLastGestureSource] = useState<'wheel' | 'touch' | 'unknown'>('unknown');
-  const [cardScale, setCardScale] = useState<'compact' | 'standard' | 'large'>('standard');
-  const [dotScale, setDotScale] = useState<'tiny' | 'standard' | 'large'>('standard');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [isDraggingNode, setIsDraggingNode] = useState(false);
   const lastTouchPointerAtRef = useRef(0);
@@ -401,8 +399,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           onOpen: openSubMap,
           isFocused: selectedNodeId === node.id,
           emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
-          cardScale,
-          dotScale,
           semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
           onRequestExpand: setSelectedNodeId,
         },
@@ -423,14 +419,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         onOpen: openSubMap,
         isFocused: selectedNodeId === node.id,
         emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
-        cardScale,
-        dotScale,
         semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
         onRequestExpand: setSelectedNodeId,
       }
     };
     });
-  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
+  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, rfViewport.zoom]);
 
   useEffect(() => {
     if (IS_DEV && DEBUG.selection) {
@@ -808,29 +802,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           <CanvasZoomControls />
         </div>
         <div
-          className="absolute flex flex-col items-end pointer-events-none"
+          className="absolute pointer-events-none"
           style={{
             right: HUD_SPACING,
             bottom: `calc(${HUD_SPACING}px + clamp(140px, 18vw, 220px) + ${HUD_STACK_GAP}px)`,
-            gap: HUD_STACK_GAP,
             zIndex: HUD_LAYERS.overlays,
           }}
         >
-          <div className="pointer-events-auto rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">
-            <div className="mb-2 text-slate-500 uppercase tracking-wider">Graph Density</div>
-            <div className="mb-1 text-slate-400">Card size ({nodeVisualMode === NodeVisualMode.FULL_CARD ? 'full' : nodeVisualMode === NodeVisualMode.COMPACT_CARD ? 'compact' : 'dot'})</div>
-            <div className="mb-2 flex gap-1">
-              {(['compact', 'standard', 'large'] as const).map((size) => (
-                <button key={size} onClick={() => setCardScale(size)} className={`rounded px-2 py-1 ${cardScale === size ? 'bg-cosmic-cyan/20 text-cyan-200 border border-cosmic-cyan/40' : 'bg-void-800 text-slate-400 border border-void-700'}`}>{size}</button>
-              ))}
-            </div>
-            <div className="mb-1 text-slate-400">Dot size</div>
-            <div className="flex gap-1">
-              {(['tiny', 'standard', 'large'] as const).map((size) => (
-                <button key={size} onClick={() => setDotScale(size)} className={`rounded px-2 py-1 ${dotScale === size ? 'bg-cosmic-cyan/20 text-cyan-200 border border-cosmic-cyan/40' : 'bg-void-800 text-slate-400 border border-void-700'}`}>{size}</button>
-              ))}
-            </div>
-          </div>
           <div className="pointer-events-auto">
             <MapDensityIndicator totalNodes={nodes.length} renderedNodes={flowNodes.length} />
           </div>
