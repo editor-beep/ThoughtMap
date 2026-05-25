@@ -61,6 +61,7 @@ interface MapState {
   addEdge: (source: string, target: string, type: EdgeType) => void;
   deleteEdge: (id: string) => void;
   toggleRealm: (id: string) => void;
+  addRealm: (name: string) => string;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string) => void;
   applyMapExtract: (messageId: string) => void;
@@ -131,6 +132,30 @@ export const useThoughtStore = create<MapState>()(
         set((state) => ({
           realms: state.realms.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r)),
         }));
+      },
+
+      addRealm: (name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return '';
+
+        const existing = get().realms.find((r) => r.name.toLowerCase() === trimmed.toLowerCase());
+        if (existing) return existing.id;
+
+        const id = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `realm-${crypto.randomUUID().slice(0, 8)}`;
+        const symbolPool = ['✦', '◉', '◇', '☰', '⚛', '☉', '❖', '⟡'];
+        const colorPool = ['#22d3ee', '#a78bfa', '#f472b6', '#34d399', '#f59e0b', '#60a5fa', '#fb7185', '#e879f9'];
+        const seed = Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+
+        const newRealm: Realm = {
+          id,
+          name: trimmed,
+          symbol: symbolPool[seed % symbolPool.length],
+          color: colorPool[seed % colorPool.length],
+          isActive: true,
+        };
+
+        set((state) => ({ realms: [...state.realms, newRealm] }));
+        return id;
       },
 
       sendChatMessage: async (content) => {
