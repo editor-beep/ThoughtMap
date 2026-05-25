@@ -192,7 +192,7 @@ export default function TopNav() {
       importMap(data);
     } catch (error) {
       console.warn('[ThoughtMap] Failed to parse imported file', error);
-      alert('Malformed import structure. Please provide valid JSON.');
+      alert('Malformed JSON import');
     }
     e.target.value = '';
   };
