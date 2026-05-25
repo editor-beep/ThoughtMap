@@ -8,8 +8,7 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { useThoughtStore } from '../store';
-import { NodeType, Attachment, NodeComment } from '../types';
-import { renderMarkdown } from '../lib/markdown';
+import { NodeType, Attachment, NodeComment, CartographerStyle } from '../types';
 
 function getDisplayContent(content: string): string {
   const mapExtractIdx = content.search(/\*\*MAP EXTRACT\*\*|```json/);
@@ -55,6 +54,16 @@ const TYPE_COLORS: Record<NodeType, string> = {
   artifact: '#64748b', fragment: '#475569',
 };
 
+
+
+const CHAT_VOICE_OPTIONS: { value: CartographerStyle; label: string }[] = [
+  { value: 'default', label: 'Default' },
+  { value: 'academic', label: 'Academic' },
+  { value: 'systems', label: 'Systems' },
+  { value: 'mythic', label: 'Mythic' },
+  { value: 'ritual', label: 'Ritual' },
+  { value: 'void', label: 'Void' },
+];
 
 type Tab = 'chat' | 'edit' | 'links';
 
@@ -538,6 +547,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [comments, setComments] = useState<NodeComment[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatVoice, setChatVoice] = useState<CartographerStyle>('default');
   const [pendingComment, setPendingComment] = useState<{ start: number; end: number } | null>(null);
   const [showAddComment, setShowAddComment] = useState(false);
 
@@ -622,7 +632,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
     const msg = chatInput;
     setChatInput('');
     chatInputRef.current?.focus();
-    await sendNodeChatMessage(node!.id, node!.title, node!.content, msg);
+    await sendNodeChatMessage(node!.id, node!.title, node!.content, msg, chatVoice);
   };
 
   if (!node) return null;
@@ -746,6 +756,19 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
           </div>
 
           <form onSubmit={handleSendChat} className="p-3 border-t border-void-800/60 flex-shrink-0">
+            <div className="mb-2">
+              <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1">Voice</label>
+              <select
+                value={chatVoice}
+                onChange={(e) => setChatVoice(e.target.value as CartographerStyle)}
+                disabled={isStreaming}
+                className="w-full bg-void-800/60 border border-void-700/80 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-cosmic-cyan/60 disabled:opacity-50"
+              >
+                {CHAT_VOICE_OPTIONS.map((voice) => (
+                  <option key={voice.value} value={voice.value}>{voice.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="relative flex items-end">
               <textarea
                 ref={chatInputRef}
