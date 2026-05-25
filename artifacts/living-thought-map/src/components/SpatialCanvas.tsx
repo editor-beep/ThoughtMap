@@ -31,6 +31,7 @@ import { useClusters } from '../hooks/useClusters';
 import { getNodeVisualMode, isFinitePosition } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
+import { EDGE_TYPES } from '../lib/constants';
 
 const nodeTypes = {
   thoughtMapNode: CustomThoughtNode,
@@ -136,7 +137,7 @@ interface SpatialCanvasProps {
 }
 
 export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialCanvasProps) {
-  const { nodes, edges, realms, maps, currentMapId, switchMap, renameMap, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent, focusNode } = useThoughtStore();
+  const { nodes, edges, realms, maps, currentMapId, switchMap, renameMap, updateNodePosition, addEdge, deleteNode, deleteEdge, updateEdgeType, selectedEdgeId, setSelectedEdgeId, openCartographerPanel, openSubMap, exitToParent, focusNode } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -298,21 +299,23 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
             .map((edge) => {
               const isFocusedEdge = activeFocusId && (edge.source === activeFocusId || edge.target === activeFocusId);
               const isNeighborEdge = activeFocusId && (neighborhoodNodeIds.has(edge.source) || neighborhoodNodeIds.has(edge.target));
+              const isSelectedEdge = selectedEdgeId === edge.id;
               return {
               id: edge.id,
               source: edge.source,
               target: edge.target,
-              animated: Boolean(isFocusedEdge),
-              label: EDGE_LABELS[edge.type],
-              labelStyle: { fill: isFocusedEdge ? '#bae6fd' : '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
+              animated: Boolean(isFocusedEdge || isSelectedEdge),
+              interactionWidth: 28,
+              label: isSelectedEdge ? EDGE_LABELS[edge.type] : undefined,
+              labelStyle: { fill: isFocusedEdge || isSelectedEdge ? '#bae6fd' : '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
               labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
               style: {
                 stroke: EDGE_COLORS[edge.type],
-                strokeWidth: isFocusedEdge ? 2.8 : isNeighborEdge ? 2.1 : 1.2,
-                opacity: activeFocusId ? (isNeighborEdge ? 0.9 : 0.2) : 0.75,
+                strokeWidth: isSelectedEdge ? 3.4 : isFocusedEdge ? 2.8 : isNeighborEdge ? 2.1 : 1.2,
+                opacity: isSelectedEdge ? 1 : activeFocusId ? (isNeighborEdge ? 0.9 : 0.2) : 0.75,
               }
             };}),
-    [shouldUseClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds]
+    [shouldUseClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds, selectedEdgeId]
   );
 
   const validateFlowNodePosition = useCallback((rfNode: Node) => {
@@ -408,6 +411,20 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     addEdge(pendingConnection.source, pendingConnection.target, type);
     setPendingConnection(null);
   };
+  const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) ?? null, [edges, selectedEdgeId]);
+
+  const edgeActionPosition = useMemo(() => {
+    if (!selectedEdge) return null;
+    const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
+    const targetNode = nodes.find((n) => n.id === selectedEdge.target);
+    if (!sourceNode || !targetNode) return null;
+    const flowX = (sourceNode.x + targetNode.x) / 2;
+    const flowY = (sourceNode.y + targetNode.y) / 2;
+    return {
+      left: flowX * rfViewport.zoom + rfViewport.x,
+      top: flowY * rfViewport.zoom + rfViewport.y,
+    };
+  }, [selectedEdge, nodes, rfViewport.zoom, rfViewport.x, rfViewport.y]);
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, rfNode) => {
     // Cluster marker clicks are handled internally by the component.
@@ -573,7 +590,18 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         onNodeDragStop={onNodeDragStop}
         onNodeMouseEnter={(_, node) => !node.id.startsWith('cluster-') && setHoveredNodeId(node.id)}
         onNodeMouseLeave={() => setHoveredNodeId(null)}
-        onPaneClick={() => setSelectedNodeId(null)}
+        onPaneClick={() => {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+        }}
+        onEdgeClick={(_, edge) => {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(edge.id);
+        }}
+        onSelectionChange={({ edges: selectionEdges }) => {
+          if (!selectionEdges.length) return;
+          setSelectedEdgeId(selectionEdges[0].id);
+        }}
         nodeTypes={nodeTypes}
         deleteKeyCode="Delete"
         proOptions={{ hideAttribution: true }}
@@ -644,6 +672,33 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
               Cancel
             </button>
           </div>
+        </div>
+      )}
+      {selectedEdge && edgeActionPosition && (
+        <div
+          className="absolute z-40 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-void-700 bg-void-900/95 px-2 py-2 shadow-xl backdrop-blur-sm flex items-center gap-2"
+          style={{ left: edgeActionPosition.left, top: edgeActionPosition.top }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <span className="text-[10px] font-mono text-slate-500">{EDGE_LABELS[selectedEdge.type]}</span>
+          <select
+            value={selectedEdge.type}
+            onChange={(event) => updateEdgeType(selectedEdge.id, event.target.value as EdgeType)}
+            className="bg-void-800 border border-void-700 rounded px-1.5 py-1 text-[10px] font-mono text-slate-300"
+          >
+            {EDGE_TYPES.map((type) => (
+              <option key={type} value={type}>{EDGE_LABELS[type]}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              console.log('[EDGE DELETE]', selectedEdge.id);
+              deleteEdge(selectedEdge.id);
+            }}
+            className="rounded border border-rose-700/60 bg-rose-900/20 px-2 py-1 text-[10px] font-mono text-rose-300 hover:bg-rose-800/30"
+          >
+            Delete
+          </button>
         </div>
       )}
 

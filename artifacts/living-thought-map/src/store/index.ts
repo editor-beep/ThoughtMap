@@ -3,6 +3,7 @@ import { DEBUG, IS_DEV } from '../config/debug';
 import { persist } from 'zustand/middleware';
 import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, MapDocument } from '../types';
 import { adaptVaultMindToThoughtMap, detectImportType, normalizeImport } from '../lib/importAdapters';
+import { EDGE_TYPES } from '../lib/constants';
 
 // ─── Auto-terrain detection ────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ interface MapState {
   activeConversationId: string | null;
   isStreaming: boolean;
   focusedNodeId: string | null;
+  selectedEdgeId: string | null;
   undoStack: UndoAction[];
   nodeSearchQuery: string;
   masterMapSearchQuery: string;
@@ -165,6 +167,8 @@ interface MapState {
   deleteNode: (id: string) => void;
   addEdge: (source: string, target: string, type: EdgeType) => void;
   deleteEdge: (id: string) => void;
+  updateEdgeType: (edgeId: string, nextType: EdgeType) => void;
+  setSelectedEdgeId: (edgeId: string | null) => void;
   toggleRealm: (id: string) => void;
   addRealm: (name: string) => string;
   sendChatMessage: (content: string) => Promise<void>;
@@ -230,6 +234,7 @@ export const useThoughtStore = create<MapState>()(
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
+      selectedEdgeId: null,
       nodeSearchQuery: '',
       masterMapSearchQuery: '',
       masterMapViewMode: 'grid',
@@ -377,6 +382,13 @@ export const useThoughtStore = create<MapState>()(
         set((state) => ({ edges: [...state.edges, { id, source, target, type }] }));
       },
 
+      updateEdgeType: (edgeId, nextType) => {
+        console.log('[EDGE UPDATE]', { edgeId, nextType });
+        set((state) => ({
+          edges: state.edges.map((edge) => (edge.id === edgeId ? { ...edge, type: nextType } : edge)),
+        }));
+      },
+
       deleteEdge: (id) => {
         const { edges, undoStack } = get();
         const edge = edges.find((e) => e.id === id);
@@ -384,8 +396,14 @@ export const useThoughtStore = create<MapState>()(
           set({
             undoStack: [...undoStack.slice(-49), { type: 'deleteEdge', edge }],
             edges: edges.filter((e) => e.id !== id),
+            selectedEdgeId: get().selectedEdgeId === id ? null : get().selectedEdgeId,
           });
         }
+      },
+
+      setSelectedEdgeId: (edgeId) => {
+        console.log('[EDGE SELECT]', edgeId);
+        set({ selectedEdgeId: edgeId });
       },
 
       toggleRealm: (id) => {
@@ -518,7 +536,7 @@ export const useThoughtStore = create<MapState>()(
                 const toNode = state.nodes.find((n) =>
                   n.title.toLowerCase().trim() === toTitle.toLowerCase().trim()
                 );
-                const validTypes: EdgeType[] = ['evolves_from', 'contradicts', 'references', 'remixes', 'supports'];
+                const validTypes: EdgeType[] = EDGE_TYPES;
                 const edgeType = validTypes.includes(relType as EdgeType) ? (relType as EdgeType) : 'references';
                 if (fromNode && toNode) {
                   newEdges.push({ id: `edge_${crypto.randomUUID()}`, source: fromNode.id, target: toNode.id, type: edgeType });
@@ -979,7 +997,7 @@ export const useThoughtStore = create<MapState>()(
         };
 
         const normalizeEdgeType = (value: unknown): EdgeType => {
-          const allowed: EdgeType[] = ['evolves_from', 'contradicts', 'references', 'remixes', 'supports'];
+          const allowed: EdgeType[] = EDGE_TYPES;
           return typeof value === 'string' && allowed.includes(value as EdgeType) ? (value as EdgeType) : 'references';
         };
 
