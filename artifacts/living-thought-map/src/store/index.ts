@@ -107,7 +107,7 @@ interface MapState {
   setSelectedEdgeId: (edgeId: string | null) => void;
   toggleRealm: (id: string) => void;
   addRealm: (name: string) => string;
-  sendChatMessage: (content: string) => Promise<void>;
+  sendChatMessage: (content: string, voice?: CartographerStyle) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
@@ -366,7 +366,7 @@ export const useThoughtStore = create<MapState>()(
         return id;
       },
 
-      sendChatMessage: async (content) => {
+      sendChatMessage: async (content, voice = 'default') => {
         const userMsg: ChatMessage = {
           id: crypto.randomUUID(),
           role: 'user',
@@ -394,7 +394,7 @@ export const useThoughtStore = create<MapState>()(
           fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: history }),
+            body: JSON.stringify({ messages: history, voice }),
             signal: AbortSignal.timeout(45000),
           });
 

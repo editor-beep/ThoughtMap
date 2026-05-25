@@ -4,7 +4,7 @@ import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, Trash2, Compass,
   Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered,
-  Paperclip, Image, Link, FileText, MessageCircle, Tag, Plus,
+  Paperclip, Image, Link, FileText, MessageCircle, Tag, Plus, Copy,
   type LucideIcon
 } from 'lucide-react';
 import { useThoughtStore } from '../store';
@@ -740,15 +740,29 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
                     />
                   )}
                 </div>
-                {msg.role === 'assistant' && msg.content && !msg.content.startsWith('⚠') && !isStreaming && (
-                  <button
-                    onClick={() => requestCartographerExtractionFromContent(getDisplayContent(msg.content))}
-                    disabled={cartographerLoading}
-                    className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Compass size={10} className={cartographerLoading ? 'animate-spin' : ''} />
-                    <span>Crystallize to canvas</span>
-                  </button>
+                {msg.content && !msg.content.startsWith('⚠') && !isStreaming && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        const text = msg.role === 'assistant' ? getDisplayContent(msg.content) : msg.content;
+                        await navigator.clipboard.writeText(text);
+                      }}
+                      className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-300 transition-colors"
+                    >
+                      <Copy size={10} />
+                      <span>Copy</span>
+                    </button>
+                    {msg.role === 'assistant' && (
+                      <button
+                        onClick={() => requestCartographerExtractionFromContent(getDisplayContent(msg.content))}
+                        disabled={cartographerLoading}
+                        className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-cosmic-cyan transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Compass size={10} className={cartographerLoading ? 'animate-spin' : ''} />
+                        <span>Crystallize to canvas</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
