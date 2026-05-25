@@ -1,25 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { isRateLimited } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
-
-// ── Simple in-memory rate limiter ──────────────────────────────────────────
-const RATE_LIMIT_MAX = 20; // requests per window
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  return false;
-}
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),

@@ -1,24 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
-
-const router: IRouter = Router();
-
-const RATE_LIMIT_MAX = 20;
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  return false;
-}
+import { isRateLimited } from "../lib/rateLimiter";
 
 type CartographerMode = "extract" | "converse" | "wander" | "analyze";
 type CartographerStyle = "default" | "mythic" | "academic" | "systems" | "ritual" | "void";
