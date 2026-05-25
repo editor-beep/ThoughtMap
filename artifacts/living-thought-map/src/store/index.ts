@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, MapDocument } from '../types';
-import { adaptVaultMindToThoughtMap, detectImportType } from '../lib/importAdapters';
+import { adaptVaultMindToThoughtMap, detectImportType, normalizeImport } from '../lib/importAdapters';
 
 // ─── Auto-terrain detection ────────────────────────────────────────────────
 
@@ -979,7 +979,17 @@ export const useThoughtStore = create<MapState>()(
 
         try {
           if (importType === 'vaultmind') {
-            adapted = adaptVaultMindToThoughtMap(raw) as { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] };
+            const normalized = normalizeImport(raw);
+            adapted = adaptVaultMindToThoughtMap({
+              artifacts: normalized.nodes.map((node) => ({
+                id: node.id,
+                title: node.title,
+                body: node.body,
+                type: node.type,
+                tags: node.tags,
+              })),
+              relationships: normalized.edges,
+            }) as unknown as { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] };
           } else if (importType === 'thoughtmap') {
             const parsed = parseImportPayload(raw);
             if (!parsed) {
@@ -1044,10 +1054,10 @@ export const useThoughtStore = create<MapState>()(
             edges: state.edges,
             realms: [...state.realms, ...newRealms],
             cartographerSuggestions: importSuggestions,
-            cartographerInsight: `Imported archive parsed. ${newNodes.length} artifacts staged for materialization.`,
+            cartographerInsight: `Imported archive parsed. ${newNodes.length} concepts staged for materialization and ${newEdges.length} relationships detected.`,
             cartographerExtractingMessageId: `import-${Date.now()}`,
             cartographerAppliedIndices: [],
-            importStatusMessage: `Success: ${newNodes.length} artifacts available for materialization.`,
+            importStatusMessage: `Success: ${newNodes.length} concepts imported, ${newEdges.length} relationships detected.`,
             // Keep a buffered copy by attaching into maps metadata path via closure below during apply
             maps: {
               ...state.maps,
