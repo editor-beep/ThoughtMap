@@ -77,6 +77,7 @@ interface ThoughtContextValue {
   nodeChats: Record<string, ChatMessage[]>;
   nodeChatStreaming: string | null;
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
+  clearThoughtStream: () => void;
 }
 
 const ThoughtContext = createContext<ThoughtContextValue | null>(null);
@@ -316,6 +317,11 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
   const setTerrain = useCallback((id: TerrainId) => setActiveTerrain(id), []);
 
+  const clearThoughtStream = useCallback(() => {
+    setChatHistory(INITIAL_CHAT);
+    setIsStreaming(false);
+  }, []);
+
   // Persist whenever state changes
   useEffect(() => {
     if (initializedRef.current) persist(nodes, realms, chatHistory, activeTerrain, edges, nodeChats);
@@ -326,7 +332,7 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
       nodes, realms, edges, chatHistory, activeTerrain, isStreaming,
       addNode, updateNode, deleteNode, toggleRealm, addRealm,
       addEdge, deleteEdge, sendChatMessage, extractToMap, setTerrain,
-      nodeChats, nodeChatStreaming, sendNodeChatMessage,
+      nodeChats, nodeChatStreaming, sendNodeChatMessage, clearThoughtStream,
     }}>
       {children}
     </ThoughtContext.Provider>

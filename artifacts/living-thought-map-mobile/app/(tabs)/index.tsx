@@ -1,7 +1,7 @@
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
-import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,7 +13,7 @@ import { useColors } from "@/hooks/useColors";
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { chatHistory, isStreaming, sendChatMessage, extractToMap, realms } = useThought();
+  const { chatHistory, isStreaming, sendChatMessage, extractToMap, realms, clearThoughtStream } = useThought();
   const [inputText, setInputText] = useState("");
   const inputRef = useRef<TextInput>(null);
   const s = makeStyles(colors);
@@ -29,6 +29,18 @@ export default function ChatScreen() {
   const reversed = [...chatHistory].reverse();
 
   const activeRealms = realms.filter((r) => r.isActive);
+
+
+  const handleClearThoughtStream = () => {
+    Alert.alert(
+      "Clear thought stream?",
+      "This removes prior chat messages from the stream.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Clear", style: "destructive", onPress: clearThoughtStream },
+      ],
+    );
+  };
 
   // useBottomTabBarHeight returns the actual rendered tab-bar height (includes safe-area)
   // on every platform — native iOS/Android and Expo Web.
@@ -57,7 +69,16 @@ export default function ChatScreen() {
             <View key={r.id} style={[s.realmDot, { backgroundColor: r.color }]} />
           ))}
         </View>
-        <Text style={[s.headerSub, { color: colors.mutedForeground }]}>Gemini · Thought Stream</Text>
+        <View style={s.headerActions}>
+          <Pressable
+            onPress={handleClearThoughtStream}
+            disabled={isStreaming || chatHistory.length <= 1}
+            style={{ opacity: isStreaming || chatHistory.length <= 1 ? 0.4 : 1, padding: 4 }}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.mutedForeground} />
+          </Pressable>
+          <Text style={[s.headerSub, { color: colors.mutedForeground }]}>Gemini · Thought Stream</Text>
+        </View>
       </View>
 
       {/* Message list — inverted so newest message is at bottom */}
@@ -127,6 +148,7 @@ function makeStyles(colors: any) {
     dot: { width: 7, height: 7, borderRadius: 4 },
     headerTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 2 },
     headerSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
     realmDots: { flexDirection: "row", gap: 3, flex: 1, paddingHorizontal: 8 },
     realmDot: { width: 5, height: 5, borderRadius: 3 },
     inputBar: { paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1 },
