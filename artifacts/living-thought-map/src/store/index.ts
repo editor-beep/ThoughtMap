@@ -1172,6 +1172,8 @@ export const useThoughtStore = create<MapState>()(
           chatHistory: state.chatHistory,
           activeTerrain: state.activeTerrain,
           nodeChats: state.nodeChats,
+          cartographerStyle: state.cartographerStyle,
+          cartographerMode: state.cartographerMode,
         };
       },
       onRehydrateStorage: () => (state) => {
