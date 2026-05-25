@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { MessageSquare, Layers, CirclePlus, Compass } from 'lucide-react-native';
+import { MessageSquare, Layers, Compass } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 
 export default function TabLayout() {
@@ -34,13 +34,6 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="add-node"
-        options={{
-          title: 'Add',
-          tabBarIcon: ({ color, size }) => <CirclePlus size={size} color={color} />,
-        }}
-      />
       <Tabs.Screen
         name="realms"
         options={{
