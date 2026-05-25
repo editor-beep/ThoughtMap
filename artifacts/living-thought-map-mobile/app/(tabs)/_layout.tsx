@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
@@ -8,7 +7,6 @@ import { useColors } from "@/hooks/useColors";
 
 export default function TabLayout() {
   const colors = useColors();
-  const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
   return (
@@ -19,18 +17,23 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
+          backgroundColor: colors.background,
           borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-          ),
+        tabBarBackground: () => (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor:
+                  Platform.OS === "ios" ? "rgba(7, 9, 13, 0.9)" : colors.background,
+              },
+            ]}
+          />
+        ),
       }}
     >
       <Tabs.Screen
