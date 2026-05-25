@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, MapDocument } from '../types';
+import { adaptVaultMindToThoughtMap, detectImportType } from '../lib/importAdapters';
 
 // ─── Auto-terrain detection ────────────────────────────────────────────────
 
@@ -972,16 +973,36 @@ export const useThoughtStore = create<MapState>()(
 
         set({ importStatusMessage: 'Parsing archive…' });
         console.log('[IMPORT]', raw);
-        const parsed = parseImportPayload(raw);
-        if (!parsed) {
-          const message = 'Malformed import structure: missing graph payload.';
-          console.warn('[ThoughtMap] Import file is missing nodes/edges/realms');
+
+        const importType = detectImportType(raw);
+        let adapted: { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] };
+
+        try {
+          if (importType === 'vaultmind') {
+            adapted = adaptVaultMindToThoughtMap(raw) as { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] };
+          } else if (importType === 'thoughtmap') {
+            const parsed = parseImportPayload(raw);
+            if (!parsed) {
+              throw new Error('Malformed JSON import');
+            }
+            adapted = parsed;
+          } else {
+            throw new Error('Unsupported import format');
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Malformed JSON import';
+          console.error('[IMPORT ERROR]', error);
           set({ importStatusMessage: message });
           return;
         }
 
+        console.log('[IMPORT TYPE]', importType);
+        console.log('[ADAPTED IMPORT]', adapted);
+        console.log('[NODES]', adapted.nodes.length);
+        console.log('[EDGES]', adapted.edges.length);
+
         set({ importStatusMessage: 'Validating cognition structure…' });
-        const nodes = parsed.nodes
+        const nodes = adapted.nodes
           .filter((n) => n && typeof n === 'object')
           .map((n) => ({
             ...n,
@@ -991,14 +1012,14 @@ export const useThoughtStore = create<MapState>()(
             type: normalizeNodeType(n.type),
             realms: Array.isArray(n.realms) ? n.realms : [],
           })) as ThoughtNode[];
-        const edges = parsed.edges
+        const edges = adapted.edges
           .filter((e) => e && typeof e === 'object' && typeof e.source === 'string' && typeof e.target === 'string')
           .map((e) => ({
             ...e,
             id: e.id || `import-edge-${crypto.randomUUID()}`,
             type: normalizeEdgeType(e.type),
           })) as ThoughtEdge[];
-        const realms = parsed.realms.filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string');
+        const realms = adapted.realms.filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string');
 
         console.log('[NORMALIZED]', { nodes, edges, realms });
         set((state) => {
