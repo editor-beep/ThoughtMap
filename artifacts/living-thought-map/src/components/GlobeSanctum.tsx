@@ -240,13 +240,91 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         xmlns="http://www.w3.org/2000/svg"
         style={{ position: 'absolute', inset: 0, display: 'block' }}
       >
+        <style>{`
+          @keyframes gs-halo-breathe {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+          }
+
+          @keyframes gs-ring-drift-cw {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+
+          @keyframes gs-ring-drift-ccw {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(-360deg); }
+          }
+
+          @keyframes gs-sector-drift-a {
+            from { transform: translate(0px, 0px); }
+            to { transform: translate(4px, -3px); }
+          }
+
+          @keyframes gs-sector-drift-b {
+            from { transform: translate(0px, 0px); }
+            to { transform: translate(-3px, 4px); }
+          }
+
+          @keyframes gs-sector-drift-c {
+            from { transform: translate(0px, 0px); }
+            to { transform: translate(5px, 1px); }
+          }
+
+          #gs-halo-pulse {
+            animation: gs-halo-breathe 7s ease-in-out infinite alternate;
+          }
+
+          #gs-ring-drift-cw {
+            transform-origin: ${cx}px ${cy}px;
+            animation: gs-ring-drift-cw 150s linear infinite;
+          }
+
+          #gs-ring-drift-ccw {
+            transform-origin: ${cx}px ${cy}px;
+            animation: gs-ring-drift-ccw 132s linear infinite;
+          }
+
+          #gs-sector-drift-a { animation: gs-sector-drift-a 24s ease-in-out infinite alternate; }
+          #gs-sector-drift-b { animation: gs-sector-drift-b 27s ease-in-out infinite alternate; }
+          #gs-sector-drift-c { animation: gs-sector-drift-c 22s ease-in-out infinite alternate; }
+
+          #gs-noise-layer-a { animation: gs-noise-crossfade-a 10s ease-in-out infinite alternate; }
+          #gs-noise-layer-b { animation: gs-noise-crossfade-b 10s ease-in-out infinite alternate; }
+
+          @keyframes gs-noise-crossfade-a { from { opacity: 0.042; } to { opacity: 0.028; } }
+          @keyframes gs-noise-crossfade-b { from { opacity: 0.026; } to { opacity: 0.042; } }
+
+          @media (prefers-reduced-motion: reduce) {
+            #gs-halo-pulse,
+            #gs-ring-drift-cw,
+            #gs-ring-drift-ccw,
+            #gs-sector-drift-a,
+            #gs-sector-drift-b,
+            #gs-sector-drift-c,
+            #gs-noise-layer-a,
+            #gs-noise-layer-b {
+              animation: none !important;
+            }
+          }
+        `}</style>
+
         <defs>
           <filter id="gs-phosphor-soften" x="-2%" y="-2%" width="104%" height="104%">
             <feGaussianBlur stdDeviation="0.38" />
           </filter>
 
-          <filter id="gs-noise-overlay" x="0%" y="0%" width="100%" height="100%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise" />
+          <filter id="gs-noise-overlay-a" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise">
+              <animate attributeName="seed" values="13;17;23" keyTimes="0;0.5;1" dur="10s" repeatCount="indefinite" />
+            </feTurbulence>
+            <feBlend in="SourceGraphic" in2="noise" mode="overlay" />
+          </filter>
+
+          <filter id="gs-noise-overlay-b" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise">
+              <animate attributeName="seed" values="31;37;41" keyTimes="0;0.5;1" dur="10s" begin="5s" repeatCount="indefinite" />
+            </feTurbulence>
             <feBlend in="SourceGraphic" in2="noise" mode="overlay" />
           </filter>
 
@@ -305,8 +383,12 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         {/* ── L3: Orbital rings behind shell ── */}
         <g id="gs-rings-behind" fill="none" strokeLinecap="round">
           {/* Primary orbital rings */}
-          <ellipse cx={cx} cy={cy} rx={r * 1.08} ry={r * 0.44} transform={`rotate(19 ${cx} ${cy})`} stroke="#7FFFD4" strokeWidth="0.7" opacity="0.29" />
-          <ellipse cx={cx} cy={cy} rx={r * 0.88} ry={r * 0.36} transform={`rotate(52 ${cx} ${cy})`} stroke="#4A7C8E" strokeWidth="0.76" opacity="0.31" />
+          <g id="gs-ring-drift-cw">
+            <ellipse cx={cx} cy={cy} rx={r * 1.08} ry={r * 0.44} transform={`rotate(19 ${cx} ${cy})`} stroke="#7FFFD4" strokeWidth="0.7" opacity="0.29" />
+          </g>
+          <g id="gs-ring-drift-ccw">
+            <ellipse cx={cx} cy={cy} rx={r * 0.88} ry={r * 0.36} transform={`rotate(52 ${cx} ${cy})`} stroke="#4A7C8E" strokeWidth="0.76" opacity="0.31" />
+          </g>
 
           {/* Partial arcs */}
           <path d={`M ${cx - r * 0.72} ${cy - r * 0.10} A ${r * 0.94} ${r * 0.40} 33 0 1 ${cx + r * 0.58} ${cy + r * 0.20}`} stroke="#7FFFD4" strokeWidth="0.66" opacity="0.26" />
@@ -366,9 +448,11 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
                 </text>
               ))}
 
-              {sectorLabels.map((label, i) => (
+              {sectorLabels.map((label, i) => {
+                const driftId = i === 0 ? "gs-sector-drift-a" : i === 1 ? "gs-sector-drift-b" : i === 2 ? "gs-sector-drift-c" : undefined;
+                return (
+                <g key={`sector-${i}`} id={driftId}>
                 <text
-                  key={`sector-${i}`}
                   x={cx + label.x * r}
                   y={cy + label.y * r}
                   fontSize={7}
@@ -376,7 +460,9 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
                 >
                   {label.t}
                 </text>
-              ))}
+                </g>
+              );
+              })}
 
               {/* Broken mid-sequence annotation crossing beyond viewport bounds */}
               <text x={cx + r * 0.91} y={cy - r * 0.42} fontSize={6.2} opacity={0.31}>
@@ -387,7 +473,9 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         </g>
 
         {/* ── L1: Outer atmospheric halo ── */}
-        <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
+        <g id="gs-halo-pulse">
+          <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
+        </g>
 
           {/* ── L7: Glyph systems and occult annotation ── */}
           <g id="gs-glyphs">
@@ -397,7 +485,8 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
 
         {/* ── L8: Full-screen finishing overlays ── */}
         <g id="gs-screen-fx">
-          <rect width="100%" height="100%" fill="#FFFFFF" filter="url(#gs-noise-overlay)" opacity="0.045" />
+          <rect id="gs-noise-layer-a" width="100%" height="100%" fill="#FFFFFF" filter="url(#gs-noise-overlay-a)" opacity="0.042" />
+          <rect id="gs-noise-layer-b" width="100%" height="100%" fill="#FFFFFF" filter="url(#gs-noise-overlay-b)" opacity="0.026" />
           <rect width="100%" height="100%" fill="url(#gs-edge-vignette)" opacity="0.42" />
           {Array.from({ length: Math.ceil(h / 2.5) }).map((_, i) => {
             const y = i * 2.5;
