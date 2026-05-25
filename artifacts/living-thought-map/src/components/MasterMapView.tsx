@@ -105,28 +105,7 @@ export default function MasterMapView() {
     return sortedMaps;
   }, [filteredMaps, masterMapSortMode]);
 
-  useEffect(() => {
-    console.log('[MASTER MAP VIEW]', {
-      viewMode: masterMapViewMode,
-      sortMode: masterMapSortMode,
-      renderedCount: userMaps.length,
-      renderedOrder: userMaps.map((m) => m.title),
-    });
-  }, [masterMapSortMode, masterMapViewMode, userMaps]);
 
-  useEffect(() => {
-    if (masterMapViewMode !== 'archive') return;
-    console.log('[DOT VIEW DATA]', {
-      mapCount: userMaps.length,
-      mapDiagnostics: userMaps.map((m) => ({
-        id: m.id,
-        title: m.title,
-        nodesCount: Array.isArray(m.nodes) ? m.nodes.length : 0,
-        hasCreatedAt: Boolean(m.createdAt),
-        hasUpdatedAt: Boolean(m.updatedAt),
-      })),
-    });
-  }, [masterMapViewMode, userMaps]);
 
   const handleCreate = (title: string) => {
     const newId = createMap(title, MASTER_MAP_ID);

@@ -1,3 +1,5 @@
+import { DEBUG, IS_DEV } from '../config/debug';
+
 export type ImportType = 'thoughtmap' | 'vaultmind' | 'unknown';
 
 export type NormalizedImportNode = {
@@ -53,15 +55,17 @@ export function normalizeImport(data: any): NormalizedImport {
   const rawNodes = data?.artifacts ?? data?.concepts ?? [];
   const rawEdges = data?.relationships ?? data?.edges ?? [];
 
-  console.log('[RAW NODE COUNT]', rawNodes.length);
+  if (IS_DEV && DEBUG.imports) console.log('[RAW NODE COUNT]', rawNodes.length);
 
   const nodes = rawNodes.map(normalizeNode);
   const edges = rawEdges
     .map(normalizeEdge)
     .filter((edge: NormalizedImportEdge) => typeof edge.source === 'string' && typeof edge.target === 'string');
 
-  console.log('[NORMALIZED NODE COUNT]', nodes.length);
-  console.log('[NORMALIZED EDGE COUNT]', edges.length);
+  if (IS_DEV && DEBUG.imports) {
+    console.log('[NORMALIZED NODE COUNT]', nodes.length);
+    console.log('[NORMALIZED EDGE COUNT]', edges.length);
+  }
 
   return {
     nodes,

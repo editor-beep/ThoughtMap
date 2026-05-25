@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { DEBUG, IS_DEV } from '../config/debug';
 import { persist } from 'zustand/middleware';
 import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, MapDocument } from '../types';
 import { adaptVaultMindToThoughtMap, detectImportType, normalizeImport } from '../lib/importAdapters';
@@ -316,7 +317,7 @@ export const useThoughtStore = create<MapState>()(
         const id = `node_${crypto.randomUUID()}`;
         const newNode: ThoughtNode = { ...nodeData, x, y, id, createdAt: new Date().toISOString() };
         if (process.env.NODE_ENV !== 'production') {
-          console.log('[NODE SPAWN]', {
+          if (IS_DEV && DEBUG.performance) console.log('[NODE SPAWN]', {
             id,
             x,
             y,
@@ -972,7 +973,7 @@ export const useThoughtStore = create<MapState>()(
         };
 
         set({ importStatusMessage: 'Parsing archive…' });
-        console.log('[IMPORT]', raw);
+        if (IS_DEV && DEBUG.imports) console.log('[IMPORT]', raw);
 
         const importType = detectImportType(raw);
         let adapted: { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] };
@@ -1006,10 +1007,10 @@ export const useThoughtStore = create<MapState>()(
           return;
         }
 
-        console.log('[IMPORT TYPE]', importType);
-        console.log('[ADAPTED IMPORT]', adapted);
-        console.log('[NODES]', adapted.nodes.length);
-        console.log('[EDGES]', adapted.edges.length);
+        if (IS_DEV && DEBUG.imports) console.log('[IMPORT TYPE]', importType);
+        if (IS_DEV && DEBUG.imports) console.log('[ADAPTED IMPORT]', adapted);
+        if (IS_DEV && DEBUG.imports) console.log('[NODES]', adapted.nodes.length);
+        if (IS_DEV && DEBUG.imports) console.log('[EDGES]', adapted.edges.length);
 
         set({ importStatusMessage: 'Validating cognition structure…' });
         const nodes = adapted.nodes
@@ -1031,7 +1032,7 @@ export const useThoughtStore = create<MapState>()(
           })) as ThoughtEdge[];
         const realms = adapted.realms.filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string');
 
-        console.log('[NORMALIZED]', { nodes, edges, realms });
+        if (IS_DEV && DEBUG.imports) console.log('[NORMALIZED]', { nodes, edges, realms });
         set((state) => {
           const existingIds = new Set(state.nodes.map((n) => n.id));
           const newNodes = nodes.filter((n) => !existingIds.has(n.id));
@@ -1047,8 +1048,8 @@ export const useThoughtStore = create<MapState>()(
             suggestedZone: 'center',
             reasoning: `Imported artifact ${n.id.slice(0, 8)} available for materialization.`,
           }));
-          console.log('[NAVIGATOR INGEST]', importSuggestions);
-          console.log('[IMPORT COUNTS]', { nodes: newNodes.length, edges: newEdges.length, malformedNodes: nodes.length - newNodes.length });
+          if (IS_DEV && DEBUG.imports) console.log('[NAVIGATOR INGEST]', importSuggestions);
+          if (IS_DEV && DEBUG.imports) console.log('[IMPORT COUNTS]', { nodes: newNodes.length, edges: newEdges.length, malformedNodes: nodes.length - newNodes.length });
           return {
             nodes: state.nodes,
             edges: state.edges,
