@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Trash2 } from 'lucide-react-native';
+import { ChevronDown, Trash2 } from 'lucide-react-native';
 import { useThoughtStore } from '../../lib/store';
 import { Colors } from '../../constants/colors';
 import { EdgeType } from '../../lib/types';
@@ -33,7 +33,8 @@ const EDGE_COLORS: Record<EdgeType, string> = {
 
 export default function NodeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { nodes, edges, realms, deleteNode } = useThoughtStore();
+  const { nodes, edges, realms, deleteNode, updateNode, addRealm } = useThoughtStore();
+  const [realmDropdownOpen, setRealmDropdownOpen] = useState(false);
 
   const node = useMemo(() => nodes.find((n) => n.id === id), [nodes, id]);
 
@@ -47,6 +48,8 @@ export default function NodeDetailScreen() {
         return { edge: e, otherNode, isSource: e.source === id };
       });
   }, [edges, id, nodes]);
+
+  const selectedRealmId = node?.realms[0] ?? null;
 
   const nodeRealms = useMemo(
     () => (node ? realms.filter((r) => node.realms.includes(r.id)) : []),
@@ -68,6 +71,36 @@ export default function NodeDetailScreen() {
           },
         },
       ]
+    );
+  };
+
+  const assignRealm = (realmId: string) => {
+    if (!id) return;
+    updateNode(id, { realms: [realmId] });
+    setRealmDropdownOpen(false);
+  };
+
+  const handleAddRealm = () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Add Realm', 'Adding a new realm is currently available on iOS in this screen.');
+      return;
+    }
+
+    Alert.prompt(
+      'Add Realm',
+      'Name your new realm:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Add',
+          onPress: (value) => {
+            if (!value?.trim()) return;
+            const newRealmId = addRealm(value);
+            if (newRealmId) assignRealm(newRealmId);
+          },
+        },
+      ],
+      'plain-text'
     );
   };
 
@@ -99,9 +132,44 @@ export default function NodeDetailScreen() {
 
       <Text style={styles.body}>{node.content}</Text>
 
-      {nodeRealms.length > 0 && (
-        <View style={styles.realmSection}>
-          <Text style={styles.sectionLabel}>Realms</Text>
+      <View style={styles.realmSection}>
+        <Text style={styles.sectionLabel}>Realm</Text>
+        <Pressable
+          style={styles.realmDropdownTrigger}
+          onPress={() => setRealmDropdownOpen((prev) => !prev)}
+        >
+          <Text style={styles.realmDropdownText}>
+            {realms.find((r) => r.id === selectedRealmId)?.name ?? 'Choose realm'}
+          </Text>
+          <ChevronDown
+            size={14}
+            color={Colors.slate400}
+            style={[styles.chevron, realmDropdownOpen && styles.chevronOpen]}
+          />
+        </Pressable>
+
+        {realmDropdownOpen && (
+          <View style={styles.realmDropdownMenu}>
+            {realms.map((realm) => {
+              const selected = realm.id === selectedRealmId;
+              return (
+                <Pressable
+                  key={realm.id}
+                  style={[styles.realmDropdownItem, selected && styles.realmDropdownItemSelected]}
+                  onPress={() => assignRealm(realm.id)}
+                >
+                  <Text style={[styles.realmChipSymbol, { color: realm.color }]}>{realm.symbol}</Text>
+                  <Text style={styles.realmChipName}>{realm.name}</Text>
+                </Pressable>
+              );
+            })}
+            <Pressable style={styles.addRealmItem} onPress={handleAddRealm}>
+              <Text style={styles.addRealmText}>+ Add realm</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {nodeRealms.length > 0 && (
           <View style={styles.realmChips}>
             {nodeRealms.map((r) => (
               <View key={r.id} style={[styles.realmChip, { borderColor: r.color + '60' }]}>
@@ -110,8 +178,9 @@ export default function NodeDetailScreen() {
               </View>
             ))}
           </View>
-        </View>
-      )}
+        )}
+      </View>
+
 
       {connections.length > 0 && (
         <View style={styles.connectionsSection}>
@@ -136,136 +205,43 @@ export default function NodeDetailScreen() {
         </View>
       )}
 
-      <Text style={styles.timestamp}>
-        {new Date(node.createdAt).toLocaleString()}
-      </Text>
+      <Text style={styles.timestamp}>{new Date(node.createdAt).toLocaleString()}</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.void800,
-  },
-  scrollContent: {
-    padding: 20,
-    gap: 16,
-  },
-  typeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderLeftWidth: 2,
-    paddingLeft: 10,
-    marginBottom: 4,
-  },
-  typeLabel: {
-    flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 10,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  deleteBtn: {
-    padding: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.slate200,
-    lineHeight: 28,
-  },
-  body: {
-    fontSize: 14,
-    color: Colors.slate400,
-    lineHeight: 22,
-  },
-  sectionLabel: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 9,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    color: Colors.slate600,
-    marginBottom: 8,
-  },
-  realmSection: {
-    marginTop: 8,
-  },
-  realmChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  realmChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    backgroundColor: Colors.void700 + '60',
-  },
-  realmChipSymbol: {
-    fontSize: 13,
-  },
-  realmChipName: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 11,
-    color: Colors.slate400,
-  },
-  connectionsSection: {
-    marginTop: 8,
-  },
-  connectionList: {
-    gap: 8,
-  },
-  connectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: Colors.void700 + '60',
-  },
-  connectionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    flexShrink: 0,
-  },
-  connectionInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  connectionType: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  connectionTitle: {
-    fontSize: 13,
-    color: Colors.slate300,
-    fontWeight: '500',
-  },
-  timestamp: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 10,
-    color: Colors.slate600,
-    textAlign: 'right',
-    marginTop: 8,
-  },
-  notFound: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.void900,
-  },
-  notFoundText: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: Colors.slate500,
-    fontSize: 13,
-  },
+  container: { flex: 1, backgroundColor: Colors.void800 },
+  scrollContent: { padding: 20, gap: 16 },
+  typeHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, borderLeftWidth: 2, paddingLeft: 10, marginBottom: 4 },
+  typeLabel: { flex: 1, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' },
+  deleteBtn: { padding: 4 },
+  title: { fontSize: 22, fontWeight: '700', color: Colors.slate200, lineHeight: 28 },
+  body: { fontSize: 14, color: Colors.slate400, lineHeight: 22 },
+  sectionLabel: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: Colors.slate600, marginBottom: 8 },
+  realmSection: { marginTop: 8 },
+  realmDropdownTrigger: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.void700 + '80', borderColor: Colors.voidBorder, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  realmDropdownText: { color: Colors.slate300, fontSize: 13 },
+  chevron: {},
+  chevronOpen: { transform: [{ rotate: '180deg' }] },
+  realmDropdownMenu: { marginTop: 8, borderWidth: 1, borderColor: Colors.voidBorder, borderRadius: 8, overflow: 'hidden' },
+  realmDropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: Colors.void700 + '66' },
+  realmDropdownItemSelected: { backgroundColor: Colors.cosmicCyan + '18' },
+  addRealmItem: { paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.voidBorder, backgroundColor: Colors.void700 + '80' },
+  addRealmText: { color: Colors.cosmicCyan, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11 },
+  realmChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  realmChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, backgroundColor: Colors.void700 + '60' },
+  realmChipSymbol: { fontSize: 13 },
+  realmChipName: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11, color: Colors.slate400 },
+
+  connectionsSection: { marginTop: 8 },
+  connectionList: { gap: 8 },
+  connectionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: Colors.void700 + '60' },
+  connectionDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  connectionInfo: { flex: 1, gap: 2 },
+  connectionType: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 10, letterSpacing: 1 },
+  connectionTitle: { fontSize: 13, color: Colors.slate300, fontWeight: '500' },
+  timestamp: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 10, color: Colors.slate600, textAlign: 'right', marginTop: 8 },
+  notFound: { flex: 1, backgroundColor: Colors.void800, alignItems: 'center', justifyContent: 'center' },
+  notFoundText: { color: Colors.slate500 },
 });
