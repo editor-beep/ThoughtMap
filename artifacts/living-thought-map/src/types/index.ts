@@ -108,7 +108,8 @@ export type TerrainId =
   | 'mythic-landscape'
   | 'the-void';
 
-export type CartographerMode = 'extract' | 'converse' | 'wander';
+export type CartographerMode = 'extract' | 'converse' | 'wander' | 'analyze';
+export type CartographerStyle = 'default' | 'mythic' | 'academic' | 'systems' | 'ritual' | 'void';
 
 export interface CartographerVariation {
   title: string;
@@ -137,9 +138,18 @@ export interface CartographerContext {
   }>;
   activeTerrain: TerrainId;
   activeRealms: string[];
+  topology?: {
+    nodeCount: number;
+    realmDistribution?: Record<string, number>;
+    centralNodes?: string[];
+    clusters?: unknown[];
+  };
   mapContext?: {
-    mapLevel: MapLevel;
-    mapTitle: string;
+    title?: string;
+    parentTitle?: string;
+    description?: string;
+    mapLevel?: MapLevel;
+    mapTitle?: string;
     parentMapTitle?: string;
   };
 }
