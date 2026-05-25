@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Viewport } from 'reactflow';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
@@ -95,6 +95,16 @@ function GlobeSanctum({ style, viewport }: GlobeSanctumProps) {
     () => mapNodesToGlobe(nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })), viewport),
     [nodes, viewport],
   );
+
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', ...style }}>
