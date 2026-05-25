@@ -629,6 +629,14 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
     updateNode(node.id, { comments: next });
   }, [node, updateNode]);
 
+  const toggleRealmForNode = useCallback((realmId: string) => {
+    if (!node) return;
+    const nextRealms = node.realms.includes(realmId)
+      ? node.realms.filter((id) => id !== realmId)
+      : [...node.realms, realmId];
+    updateNode(node.id, { realms: nextRealms });
+  }, [node, updateNode]);
+
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || isStreaming) return;
@@ -645,7 +653,6 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const chat = nodeChats[node.id] ?? [];
   const isStreaming = nodeChatStreaming === node.id;
   const nodeEdges = edges.filter((e) => e.source === node.id || e.target === node.id);
-  const realmMap = Object.fromEntries(realms.map((r) => [r.id, r]));
 
   const tabs: [Tab, string, LucideIcon][] = [
     ['chat', 'Chat', MessageSquare],
@@ -919,24 +926,31 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
             </button>
           </div>
 
-          {/* Realms — always display-only */}
+          {/* Realms */}
           <div>
             <label className="block text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">Realms</label>
             <div className="flex flex-wrap gap-1.5">
-              {node.realms.map((rid) => {
-                const r = realmMap[rid];
-                return r ? (
-                  <span
-                    key={rid}
-                    className="px-2 py-0.5 rounded-full text-[10px] font-mono border"
-                    style={{ color: r.color, borderColor: r.color + '55', backgroundColor: r.color + '14' }}
+              {realms.map((realm) => {
+                const isAssigned = node.realms.includes(realm.id);
+                return (
+                  <button
+                    key={realm.id}
+                    type="button"
+                    onClick={() => toggleRealmForNode(realm.id)}
+                    className="px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors"
+                    style={{
+                      color: realm.color,
+                      borderColor: realm.color + (isAssigned ? '88' : '44'),
+                      backgroundColor: realm.color + (isAssigned ? '22' : '10'),
+                    }}
+                    title={isAssigned ? `Remove ${realm.name}` : `Assign ${realm.name}`}
                   >
-                    {r.name}
-                  </span>
-                ) : null;
+                    {realm.name}
+                  </button>
+                );
               })}
-              {node.realms.length === 0 && (
-                <span className="text-[10px] text-slate-600 font-mono italic">No realm — assign one in the canvas panel</span>
+              {realms.length === 0 && (
+                <span className="text-[10px] text-slate-600 font-mono italic">No realms available. Add one from the Realms menu.</span>
               )}
             </div>
           </div>
