@@ -10,7 +10,8 @@ import ReactFlow, {
   Node,
   Edge,
   NodeMouseHandler,
-  Viewport
+  Viewport,
+  ReactFlowInstance
 } from 'reactflow';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
 import { EdgeType } from '../types';
@@ -144,8 +145,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [isDraggingNode, setIsDraggingNode] = useState(false);
   const lastTouchPointerAtRef = useRef(0);
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const rfWrapperRef = useRef<HTMLDivElement | null>(null);
   const MIN_ZOOM = 0.05;
   const MAX_ZOOM = 2.5;
+  // Padding (in screen px) from the viewport edge — a node released closer
+  // than this to the edge counts as off-screen and gets pulled back into view.
+  const OFFSCREEN_EDGE_PADDING = 48;
 
   const handleViewport = useCallback((vp: Viewport) => {
     if (!isValidViewport(vp)) {
@@ -421,14 +427,49 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     // that the gesture is over we persist where the node was released.
     const finalX = rfNode.position?.x;
     const finalY = rfNode.position?.y;
-    if (Number.isFinite(finalX) && Number.isFinite(finalY)) {
-      updateNodePosition(rfNode.id, finalX, finalY);
-    } else {
+    if (!Number.isFinite(finalX) || !Number.isFinite(finalY)) {
       console.error('[INVALID DRAG POSITION — SKIPPING UPDATE]', {
         nodeId: rfNode.id,
         nextPosition: rfNode.position,
       });
+      return;
     }
+    updateNodePosition(rfNode.id, finalX, finalY);
+
+    // Safety net: if the user flung the node outside the current viewport,
+    // gently pan the camera to keep it discoverable. Works in both card and
+    // dot modes since we operate purely on logical (flow) coordinates.
+    const instance = rfInstanceRef.current;
+    const wrapper = rfWrapperRef.current;
+    if (!instance || !wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const vp = instance.getViewport();
+    if (!isValidViewport(vp)) return;
+
+    // Approximate node footprint in flow coords so a card that's mostly
+    // off-screen still counts as off-screen.
+    const nodeWidthFlow = (rfNode.width ?? 0) || 0;
+    const nodeHeightFlow = (rfNode.height ?? 0) || 0;
+
+    const screenLeft = finalX * vp.zoom + vp.x;
+    const screenTop = finalY * vp.zoom + vp.y;
+    const screenRight = screenLeft + nodeWidthFlow * vp.zoom;
+    const screenBottom = screenTop + nodeHeightFlow * vp.zoom;
+
+    const pad = OFFSCREEN_EDGE_PADDING;
+    const offscreen =
+      screenRight < pad ||
+      screenBottom < pad ||
+      screenLeft > rect.width - pad ||
+      screenTop > rect.height - pad;
+
+    if (!offscreen) return;
+
+    const centerFlowX = finalX + nodeWidthFlow / 2;
+    const centerFlowY = finalY + nodeHeightFlow / 2;
+    instance.setCenter(centerFlowX, centerFlowY, { zoom: vp.zoom, duration: 450 });
   }, [validateFlowNodePosition, updateNodePosition]);
 
   useEffect(() => {
@@ -473,7 +514,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }
 
   return (
-    <div className="w-full h-full relative isolate">
+    <div ref={rfWrapperRef} className="w-full h-full relative isolate">
       <TerrainBackground viewport={rfViewport} />
       {currentMap && (
         <MapHeader
@@ -513,6 +554,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       <CartographerPanel />
 
       <ReactFlow
+        onInit={(instance) => { rfInstanceRef.current = instance; }}
         nodes={flowNodes}
         edges={flowEdges}
         onNodesChange={onNodesChange}
