@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
-import { Search, X, ChevronDown, Download, Upload, Info, Trash2 } from 'lucide-react';
+import { Search, X, ChevronDown, Download, Upload, Info, Trash2, Plus } from 'lucide-react';
 type DropdownId = 'anchors' | 'realms' | 'exportimport';
 
 interface DropdownButtonProps {
@@ -193,6 +193,19 @@ export default function TopNav() {
     setOpenDropdown(null);
   };
 
+  const handleAddNode = () => {
+    const id = addNode({
+      title: 'New thought',
+      content: '',
+      type: 'thought',
+      isAnchor: false,
+      realms: [],
+      x: Math.round((Math.random() - 0.5) * 400),
+      y: Math.round((Math.random() - 0.5) * 300),
+    });
+    focusNode(id);
+  };
+
   const handleAddAnchor = () => {
     const trimmed = newAnchorTitle.trim();
     if (!trimmed) return;
@@ -297,6 +310,18 @@ export default function TopNav() {
           </button>
         )}
       </div>
+
+      <div className="w-px h-5 bg-void-700/50 mx-1.5 flex-shrink-0" />
+
+      {/* ── New Node ── */}
+      <button
+        onClick={handleAddNode}
+        title="Add a new thought node"
+        className="flex items-center gap-1 px-2.5 py-1 rounded font-mono text-[11px] text-cosmic-cyan/90 hover:text-cosmic-cyan hover:bg-void-800/60 transition-colors flex-shrink-0"
+      >
+        <Plus size={12} />
+        <span>New Node</span>
+      </button>
 
       <div className="w-px h-5 bg-void-700/50 mx-1.5 flex-shrink-0" />
 
