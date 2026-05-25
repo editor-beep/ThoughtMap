@@ -185,11 +185,12 @@ export default function TopNav() {
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
-        if (data.nodes && data.edges && data.realms) importMap(data);
+        importMap(data);
       } catch {
         console.warn('[ThoughtMap] Failed to parse imported file');
       }
