@@ -98,7 +98,7 @@ interface SpatialCanvasProps {
 }
 
 export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialCanvasProps) {
-  const { nodes, edges, realms, maps, currentMapId, switchMap, renameMap, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent } = useThoughtStore();
+  const { nodes, edges, realms, maps, currentMapId, switchMap, renameMap, updateNodePosition, addEdge, deleteNode, deleteEdge, openCartographerPanel, openSubMap, exitToParent, focusNode } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -152,7 +152,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         id: node.id,
         type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
         position: { x: node.x, y: node.y },
-        data: { node, onOpen: openSubMap },
+        data: { node, onOpen: openSubMap, isFocused: selectedNodeId === node.id },
       }));
 
       return [...clusterNodes, ...singleNodes];
@@ -162,9 +162,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       id: node.id,
       type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
       position: { x: node.x, y: node.y },
-      data: { node, onOpen: openSubMap }
+      data: { node, onOpen: openSubMap, isFocused: selectedNodeId === node.id }
     }));
-  }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap]);
+  }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId]);
 
 
   const realmFilteredNodeCount = nodes.length - visibleNodes.length;
@@ -260,8 +260,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       openSubMap(selected.id);
       return;
     }
+    focusNode(rfNode.id);
     setSelectedNodeId(rfNode.id);
-  }, [nodes, openSubMap]);
+  }, [nodes, openSubMap, focusNode]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -340,6 +341,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         onEdgesDelete={onEdgesDelete}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onPaneClick={() => setSelectedNodeId(null)}
         nodeTypes={nodeTypes}
         deleteKeyCode="Delete"
         proOptions={{ hideAttribution: true }}
