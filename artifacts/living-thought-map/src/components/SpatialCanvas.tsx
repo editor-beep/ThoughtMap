@@ -1,10 +1,8 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, {
-  Controls,
   MiniMap,
   NodeChange,
   Connection,
-  Panel,
   useReactFlow,
   useViewport,
   Node,
@@ -32,6 +30,7 @@ import { getNodeVisualMode, isFinitePosition } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
 import { EDGE_TYPES } from '../lib/constants';
+import { HUD_LAYERS, HUD_SPACING, HUD_STACK_GAP } from '../constants/hudLayout';
 
 const nodeTypes = {
   thoughtMapNode: CustomThoughtNode,
@@ -96,6 +95,19 @@ function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) 
   }, [vp.zoom, vp.x, vp.y]);
 
   return null;
+}
+
+function CanvasZoomControls() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const buttonClassName = 'h-8 w-8 rounded border border-void-700 bg-void-800/90 text-slate-300 hover:bg-void-700 hover:text-slate-100 transition-colors';
+
+  return (
+    <div className="flex flex-col gap-1.5 pointer-events-auto">
+      <button aria-label="Zoom in" onClick={() => zoomIn({ duration: 180 })} className={buttonClassName}>+</button>
+      <button aria-label="Zoom out" onClick={() => zoomOut({ duration: 180 })} className={buttonClassName}>−</button>
+      <button aria-label="Fit view" onClick={() => fitView({ duration: 240, padding: 0.2 })} className={buttonClassName}>⤢</button>
+    </div>
+  );
 }
 
 
@@ -613,18 +625,31 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         }}
         onPaneScroll={handleWheelDiagnostics}
       >
-        <Controls className="!bg-void-800 !border-void-700 !text-slate-400 !fill-slate-400" />
         <MiniMap
           nodeColor={(n) => NODE_TYPE_COLORS[(nodes.find((x) => x.id === n.id)?.type ?? '')] ?? '#1e293b'}
-          style={{ background: '#0b0f19', border: '1px solid #111827' }}
+          style={{
+            background: '#0b0f19',
+            border: '1px solid #111827',
+            margin: 0,
+            position: 'relative',
+            zIndex: HUD_LAYERS.minimap,
+          }}
           maskColor="rgba(3,7,18,0.7)"
         />
         <CanvasController />
         <ViewportTracker onViewport={handleViewport} />
-        {IS_DEV && DEBUG.overlays && (<Panel position="top-left"><DebugZoom /></Panel>)}
-        <Panel position="bottom-left"><MapDensityIndicator totalNodes={nodes.length} renderedNodes={flowNodes.length} /></Panel>
-        <Panel position="bottom-right">
-          <div className="rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">
+        <div
+          className="absolute flex flex-col pointer-events-none"
+          style={{ left: HUD_SPACING, bottom: HUD_SPACING, gap: HUD_STACK_GAP, zIndex: HUD_LAYERS.overlays }}
+        >
+          {IS_DEV && DEBUG.overlays && <DebugZoom />}
+          <CanvasZoomControls />
+        </div>
+        <div
+          className="absolute flex flex-col items-end pointer-events-none"
+          style={{ right: HUD_SPACING, bottom: HUD_SPACING, gap: HUD_STACK_GAP, zIndex: HUD_LAYERS.overlays }}
+        >
+          <div className="pointer-events-auto rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">
             <div className="mb-2 text-slate-500 uppercase tracking-wider">Graph Density</div>
             <div className="mb-1 text-slate-400">Card size ({nodeVisualMode === NodeVisualMode.FULL_CARD ? 'full' : nodeVisualMode === NodeVisualMode.COMPACT_CARD ? 'compact' : 'dot'})</div>
             <div className="mb-2 flex gap-1">
@@ -639,7 +664,10 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
               ))}
             </div>
           </div>
-        </Panel>
+          <div className="pointer-events-auto">
+            <MapDensityIndicator totalNodes={nodes.length} renderedNodes={flowNodes.length} />
+          </div>
+        </div>
       </ReactFlow>
 
       {/* Edge type chooser */}
