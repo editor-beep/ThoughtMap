@@ -155,6 +155,7 @@ interface MapState {
   cartographerAppliedIndices: number[];
   cartographerPanelOpen: boolean;
   cartographerWanderResponse: string | null;
+  importStatusMessage: string | null;
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
@@ -243,6 +244,7 @@ export const useThoughtStore = create<MapState>()(
       cartographerAppliedIndices: [],
       cartographerPanelOpen: false,
       cartographerWanderResponse: null,
+      importStatusMessage: null,
       createMap: (title, parentMapId, parentNodeId) => {
         const id = `map_${crypto.randomUUID()}`;
         const now = new Date().toISOString();
@@ -794,6 +796,43 @@ export const useThoughtStore = create<MapState>()(
 
         get().focusNode(nodeId);
 
+        if (messageId?.startsWith('import-')) {
+          const stateAfterNode = get();
+          const currentMap = stateAfterNode.maps[stateAfterNode.currentMapId];
+          const metadata = (currentMap?.metadata ?? {}) as Record<string, unknown>;
+          const bufferedNodes = (metadata.importBufferNodes as ThoughtNode[] | undefined) ?? [];
+          const bufferedEdges = (metadata.importBufferEdges as ThoughtEdge[] | undefined) ?? [];
+          const idMap = (metadata.importIdMap as Record<string, string> | undefined) ?? {};
+          const sourceImported = bufferedNodes[variationIndex];
+          if (sourceImported) {
+            idMap[sourceImported.id] = nodeId;
+          }
+          const readyEdges = bufferedEdges.filter((e) => idMap[e.source] && idMap[e.target]);
+          set((s) => ({
+            edges: [
+              ...s.edges,
+              ...readyEdges
+                .filter((e) => !s.edges.some((existing) => existing.id === e.id))
+                .map((e) => ({
+                  id: e.id,
+                  source: idMap[e.source],
+                  target: idMap[e.target],
+                  type: e.type,
+                })),
+            ],
+            maps: {
+              ...s.maps,
+              [s.currentMapId]: {
+                ...s.maps[s.currentMapId],
+                metadata: {
+                  ...(s.maps[s.currentMapId]?.metadata ?? {}),
+                  importIdMap: idMap,
+                },
+              },
+            },
+          }));
+        }
+
         // Mark message as extracted on first application; keep panel open for additional selections
         const isFirst = get().cartographerAppliedIndices.length === 0;
         set((s) => ({
@@ -921,13 +960,47 @@ export const useThoughtStore = create<MapState>()(
           return null;
         };
 
+        const normalizeNodeType = (value: unknown): NodeType => {
+          const allowed: NodeType[] = ['thought', 'joke', 'character', 'myth', 'research', 'canon', 'contradiction', 'artifact', 'fragment'];
+          return typeof value === 'string' && allowed.includes(value as NodeType) ? (value as NodeType) : 'thought';
+        };
+
+        const normalizeEdgeType = (value: unknown): EdgeType => {
+          const allowed: EdgeType[] = ['evolves_from', 'contradicts', 'references', 'remixes', 'supports'];
+          return typeof value === 'string' && allowed.includes(value as EdgeType) ? (value as EdgeType) : 'references';
+        };
+
+        set({ importStatusMessage: 'Parsing archive…' });
+        console.log('[IMPORT]', raw);
         const parsed = parseImportPayload(raw);
         if (!parsed) {
+          const message = 'Malformed import structure: missing graph payload.';
           console.warn('[ThoughtMap] Import file is missing nodes/edges/realms');
+          set({ importStatusMessage: message });
           return;
         }
 
-        const { nodes, edges, realms } = parsed;
+        set({ importStatusMessage: 'Validating cognition structure…' });
+        const nodes = parsed.nodes
+          .filter((n) => n && typeof n === 'object')
+          .map((n) => ({
+            ...n,
+            id: n.id || `import-node-${crypto.randomUUID()}`,
+            title: n.title || 'Untitled artifact',
+            content: n.content || '',
+            type: normalizeNodeType(n.type),
+            realms: Array.isArray(n.realms) ? n.realms : [],
+          })) as ThoughtNode[];
+        const edges = parsed.edges
+          .filter((e) => e && typeof e === 'object' && typeof e.source === 'string' && typeof e.target === 'string')
+          .map((e) => ({
+            ...e,
+            id: e.id || `import-edge-${crypto.randomUUID()}`,
+            type: normalizeEdgeType(e.type),
+          })) as ThoughtEdge[];
+        const realms = parsed.realms.filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string');
+
+        console.log('[NORMALIZED]', { nodes, edges, realms });
         set((state) => {
           const existingIds = new Set(state.nodes.map((n) => n.id));
           const newNodes = nodes.filter((n) => !existingIds.has(n.id));
@@ -935,10 +1008,37 @@ export const useThoughtStore = create<MapState>()(
           const newEdges = edges.filter((e) => !existingEdgeIds.has(e.id));
           const existingRealmIds = new Set(state.realms.map((r) => r.id));
           const newRealms = realms.filter((r) => !existingRealmIds.has(r.id));
+          const importSuggestions: CartographerVariation[] = newNodes.map((n) => ({
+            title: n.title,
+            content: n.content,
+            type: n.type,
+            realms: n.realms,
+            suggestedZone: 'center',
+            reasoning: `Imported artifact ${n.id.slice(0, 8)} available for materialization.`,
+          }));
+          console.log('[NAVIGATOR INGEST]', importSuggestions);
+          console.log('[IMPORT COUNTS]', { nodes: newNodes.length, edges: newEdges.length, malformedNodes: nodes.length - newNodes.length });
           return {
-            nodes: [...state.nodes, ...newNodes],
-            edges: [...state.edges, ...newEdges],
+            nodes: state.nodes,
+            edges: state.edges,
             realms: [...state.realms, ...newRealms],
+            cartographerSuggestions: importSuggestions,
+            cartographerInsight: `Imported archive parsed. ${newNodes.length} artifacts staged for materialization.`,
+            cartographerExtractingMessageId: `import-${Date.now()}`,
+            cartographerAppliedIndices: [],
+            importStatusMessage: `Success: ${newNodes.length} artifacts available for materialization.`,
+            // Keep a buffered copy by attaching into maps metadata path via closure below during apply
+            maps: {
+              ...state.maps,
+              [state.currentMapId]: {
+                ...state.maps[state.currentMapId],
+                metadata: {
+                  ...(state.maps[state.currentMapId]?.metadata ?? {}),
+                  importBufferNodes: newNodes,
+                  importBufferEdges: newEdges,
+                },
+              },
+            },
           };
         });
       },
