@@ -140,6 +140,13 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   }, [cartographerExtractingMessageId, cartographerSuggestions]);
 
   useEffect(() => {
+    const hasCartographerActivity = !!cartographerExtractingMessageId || cartographerLoading || !!cartographerSuggestions;
+    if (hasCartographerActivity) {
+      setRailCollapsed(false);
+    }
+  }, [cartographerExtractingMessageId, cartographerLoading, cartographerSuggestions]);
+
+  useEffect(() => {
     const onSelectionChange = () => {
       if (!window.getSelection()?.toString().trim()) {
         setBubbleSelection(null);
