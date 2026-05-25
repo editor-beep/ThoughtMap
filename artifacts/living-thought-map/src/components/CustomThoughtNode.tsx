@@ -119,7 +119,12 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const cardScale = data.cardScale ?? 'standard';
   const dotScale = data.dotScale ?? 'standard';
 
-  useLayoutEffect(() => {
+  const hasMountedRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
     updateNodeInternals(node.id);
   }, [nodeVisualMode, node.id, updateNodeInternals]);
   const COLLAPSED_MIN_HEIGHT = 60;
