@@ -88,6 +88,41 @@ function genId(): string {
   return `msg-${Date.now()}-${msgCounter}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+let warnedMissingDomain = false;
+function getChatUrl(): string {
+  const raw = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!raw) {
+    if (!warnedMissingDomain) {
+      warnedMissingDomain = true;
+      console.warn(
+        "[ThoughtContext] EXPO_PUBLIC_DOMAIN is not set in the bundle. " +
+        "AI calls will be sent to a relative '/api/chat' URL and will likely 404. " +
+        "Restart the Expo dev server so the env var is baked into the bundle.",
+      );
+    }
+    return "/api/chat";
+  }
+  // Normalize: strip scheme and any trailing slash so accidental "https://host/"
+  // or "host/" values don't produce malformed URLs.
+  const host = raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  return `https://${host}/api/chat`;
+}
+
+async function readChatErrorBody(response: { text?: () => Promise<string> }): Promise<string> {
+  try {
+    if (typeof response.text === "function") {
+      const body = await response.text();
+      if (!body) return "";
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed && typeof parsed.error === "string") return parsed.error;
+      } catch { /* not JSON */ }
+      return body.slice(0, 200);
+    }
+  } catch { /* ignore */ }
+  return "";
+}
+
 export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   const [nodes, setNodes] = useState<ThoughtNode[]>([]);
   const [realms, setRealms] = useState<Realm[]>(INITIAL_REALMS);
@@ -188,16 +223,19 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     try {
       // @ts-ignore — expo/fetch types not available at compile time
       const { fetch: expoFetch } = await import("expo/fetch");
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const baseUrl = domain ? `https://${domain}/` : "/";
+      const url = getChatUrl();
+      console.log("[ThoughtContext] node chat → POST", url);
 
-      const response = await expoFetch(`${baseUrl}api/chat`, {
+      const response = await expoFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ messages: contextMessages }),
       });
 
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      if (!response.ok) {
+        const detail = await readChatErrorBody(response);
+        throw new Error(`API error ${response.status}${detail ? ` — ${detail}` : ""}`);
+      }
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
 
@@ -253,16 +291,19 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     try {
       // @ts-ignore — expo/fetch types not available at compile time
       const { fetch: expoFetch } = await import("expo/fetch");
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const baseUrl = domain ? `https://${domain}/` : "/";
+      const url = getChatUrl();
+      console.log("[ThoughtContext] chat → POST", url);
 
-      const response = await expoFetch(`${baseUrl}api/chat`, {
+      const response = await expoFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ messages: historyForRequest }),
       });
 
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      if (!response.ok) {
+        const detail = await readChatErrorBody(response);
+        throw new Error(`API error ${response.status}${detail ? ` — ${detail}` : ""}`);
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
