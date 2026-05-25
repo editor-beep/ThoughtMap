@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
-import { useDisplayMode } from '../hooks/useDisplayMode';
 import { renderMarkdown } from '../lib/markdown';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
@@ -108,12 +107,10 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [inlineContent, setInlineContent] = useState(node.content);
   const [showInlineToolbar, setShowInlineToolbar] = useState(false);
-  const { isDot, isCluster } = useDisplayMode();
   const { setCenter } = useReactFlow();
   const onRequestExpand = data.onRequestExpand;
   const updateNodeInternals = useUpdateNodeInternals();
   const showExpanded = isExpanded || isFocused;
-  const showAsDot = (isDot || isCluster) && !isFocused;
   const emphasis = data.emphasis ?? 'default';
   const semanticCompression = data.semanticCompression ?? 1;
 
@@ -146,60 +143,6 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const commentCount = (node.comments ?? []).length;
   const hasTags = (node.tags ?? []).length > 0;
   const hasChildMap = Boolean(node.childMapId ?? node.subMapId);
-
-  if (showAsDot) {
-    const dotSize = 16;
-    const containerSize = dotSize + 4;
-    const offset = (containerSize - dotSize) / 2;
-    return (
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          setCenter(node.x + containerSize / 2, node.y + containerSize / 2, { zoom: 0.72, duration: 350 });
-          window.setTimeout(() => setCenter(node.x + 100, node.y + 50, { zoom: 0.95, duration: 350 }), 180);
-          onRequestExpand?.(node.id);
-        }}
-        title={hasChildMap ? `${node.title} · Has sub-map` : node.title}
-        className="cursor-pointer relative"
-        style={{ width: containerSize, height: containerSize, opacity: emphasis === 'background' ? 0.3 : emphasis === 'neighborhood' ? 0.85 : 1, filter: emphasis === 'focused' ? 'brightness(1.2)' : 'none', transform: emphasis === 'focused' ? 'scale(1.12)' : emphasis === 'neighborhood' ? 'scale(1.05)' : 'scale(1)' }}
-      >
-        <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
-        {config.dotShape === 'diamond' ? (
-          <div
-            style={{
-              position: 'absolute',
-              top: offset,
-              left: offset,
-              width: dotSize,
-              height: dotSize,
-              backgroundColor: config.dotColor,
-              transform: 'rotate(45deg)',
-              boxShadow: `0 0 10px ${config.dotColor}99`,
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              position: 'absolute',
-              top: offset,
-              left: offset,
-              width: dotSize,
-              height: dotSize,
-              borderRadius: '50%',
-              backgroundColor: config.dotColor,
-              boxShadow: `0 0 10px ${config.dotColor}99`,
-            }}
-          />
-        )}
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!bg-void-600/10 hover:!bg-void-600/40 transition-colors cursor-crosshair"
-          style={{ width: 8, height: 8, bottom: 0, left: '50%', transform: 'translate(-50%, 50%)', border: 'none', borderRadius: '50%' }}
-        />
-      </div>
-    );
-  }
 
   return (
     <div
