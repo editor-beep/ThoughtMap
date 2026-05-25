@@ -127,18 +127,32 @@ router.post("/cartographer", async (req: Request, res: Response) => {
     ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
     : `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-  const upstream = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: message }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      ...(isJsonMode ? { generationConfig: { responseMimeType: "application/json" } } : {}),
-    }),
-    signal: AbortSignal.timeout(25000),
-  }) as globalThis.Response;
+  let upstream: globalThis.Response;
+  try {
+    upstream = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: message }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        ...(isJsonMode ? { generationConfig: { responseMimeType: "application/json" } } : {}),
+      }),
+      signal: AbortSignal.timeout(25000),
+    }) as globalThis.Response;
+  } catch (err) {
+    const isTimeout = err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError");
+    return void res.status(isTimeout ? 504 : 502).json({
+      error: isTimeout ? "The Cartographer timed out while reading the terrain" : "Failed to reach Cartographer upstream service",
+    });
+  }
 
-  if (!upstream.ok) return void res.status(upstream.status >= 500 ? 502 : upstream.status).json({ error: await upstream.text() });
+  if (!upstream.ok) {
+    const raw = await upstream.text();
+    return void res.status(upstream.status >= 500 ? 502 : upstream.status).json({
+      error: "Cartographer upstream request failed",
+      details: raw,
+    });
+  }
 
   if (mode === "extract") {
     const result = await upstream.json() as Record<string, unknown>;
@@ -156,7 +170,11 @@ router.post("/cartographer", async (req: Request, res: Response) => {
     return void res.json(valid.data);
   }
 
+  if (!upstream.body) return void res.status(502).json({ error: "Cartographer upstream returned an empty stream" });
+
   res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
   const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
   const decoder = new TextDecoder();
   let buffer = "";
