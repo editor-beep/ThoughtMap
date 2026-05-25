@@ -93,7 +93,8 @@ function InlineToolbar({ textareaRef, value, onChange }: InlineToolbarProps) {
 
 // ─── Node card ─────────────────────────────────────────────────────────────
 
-export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean } }) {
+type EmphasisState = 'default' | 'focused' | 'neighborhood' | 'background';
+export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; cardScale?: 'compact' | 'standard' | 'large'; dotScale?: 'tiny' | 'standard' | 'large'; semanticCompression?: number } }) {
   const { node } = data;
   const isFocused = Boolean(data.isFocused);
   const { deleteNode, nodeSearchQuery, updateNode } = useThoughtStore();
@@ -112,6 +113,10 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const updateNodeInternals = useUpdateNodeInternals();
   const showExpanded = isExpanded || isFocused;
   const showAsDot = (isDot || isCluster) && !isFocused;
+  const emphasis = data.emphasis ?? 'default';
+  const semanticCompression = data.semanticCompression ?? 1;
+  const cardScale = data.cardScale ?? 'standard';
+  const dotScale = data.dotScale ?? 'standard';
 
   useEffect(() => {
     updateNodeInternals(node.id);
@@ -146,8 +151,8 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const hasTags = (node.tags ?? []).length > 0;
 
   if (showAsDot) {
-    const dotSize = 16;
-    const containerSize = 20;
+    const dotSize = dotScale === 'tiny' ? 10 : dotScale === 'large' ? 20 : 16;
+    const containerSize = dotSize + 4;
     const offset = (containerSize - dotSize) / 2;
     return (
       <div
@@ -157,7 +162,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
         }}
         title={node.title}
         className="cursor-pointer relative"
-        style={{ width: containerSize, height: containerSize }}
+        style={{ width: containerSize, height: containerSize, opacity: emphasis === 'background' ? 0.3 : emphasis === 'neighborhood' ? 0.85 : 1, filter: emphasis === 'focused' ? 'brightness(1.2)' : 'none', transform: emphasis === 'focused' ? 'scale(1.12)' : emphasis === 'neighborhood' ? 'scale(1.05)' : 'scale(1)' }}
       >
         <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
         {config.dotShape === 'diamond' ? (
@@ -200,7 +205,14 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   return (
     <div
       className={`group px-4 pt-3 pb-3 rounded-lg bg-void-800/90 border ${isSearchMatch ? 'border-cosmic-cyan' : config.border} max-w-[320px] min-w-[160px] transition-all hover:scale-[1.02] hover:bg-void-800 backdrop-blur-sm relative`}
-      style={{ boxShadow: isSearchMatch ? '0 0 0 2px rgba(6,182,212,0.5), 0 0 24px rgba(6,182,212,0.3)' : `0 0 20px ${config.glow}`, minHeight: `${COLLAPSED_MIN_HEIGHT}px` }}
+      style={{
+        boxShadow: isSearchMatch ? '0 0 0 2px rgba(6,182,212,0.5), 0 0 24px rgba(6,182,212,0.3)' : `0 0 20px ${config.glow}`,
+        minHeight: `${COLLAPSED_MIN_HEIGHT}px`,
+        opacity: emphasis === 'background' ? 0.22 : emphasis === 'neighborhood' ? 0.88 : 1,
+        transform: `scale(${emphasis === 'focused' ? 1.08 : emphasis === 'neighborhood' ? 1.03 : cardScale === 'compact' ? 0.92 : cardScale === 'large' ? 1.1 : 1})`,
+        filter: emphasis === 'background' ? 'saturate(0.75)' : 'none',
+        transition: 'opacity 160ms ease, transform 180ms ease, filter 180ms ease',
+      }}
     >
       <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
 
@@ -249,7 +261,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
       </div>
 
       {/* Title: always visible */}
-      <h4 className="font-sans text-sm font-semibold text-slate-100 mt-2 leading-snug break-words">{node.title}</h4>
+      <h4 className="font-sans text-sm font-semibold text-slate-100 mt-2 leading-snug break-words" style={{ opacity: Math.max(0.65, semanticCompression) }}>{node.title}</h4>
 
       {/* Collapsible body: content + realm tags + node tags */}
       <div
@@ -298,7 +310,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
             }}
             title={canEditInline ? 'Click to edit' : undefined}
           >
-            <div className="text-xs text-slate-400 leading-relaxed break-words line-clamp-4">
+            <div className="text-xs text-slate-400 leading-relaxed break-words line-clamp-4" style={{ opacity: Math.max(0, semanticCompression - 0.2) }}>
               {renderMarkdown(node.content) ?? <span className="text-slate-600 italic">No content</span>}
             </div>
           </div>

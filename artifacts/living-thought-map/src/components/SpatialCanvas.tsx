@@ -102,6 +102,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  const [cardScale, setCardScale] = useState<'compact' | 'standard' | 'large'>('standard');
+  const [dotScale, setDotScale] = useState<'tiny' | 'standard' | 'large'>('standard');
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   const handleViewport = useCallback((vp: Viewport) => setRfViewport(vp), []);
 
@@ -135,6 +138,17 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
   const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
+  const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
+  const activeFocusId = selectedNodeId ?? hoveredNodeId;
+  const neighborhoodNodeIds = useMemo(() => {
+    if (!activeFocusId) return new Set<string>();
+    const result = new Set<string>([activeFocusId]);
+    edgePairs.forEach(([s, t]) => {
+      if (s === activeFocusId) result.add(t);
+      if (t === activeFocusId) result.add(s);
+    });
+    return result;
+  }, [activeFocusId, edgePairs]);
 
   const flowNodes = useMemo(() => {
     if (isClusterMode) {
@@ -152,7 +166,15 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         id: node.id,
         type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
         position: { x: node.x, y: node.y },
-        data: { node, onOpen: openSubMap, isFocused: selectedNodeId === node.id },
+        data: {
+          node,
+          onOpen: openSubMap,
+          isFocused: selectedNodeId === node.id,
+          emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
+          cardScale,
+          dotScale,
+          semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
+        },
       }));
 
       return [...clusterNodes, ...singleNodes];
@@ -162,9 +184,17 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       id: node.id,
       type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
       position: { x: node.x, y: node.y },
-      data: { node, onOpen: openSubMap, isFocused: selectedNodeId === node.id }
+      data: {
+        node,
+        onOpen: openSubMap,
+        isFocused: selectedNodeId === node.id,
+        emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
+        cardScale,
+        dotScale,
+        semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
+      }
     }));
-  }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId]);
+  }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
 
 
   const realmFilteredNodeCount = nodes.length - visibleNodes.length;
@@ -187,17 +217,24 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         ? []
         : edges
             .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
-            .map((edge) => ({
+            .map((edge) => {
+              const isFocusedEdge = activeFocusId && (edge.source === activeFocusId || edge.target === activeFocusId);
+              const isNeighborEdge = activeFocusId && (neighborhoodNodeIds.has(edge.source) || neighborhoodNodeIds.has(edge.target));
+              return {
               id: edge.id,
               source: edge.source,
               target: edge.target,
-              animated: true,
+              animated: Boolean(isFocusedEdge),
               label: EDGE_LABELS[edge.type],
-              labelStyle: { fill: '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
+              labelStyle: { fill: isFocusedEdge ? '#bae6fd' : '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
               labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
-              style: { stroke: EDGE_COLORS[edge.type], strokeWidth: 1.5, opacity: 0.75 }
-            })),
-    [isClusterMode, edges, visibleNodeIds]
+              style: {
+                stroke: EDGE_COLORS[edge.type],
+                strokeWidth: isFocusedEdge ? 2.8 : isNeighborEdge ? 2.1 : 1.2,
+                opacity: activeFocusId ? (isNeighborEdge ? 0.9 : 0.2) : 0.75,
+              }
+            };}),
+    [isClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds]
   );
 
   const nodeDebugRows = useMemo(() => {
@@ -341,6 +378,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         onEdgesDelete={onEdgesDelete}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onNodeMouseEnter={(_, node) => !node.id.startsWith('cluster-') && setHoveredNodeId(node.id)}
+        onNodeMouseLeave={() => setHoveredNodeId(null)}
         onPaneClick={() => setSelectedNodeId(null)}
         nodeTypes={nodeTypes}
         deleteKeyCode="Delete"
@@ -372,6 +411,23 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           </div>
         </Panel>
         <Panel position="bottom-left"><MapDensityIndicator totalNodes={nodes.length} renderedNodes={flowNodes.length} /></Panel>
+        <Panel position="bottom-right">
+          <div className="rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">
+            <div className="mb-2 text-slate-500 uppercase tracking-wider">Graph Density</div>
+            <div className="mb-1 text-slate-400">Card size</div>
+            <div className="mb-2 flex gap-1">
+              {(['compact', 'standard', 'large'] as const).map((size) => (
+                <button key={size} onClick={() => setCardScale(size)} className={`rounded px-2 py-1 ${cardScale === size ? 'bg-cosmic-cyan/20 text-cyan-200 border border-cosmic-cyan/40' : 'bg-void-800 text-slate-400 border border-void-700'}`}>{size}</button>
+              ))}
+            </div>
+            <div className="mb-1 text-slate-400">Dot size</div>
+            <div className="flex gap-1">
+              {(['tiny', 'standard', 'large'] as const).map((size) => (
+                <button key={size} onClick={() => setDotScale(size)} className={`rounded px-2 py-1 ${dotScale === size ? 'bg-cosmic-cyan/20 text-cyan-200 border border-cosmic-cyan/40' : 'bg-void-800 text-slate-400 border border-void-700'}`}>{size}</button>
+              ))}
+            </div>
+          </div>
+        </Panel>
       </ReactFlow>
 
       {/* Edge type chooser */}
