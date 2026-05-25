@@ -18,10 +18,10 @@ function renderInline(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
+      return <strong key={`bold-${i}`}>{part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
+      return <em key={`em-${i}`}>{part.slice(1, -1)}</em>;
     }
     return part;
   });
@@ -34,12 +34,12 @@ function MarkdownText({ text }: { text: string }) {
       {paragraphs.map((para, pi) => {
         const lines = para.split('\n');
         return (
-          <p key={pi} className="leading-relaxed">
+          <p key={`para-${pi}`} className="leading-relaxed">
             {lines.map((line, li) => {
               const listMatch = line.match(/^(\d+)\.\s+(.*)/);
               if (listMatch) {
                 return (
-                  <span key={li} className="block pl-2">
+                  <span key={`list-${pi}-${li}`} className="block pl-2">
                     <strong className="text-cosmic-cyan/70">{listMatch[1]}.</strong>{' '}
                     {renderInline(listMatch[2])}
                     {li < lines.length - 1 && <br />}
@@ -47,7 +47,7 @@ function MarkdownText({ text }: { text: string }) {
                 );
               }
               return (
-                <span key={li}>
+                <span key={`line-${pi}-${li}`}>
                   {renderInline(line)}
                   {li < lines.length - 1 && <br />}
                 </span>
