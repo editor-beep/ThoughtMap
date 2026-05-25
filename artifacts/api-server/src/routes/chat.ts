@@ -36,7 +36,18 @@ const chatRequestSchema = z.object({
   contextNodes: z.array(contextNodeSchema).max(50).optional(),
   terrain: z.string().max(100).optional(),
   focusedNodeId: z.string().max(100).optional(),
+  voice: z.enum(['default', 'mythic', 'academic', 'systems', 'ritual', 'void']).optional(),
 });
+
+
+const VOICE_GUIDANCE: Record<'default' | 'mythic' | 'academic' | 'systems' | 'ritual' | 'void', string> = {
+  default: 'Balanced and exploratory; clear while still imaginative.',
+  mythic: 'Speak in archetypal, symbolic, resonant language with mythic weight.',
+  academic: 'Use rigorous, precise, scholarly tone with distinctions and logic chains.',
+  systems: 'Focus on feedback loops, leverage points, second-order effects, and system coherence.',
+  ritual: 'Use ceremonial, energetic, transformative language focused on invocation and flow.',
+  void: 'Minimalist, paradox-friendly, and spacious language that leaves interpretive room.',
+};
 
 const BASE_SYSTEM_PROMPT = `You are an expert AI co-cartographer collaborating inside ThoughtMap — a living spatial thought terrain. Your role is to think associatively, surface patterns, and co-create a rich, interconnected constellation of ideas directly on the infinite canvas.
 
@@ -93,9 +104,10 @@ Rules for MAP EXTRACT:
 - suggestedPosition is relative to canvas center (0,0 = center). Spread nodes meaningfully.
 - Only output valid JSON in this section — no extra text, markdown prose, or explanations outside the code fence.`;
 
-function buildSystemInstruction(contextNodes?: { id: string; title: string; type: string; realm?: string }[], terrain?: string, focusedNodeId?: string): string {
+function buildSystemInstruction(contextNodes?: { id: string; title: string; type: string; realm?: string }[], terrain?: string, focusedNodeId?: string, voice: keyof typeof VOICE_GUIDANCE = 'default'): string {
   const lines: string[] = [];
   if (terrain) lines.push(`Active terrain: ${terrain}`);
+  lines.push(`Voice style: ${voice} — ${VOICE_GUIDANCE[voice]}`);
   if (focusedNodeId) lines.push(`Focused/pinned node ID: ${focusedNodeId}`);
   if (contextNodes && contextNodes.length > 0) {
     lines.push("Existing nodes on canvas (reuse these IDs in edges):");
@@ -122,7 +134,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
     return;
   }
-  const { messages, contextNodes, terrain, focusedNodeId } = parsed.data;
+  const { messages, contextNodes, terrain, focusedNodeId, voice = 'default' } = parsed.data;
 
   const apiKey = process.env.GEMINI_API_KEY ?? "";
   if (!apiKey) {
@@ -140,7 +152,7 @@ router.post("/chat", async (req: Request, res: Response) => {
   }));
 
   const model = "gemini-2.0-flash";
-  const systemText = buildSystemInstruction(contextNodes, terrain, focusedNodeId);
+  const systemText = buildSystemInstruction(contextNodes, terrain, focusedNodeId, voice);
 
   let upstream: Response | globalThis.Response;
   try {

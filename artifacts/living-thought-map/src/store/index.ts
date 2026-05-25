@@ -117,7 +117,7 @@ interface MapState {
   setMasterMapSortMode: (mode: 'recently-active' | 'recently-created' | 'alphabetical' | 'largest') => void;
   nodeChats: Record<string, ChatMessage[]>;
   nodeChatStreaming: string | null;
-  sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
+  sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string, voice?: CartographerStyle) => Promise<void>;
 
   undo: () => void;
   importMap: (data: unknown) => void;
@@ -536,7 +536,7 @@ export const useThoughtStore = create<MapState>()(
       setMasterMapViewMode: (mode) => set({ masterMapViewMode: mode }),
       setMasterMapSortMode: (mode) => set({ masterMapSortMode: mode }),
 
-      sendNodeChatMessage: async (nodeId, nodeTitle, nodeContent, message) => {
+      sendNodeChatMessage: async (nodeId, nodeTitle, nodeContent, message, voice = 'default') => {
         const previousChat = get().nodeChats[nodeId] ?? [];
         const userMsg: ChatMessage = {
           id: crypto.randomUUID(), role: 'user', content: message, timestamp: new Date().toISOString(),
@@ -562,7 +562,7 @@ export const useThoughtStore = create<MapState>()(
           const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: contextMessages }),
+            body: JSON.stringify({ messages: contextMessages, voice }),
             signal: AbortSignal.timeout(45000),
           });
 
