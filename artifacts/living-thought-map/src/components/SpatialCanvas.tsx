@@ -193,10 +193,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
   useEffect(() => {
     if (!IS_DEV) return;
-    console.log('[GRAPH NODE COUNT]', nodes.length);
-    console.log('[VISIBLE NODE IDS]', visibleNodes.map((n) => n.id));
-    console.log('[VISIBLE COUNT]', visibleNodes.length);
-    console.log('[CAMERA]', { viewport: rfViewport });
+    if (DEBUG.nodeVisibility) {
+      console.log('[GRAPH NODE COUNT]', nodes.length);
+      console.log('[VISIBLE NODE IDS]', visibleNodes.map((n) => n.id));
+      console.log('[VISIBLE COUNT]', visibleNodes.length);
+    }
+    if (DEBUG.cameraTracking) {
+      console.log('[CAMERA]', { viewport: rfViewport });
+    }
   }, [nodes.length, visibleNodes, rfViewport]);
 
   useEffect(() => {
@@ -278,7 +282,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
 
   useEffect(() => {
-    console.log('[SELECTED NODE]', selectedNodeId);
+    if (IS_DEV && DEBUG.selection) {
+      console.log('[SELECTED NODE]', selectedNodeId);
+    }
   }, [selectedNodeId]);
 
 
@@ -310,10 +316,11 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   );
 
   const validateFlowNodePosition = useCallback((rfNode: Node) => {
+    if (!IS_DEV || !DEBUG.dragValidation) return;
     const px = rfNode.position?.x;
     const py = rfNode.position?.y;
-    console.assert(Number.isFinite(px), '[CARD POSITION INVALID X]', rfNode.id, px);
-    console.assert(Number.isFinite(py), '[CARD POSITION INVALID Y]', rfNode.id, py);
+    if (!Number.isFinite(px)) console.warn('[CARD POSITION INVALID X]', rfNode.id, px);
+    if (!Number.isFinite(py)) console.warn('[CARD POSITION INVALID Y]', rfNode.id, py);
   }, []);
 
 

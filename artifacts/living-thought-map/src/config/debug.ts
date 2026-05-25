@@ -8,6 +8,9 @@ export const DEBUG = {
   minimap: false,
   graphLayout: false,
   performance: false,
+  cameraTracking: false,
+  selection: false,
+  dragValidation: false,
 };
 
 export const IS_DEV = import.meta.env.DEV;
