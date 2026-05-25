@@ -24,7 +24,7 @@ type CartographerMode = "extract" | "converse" | "wander" | "analyze";
 type CartographerStyle = "default" | "mythic" | "academic" | "systems" | "ritual" | "void";
 type TerrainId = "memory-palace" | "interstellar-plane" | "terrestrial-globe" | "mythic-landscape" | "the-void";
 
-export const STYLE_GUIDANCE: Record<CartographerStyle, string> = {
+const STYLE_GUIDANCE: Record<CartographerStyle, string> = {
   default: "Direct, clear, and evidence-oriented. Keep tone restrained.",
   mythic: "Use subtle archetypal framing only after delivering concrete research utility.",
   academic: "Use rigorous, precise, scholarly tone. Include ontological distinctions, potential counter-arguments, and logical chains.",

@@ -142,7 +142,6 @@ interface MapState {
   createMap: (title: string, parentMapId?: string, parentNodeId?: string) => string;
   switchMap: (mapId: string) => void;
   renameMap: (id: string, title: string) => void;
-  createSemanticField: (parentMapId: string, nodeData: Partial<ThoughtNode>) => string;
   openSubMap: (nodeId: string) => void;
   splitNodeIntoNewMap: (nodeId: string, includeNeighbors?: boolean) => string | null;
   exitToParent: () => void;
@@ -234,25 +233,6 @@ export const useThoughtStore = create<MapState>()(
         set((s) => ({
           maps: { ...s.maps, [id]: { ...s.maps[id], title, updatedAt: new Date().toISOString() } },
         }));
-      },
-      createSemanticField: (parentMapId, nodeData) => {
-        const id = `node_${crypto.randomUUID()}`;
-        const subMapId = get().createMap(nodeData.title ?? 'New Detail Map', parentMapId, id);
-        const now = new Date().toISOString();
-        const semanticNode: ThoughtNode = {
-          id,
-          title: nodeData.title ?? 'Semantic Field',
-          content: nodeData.content ?? '',
-          type: nodeData.type ?? 'thought',
-          realms: nodeData.realms ?? [],
-          x: nodeData.x ?? 0,
-          y: nodeData.y ?? 0,
-          createdAt: now,
-          isSemanticField: true,
-          subMapId,
-        };
-        set((state) => ({ nodes: [...state.nodes, semanticNode] }));
-        return id;
       },
       openSubMap: (nodeId) => {
         const node = get().nodes.find((n) => n.id === nodeId);
