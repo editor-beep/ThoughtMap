@@ -19,7 +19,7 @@ import SemanticFieldNode from './SemanticFieldNode';
 import MapHeader from './MapHeader';
 import MasterMapView from './MasterMapView';
 import NodeDetailPanel from './NodeDetailPanel';
-import TerrainBackground from './TerrainBackground';
+import BlackspaceBackground from './BlackspaceBackground';
 import CartographerPanel from './CartographerPanel';
 import DebugZoom from './DebugZoom';
 import { DEBUG, IS_DEV } from '../config/debug';
@@ -619,7 +619,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
   return (
     <div ref={rfWrapperRef} className="w-full h-full relative isolate">
-      <TerrainBackground viewport={rfViewport} />
+      <BlackspaceBackground viewport={rfViewport} />
       {currentMap && (
         <MapHeader
           crumbs={breadcrumbs}

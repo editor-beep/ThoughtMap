@@ -17,18 +17,10 @@ export default function CartographerPanel() {
     clearWanderResponse,
     requestCartographerExtractionFromContent,
     nodes,
-    activeTerrain,
   } = useThoughtStore();
 
   if (!cartographerPanelOpen) return null;
 
-  const terrainNames: Record<string, string> = {
-    'memory-palace': 'Memory Palace',
-    'interstellar-plane': 'Interstellar Plane',
-    'terrestrial-globe': 'Terrestrial Globe',
-    'mythic-landscape': 'Mythic Landscape',
-    'the-void': 'The Void',
-  };
 
   return (
     <div
@@ -47,7 +39,7 @@ export default function CartographerPanel() {
             <div className="min-w-0">
               <h2 className="font-mono text-sm text-slate-200 truncate">The Cartographer</h2>
               <p className="font-mono text-[10px] text-slate-500 truncate">
-                Guardian of the {terrainNames[activeTerrain] || 'Terrain'}
+                Guide to the living topology
               </p>
             </div>
           </div>
@@ -63,7 +55,7 @@ export default function CartographerPanel() {
           <div className="flex items-center gap-4 text-[11px] font-mono text-slate-500">
             <span>{nodes.length} nodes anchored</span>
             <span className="text-void-700">|</span>
-            <span className="capitalize">{activeTerrain.replace(/-/g, ' ')}</span>
+            <span>Blackspace field</span>
           </div>
 
           {cartographerWanderResponse && (
@@ -98,7 +90,7 @@ export default function CartographerPanel() {
           {cartographerLoading && !cartographerWanderResponse && (
             <div className="flex flex-col items-center justify-center py-8 space-y-3">
               <div className="w-8 h-8 rounded-full border-2 border-cosmic-cyan/30 border-t-cosmic-cyan animate-spin" />
-              <p className="text-[11px] font-mono text-slate-500">Surveying the terrain...</p>
+              <p className="text-[11px] font-mono text-slate-500">Surveying topology...</p>
             </div>
           )}
 

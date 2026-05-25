@@ -7,71 +7,6 @@ import { EDGE_TYPES } from '../lib/constants';
 
 // ─── Auto-terrain detection ────────────────────────────────────────────────
 
-const TERRAIN_KEYWORDS: Record<TerrainId, string[]> = {
-  'memory-palace': [
-    'memory', 'remember', 'recall', 'nostalgia', 'nostalgic', 'past', 'childhood',
-    'warmth', 'candle', 'laugh', 'laughter', 'humor', 'funny', 'joke', 'comedy',
-    'ritual', 'habit', 'tradition', 'ceremony', 'familiar', 'home', 'comfort',
-  ],
-  'interstellar-plane': [
-    'space', 'cosmos', 'universe', 'star', 'galaxy', 'infinite', 'infinity',
-    'philosophy', 'consciousness', 'awareness', 'thought', 'abstract', 'infinite',
-    'idea', 'mind', 'concept', 'knowledge', 'science', 'research', 'theory',
-    'existence', 'meaning', 'purpose', 'reality', 'perception', 'metaphysics',
-  ],
-  'terrestrial-globe': [
-    'world', 'earth', 'map', 'geography', 'land', 'place', 'territory',
-    'culture', 'civilization', 'city', 'country', 'history', 'worldbuilding',
-    'setting', 'location', 'landscape', 'travel', 'explore', 'terrain',
-    'continent', 'ocean', 'region', 'nation', 'society',
-  ],
-  'mythic-landscape': [
-    'myth', 'legend', 'magic', 'fantasy', 'creature', 'god', 'goddess',
-    'hero', 'sacred', 'dream', 'archetype', 'story', 'ancient', 'spirit',
-    'vision', 'symbol', 'quest', 'mystical', 'supernatural', 'divine',
-    'folklore', 'ritual', 'enchant', 'prophecy', 'oracle', 'rune',
-  ],
-  'the-void': [
-    'dark', 'void', 'empty', 'nothing', 'silence', 'silent', 'horror',
-    'fear', 'shadow', 'abyss', 'death', 'nihilism', 'existential',
-    'meaningless', 'blank', 'alone', 'isolation', 'dread', 'eerie',
-    'haunting', 'terror', 'ghost', 'hollow', 'disappear', 'absent',
-  ],
-};
-
-function detectTerrainFromMessages(messages: ChatMessage[]): TerrainId | null {
-  if (messages.length < 3) return null;
-
-  const recentText = messages
-    .slice(-6)
-    .map((m) => m.content.toLowerCase())
-    .join(' ');
-
-  const scores: Record<TerrainId, number> = {
-    'memory-palace': 0,
-    'interstellar-plane': 0,
-    'terrestrial-globe': 0,
-    'mythic-landscape': 0,
-    'the-void': 0,
-  };
-
-  for (const [terrain, words] of Object.entries(TERRAIN_KEYWORDS) as [TerrainId, string[]][]) {
-    for (const word of words) {
-      const re = new RegExp(`\\b${word}`, 'g');
-      const hits = recentText.match(re);
-      if (hits) scores[terrain] += hits.length;
-    }
-  }
-
-  let maxScore = 2; // minimum threshold — don't shift for a single keyword
-  let detected: TerrainId | null = null;
-  for (const [t, s] of Object.entries(scores) as [TerrainId, number][]) {
-    if (s > maxScore) { maxScore = s; detected = t; }
-  }
-
-  return detected;
-}
-
 // ─── Map constants ─────────────────────────────────────────────────────────
 
 export const MASTER_MAP_ID = 'master-map';
@@ -141,7 +76,6 @@ interface MapState {
   edges: ThoughtEdge[];
   realms: Realm[];
   chatHistory: ChatMessage[];
-  activeTerrain: TerrainId;
   activeConversationId: string | null;
   isStreaming: boolean;
   focusedNodeId: string | null;
@@ -175,7 +109,6 @@ interface MapState {
   addRealm: (name: string) => string;
   sendChatMessage: (content: string) => Promise<void>;
   extractToMap: (messageId: string, type: NodeType, title: string, realmId?: string) => void;
-  setTerrain: (id: TerrainId) => void;
   focusNode: (id: string) => void;
   clearFocusedNode: () => void;
   setNodeSearchQuery: (q: string) => void;
@@ -235,7 +168,7 @@ export const useThoughtStore = create<MapState>()(
       edges: [],
       realms: INITIAL_REALMS,
       chatHistory: INITIAL_CHAT,
-      activeTerrain: 'the-void' as TerrainId,
+      activeTerrain: 'blackspace' as TerrainId,
       activeConversationId: 'default',
       isStreaming: false,
       focusedNodeId: null,
@@ -574,10 +507,6 @@ export const useThoughtStore = create<MapState>()(
 
         // ── Auto-shift terrain based on conversation theme ──
         const allMessages = get().chatHistory;
-        const suggested = detectTerrainFromMessages(allMessages);
-        if (suggested && suggested !== get().activeTerrain) {
-          set({ activeTerrain: suggested });
-        }
       },
 
       extractToMap: (messageId, type, title, realmId) => {
@@ -600,7 +529,6 @@ export const useThoughtStore = create<MapState>()(
         }));
       },
 
-      setTerrain: (id) => set({ activeTerrain: id }),
       focusNode: (id) => set({ focusedNodeId: id }),
       clearFocusedNode: () => set({ focusedNodeId: null }),
       setNodeSearchQuery: (q) => set({ nodeSearchQuery: q }),
@@ -696,7 +624,6 @@ export const useThoughtStore = create<MapState>()(
         const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
-          activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
           topology: { nodeCount: state.nodes.length },
           mapContext: currentMapDoc ? {
@@ -755,7 +682,6 @@ export const useThoughtStore = create<MapState>()(
         const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
-          activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
           topology: { nodeCount: state.nodes.length },
           mapContext: currentMapDoc ? {
@@ -910,7 +836,6 @@ export const useThoughtStore = create<MapState>()(
         const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
-          activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
           topology: { nodeCount: state.nodes.length },
           mapContext: currentMapDoc ? {
@@ -964,7 +889,6 @@ export const useThoughtStore = create<MapState>()(
         const state = get();
         const context: CartographerContext = {
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
-          activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
           topology: { nodeCount: state.nodes.length },
           mapContext: { title: state.maps[state.currentMapId]?.title },
@@ -1170,7 +1094,6 @@ export const useThoughtStore = create<MapState>()(
           edges: state.edges,
           realms: state.realms,
           chatHistory: state.chatHistory,
-          activeTerrain: state.activeTerrain,
           nodeChats: state.nodeChats,
           cartographerStyle: state.cartographerStyle,
           cartographerMode: state.cartographerMode,
