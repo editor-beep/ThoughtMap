@@ -34,7 +34,7 @@ export default function TopNav() {
   const infoPath = `${normalizedBasePath}/info`;
 
   const {
-    nodes, edges, realms, maps,
+    nodes, realms, maps,
     toggleRealm, addRealm, focusNode, deleteNode, addNode,
     importMap,
     importStatusMessage,
