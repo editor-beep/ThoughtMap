@@ -124,7 +124,7 @@ Topology summary:
   ],
   "spatialInsight": "one sentence about how this thought fits the map topology"
 }
-Generate 2-4 variations covering meaningfully different framings. Never return an empty variations array — if input is sparse, infer adjacent concepts and provide candidate starting points.` : "") +
+Generate exactly 2-4 variations covering meaningfully different framings. You MUST return a non-empty variations array — do not return an empty array under any circumstances. If the input is sparse or unclear, infer the most likely adjacent concepts and provide candidate nodes as starting points.` : "") +
     (mode === "analyze" ? `\n\nReturn STRICT JSON only with keys: coreInsight,tensions,leveragePoints,mythicResonance,systemicImplications,recommendedNextNodes,hiddenConnections. Each field must contain concrete, graph-usable synthesis rather than atmospheric prose.` : "");
 }
 

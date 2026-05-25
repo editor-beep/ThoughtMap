@@ -26,7 +26,7 @@ export default function SettingsScreen() {
       <View style={[s.header, { paddingTop: Platform.OS === "web" ? 67 : insets.top, borderBottomColor: colors.border }]}>
         <View style={s.headerLeft}>
           <View style={[s.dot, { backgroundColor: colors.cosmicAmber }]} />
-          <Text style={[s.headerTitle, { color: colors.foreground }]}>SANCTUM</Text>
+          <Text style={[s.headerTitle, { color: colors.foreground }]}>SETTINGS</Text>
         </View>
         <Text style={[s.headerSub, { color: colors.mutedForeground }]}>Configure your realm</Text>
       </View>
