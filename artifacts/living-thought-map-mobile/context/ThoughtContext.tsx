@@ -50,7 +50,7 @@ const INITIAL_CHAT: ChatMessage[] = [
   {
     id: "welcome-msg",
     role: "assistant",
-    content: "The canvas is listening. What patterns shall we project onto the void tonight?",
+    content: "What's on your mind? Share a thought, question, or idea and we'll map it together.",
     timestamp: new Date().toISOString(),
   },
 ];

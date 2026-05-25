@@ -29,6 +29,11 @@ function isFiniteCoordinate(value: number): boolean {
   return Number.isFinite(value) && !Number.isNaN(value);
 }
 
+function cleanForExtraction(content: string): string {
+  const cutIdx = content.search(/\*\*MAP EXTRACT\*\*|```json/);
+  return (cutIdx === -1 ? content : content.slice(0, cutIdx)).trim();
+}
+
 function clampWorld(value: number): number {
   return Math.max(-MAX_WORLD_COORD, Math.min(MAX_WORLD_COORD, value));
 }
@@ -665,7 +670,8 @@ export const useThoughtStore = create<MapState>()(
       },
 
       requestCartographerExtraction: async (messageId) => {
-        const message = get().chatHistory.find((m) => m.id === messageId);
+        const history = get().chatHistory;
+        const message = history.find((m) => m.id === messageId);
         if (!message) return;
 
         set({
@@ -692,11 +698,18 @@ export const useThoughtStore = create<MapState>()(
           } : undefined,
         };
 
+        const msgIndex = history.findIndex((m) => m.id === messageId);
+        const userPrompt = history.slice(0, msgIndex).reverse().find((m) => m.role === 'user');
+        const cleanContent = cleanForExtraction(message.content);
+        const extractionMessage = userPrompt
+          ? `User was exploring: "${cleanForExtraction(userPrompt.content)}"\n\nAI response to crystallize:\n${cleanContent}`
+          : cleanContent;
+
         try {
           const res = await fetch('/api/cartographer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: message.content, context }),
+            body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: extractionMessage, context }),
             signal: AbortSignal.timeout(30000),
           });
 
@@ -754,7 +767,7 @@ export const useThoughtStore = create<MapState>()(
           const res = await fetch('/api/cartographer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: content, context }),
+            body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: cleanForExtraction(content), context }),
             signal: AbortSignal.timeout(30000),
           });
 

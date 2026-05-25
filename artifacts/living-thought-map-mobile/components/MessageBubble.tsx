@@ -5,6 +5,18 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { NodeType, useThought } from "@/context/ThoughtContext";
 import { useColors } from "@/hooks/useColors";
 
+function cleanMessageContent(raw: string): string {
+  // Strip MAP EXTRACT blocks and any trailing JSON fences
+  const cutIdx = raw.search(/\*\*MAP EXTRACT\*\*|```json/);
+  const text = cutIdx === -1 ? raw : raw.slice(0, cutIdx);
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")   // **bold** → plain
+    .replace(/\*(.+?)\*/g, "$1")        // *italic* → plain
+    .replace(/^#{1,6}\s+/gm, "")        // # headings → plain
+    .replace(/`([^`]+)`/g, "$1")        // `code` → plain
+    .trim();
+}
+
 interface Props {
   id: string;
   role: "user" | "assistant";
@@ -59,7 +71,7 @@ export default function MessageBubble({ id, role, content, extractedNodeId, onEx
         </View>
       )}
       <View style={[s.bubble, isUser ? s.bubbleUser : s.bubbleAssistant]}>
-        <Text style={[s.text, { color: colors.foreground }]}>{content}</Text>
+        <Text style={[s.text, { color: colors.foreground }]}>{role === "assistant" ? cleanMessageContent(content) : content}</Text>
 
         {!isUser && onExtract && !extractedNodeId && content.length > 10 && (
           <View style={{ marginTop: 8 }}>
