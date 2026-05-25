@@ -29,6 +29,10 @@ function DropdownButton({ label, badge, isOpen, onClick }: DropdownButtonProps) 
 }
 
 export default function TopNav() {
+  const basePath = import.meta.env.BASE_URL || '/';
+  const normalizedBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+  const infoPath = `${normalizedBasePath}/info`;
+
   const {
     nodes, edges, realms,
     toggleRealm, addRealm, focusNode, deleteNode, addNode,
@@ -255,7 +259,7 @@ export default function TopNav() {
         </select>
 
         <div className="ml-auto flex-shrink-0">
-          <a href="/info" className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors">
+          <a href={infoPath} className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors">
             <Info size={12} />
             <span>INFO</span>
           </a>
@@ -512,7 +516,7 @@ export default function TopNav() {
       {/* ── Info (rightmost) ── */}
       <div className="ml-auto flex-shrink-0">
         <a
-          href="/info"
+          href={infoPath}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors"
         >
           <Info size={12} />

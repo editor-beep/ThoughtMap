@@ -26,6 +26,8 @@ const Section = ({ id, title, children }: { id: string; title: string; children:
 );
 
 export default function InfoPage() {
+  const basePath = import.meta.env.BASE_URL || '/';
+
   return (
     <div className="w-screen min-h-dvh bg-void-900 text-slate-300 font-mono">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-10 space-y-4">
@@ -39,7 +41,7 @@ export default function InfoPage() {
             search, tagging, editing, moving, linking, and daily workflows.
           </p>
           <div className="mt-3 text-[10px] text-slate-500">Tip: use browser find (Ctrl/Cmd+F) to search this page instantly.</div>
-          <a href="/" className="inline-block mt-4 text-[11px] tracking-widest uppercase text-slate-500 hover:text-cosmic-cyan transition-colors">
+          <a href={basePath} className="inline-block mt-4 text-[11px] tracking-widest uppercase text-slate-500 hover:text-cosmic-cyan transition-colors">
             ← Back to canvas
           </a>
         </header>
