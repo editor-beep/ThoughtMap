@@ -552,8 +552,7 @@ export const useThoughtStore = create<MapState>()(
 
         set({ isStreaming: false });
 
-        // ── Auto-shift terrain based on conversation theme ──
-        const allMessages = get().chatHistory;
+
       },
 
       extractToMap: (messageId, type, title, realmId) => {

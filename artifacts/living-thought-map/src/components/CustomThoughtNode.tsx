@@ -222,7 +222,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
 
         {/* Status badges — paperclip and comment count */}
         {hasAttachments && (
-          <Paperclip size={9} className="text-slate-600 flex-shrink-0" title="Has attachments" />
+          <span title="Has attachments"><Paperclip size={9} className="text-slate-600 flex-shrink-0" /></span>
         )}
         {commentCount > 0 && (
           <span className="flex items-center gap-0.5 text-[9px] text-slate-600 flex-shrink-0" title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}`}>
@@ -231,7 +231,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
           </span>
         )}
         {hasChildMap && (
-          <GitBranch size={10} className="text-cosmic-cyan/80 flex-shrink-0" title="Has sub-map" />
+          <span title="Has sub-map"><GitBranch size={10} className="text-cosmic-cyan/80 flex-shrink-0" /></span>
         )}
 
         <button
