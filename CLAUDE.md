@@ -79,8 +79,9 @@ Maps form a two-level tree:
 - `clusterMarker` — aggregated cluster dot at low zoom
 - `semanticFieldNode` — node that links to a sub-map
 
-The canvas uses **zoom-based visual modes** with hysteresis to avoid flicker:
-- `FULL_CARD` (zoom ≥ 0.84) → `COMPACT_CARD` (0.5–0.95) → `DOT` (< 0.5) → cluster mode (< cluster threshold)
+The canvas uses **zoom-based visual modes** with hysteresis to avoid flicker. Transitions use different thresholds depending on direction to prevent rapid toggling:
+- Zooming out: `FULL_CARD` → `COMPACT_CARD` at 0.84, `COMPACT_CARD` → `DOT` at 0.5, `DOT` → cluster mode below the cluster threshold
+- Zooming in: cluster mode → `DOT` → `COMPACT_CARD` at 0.62, `COMPACT_CARD` → `FULL_CARD` at 0.95
 
 Node drag positions are committed to the store only on `onNodeDragStop` — not during drag — to prevent coordinate feedback loops.
 
@@ -93,7 +94,7 @@ Both API routes call Google's Generative Language REST API directly (no SDK). Th
 **`POST /api/cartographer`** — AI agent with 4 modes:
 - `extract` — returns JSON variations of node candidates (non-streaming)
 - `analyze` — returns structured JSON analysis of the map topology (non-streaming)
-- `converse` / `wander` — streaming SSE prose responses
+- `converse` / `wander` — streaming SSE prose responses (both are handled by the same code path and are functionally identical at the API level; any distinction is in prompt wording only)
 
 Both routes have an in-memory IP-based rate limiter (20 req/min).
 
@@ -125,7 +126,7 @@ The server is bundled with esbuild (ESM output) via `artifacts/api-server/build.
 
 `importAdapters.ts` supports two import formats:
 - **ThoughtMap JSON** — native export format (`{ nodes, edges, realms }`)
-- **VaultMind** — external app format (`{ artifacts/concepts, relationships }`)
+- **VaultMind** — external app format (detected by presence of any of: `artifacts`, `concepts`, or `relationships` fields)
 
 Imports flow through Cartographer suggestions: nodes are staged as `cartographerSuggestions` and placed on the map one at a time by the user.
 
