@@ -53,6 +53,7 @@ export default function TopNav() {
     toggleRealm, addRealm, focusNode, deleteNode, addNode,
     activeTerrain, setTerrain,
     importMap,
+    importStatusMessage,
     setNodeSearchQuery,
     currentMapId,
     masterMapSearchQuery,
@@ -182,20 +183,17 @@ export default function TopNav() {
     setOpenDropdown(null);
   };
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target?.result as string);
-        importMap(data);
-      } catch {
-        console.warn('[ThoughtMap] Failed to parse imported file');
-      }
-    };
-    reader.readAsText(file);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      importMap(data);
+    } catch (error) {
+      console.warn('[ThoughtMap] Failed to parse imported file', error);
+      alert('Malformed import structure. Please provide valid JSON.');
+    }
     e.target.value = '';
   };
 
@@ -567,6 +565,11 @@ export default function TopNav() {
               <Upload size={11} />
               Import
             </button>
+            {importStatusMessage && (
+              <div className="mt-2 px-3 py-2 text-[10px] font-mono rounded border border-void-700/50 text-slate-400 bg-void-950/60">
+                {importStatusMessage}
+              </div>
+            )}
           </div>
         )}
       </div>
