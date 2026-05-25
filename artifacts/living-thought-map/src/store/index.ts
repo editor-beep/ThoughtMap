@@ -101,6 +101,7 @@ interface MapState {
   cartographerStyle: CartographerStyle;
   cartographerMode: CartographerMode;
   importStatusMessage: string | null;
+  activeTerrain: TerrainId;
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
@@ -470,12 +471,16 @@ export const useThoughtStore = create<MapState>()(
 
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
+          let buffer = '';
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
             for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
               const raw = line.slice(6).trim();
               if (raw === '[DONE]') continue;
               try {
@@ -631,12 +636,16 @@ export const useThoughtStore = create<MapState>()(
           if (!res.ok || !res.body) throw new Error(`API error: ${res.status}`);
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
+          let buffer = '';
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
             for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
               const raw = line.slice(6).trim();
               if (raw === '[DONE]') continue;
               try {
@@ -805,7 +814,7 @@ export const useThoughtStore = create<MapState>()(
         let x = (Math.random() - 0.5) * 400;
         let y = (Math.random() - 0.5) * 400;
 
-        if (variation.suggestedZone.startsWith('near:')) {
+        if (variation.suggestedZone?.startsWith('near:')) {
           const nearNodeId = variation.suggestedZone.slice(5);
           const nearNode = state.nodes.find((n) => n.id === nearNodeId);
           if (nearNode) {
@@ -930,12 +939,16 @@ export const useThoughtStore = create<MapState>()(
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let fullResponse = '';
+          let buffer = '';
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const lines = decoder.decode(value).split('\n').filter((l) => l.startsWith('data: '));
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
             for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
               const raw = line.slice(6).trim();
               if (raw === '[DONE]') continue;
               try {
@@ -970,8 +983,12 @@ export const useThoughtStore = create<MapState>()(
             body: JSON.stringify({ mode: 'analyze', style: state.cartographerStyle, message: 'Analyze the current map.', context }),
             signal: AbortSignal.timeout(30000),
           });
+          if (!res.ok) {
+            let errorMsg = `API error: ${res.status}`;
+            try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
+            throw new Error(errorMsg);
+          }
           const data = await res.json();
-          if (!res.ok) throw new Error(data?.error || 'Analyze mode failed');
           set({ cartographerWanderResponse: JSON.stringify(data, null, 2) });
         } catch (err) {
           console.error('[Cartographer] Analyze mode failed:', err);

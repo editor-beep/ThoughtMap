@@ -199,7 +199,7 @@ export default function CartographerSuggestionPanel({ onSwitchToManual }: Cartog
             <div className="space-y-3">
               {cartographerSuggestions.map((variation, index) => (
                 <VariationCard
-                  key={index}
+                  key={variation.title + index}
                   variation={variation}
                   index={index}
                   onSelect={applyCartographerSuggestion}

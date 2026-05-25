@@ -1,7 +1,24 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return true;
+  entry.count++;
+  return false;
+}
 
 type CartographerMode = "extract" | "converse" | "wander" | "analyze";
 type CartographerStyle = "default" | "mythic" | "academic" | "systems" | "ritual" | "void";
@@ -129,6 +146,14 @@ Generate exactly 2-4 variations covering meaningfully different framings. You MU
 }
 
 router.post("/cartographer", async (req: Request, res: Response) => {
+  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+    ?? req.socket.remoteAddress
+    ?? "unknown";
+  if (isRateLimited(ip)) {
+    res.status(429).json({ error: "Too many requests — please wait a moment before trying again" });
+    return;
+  }
+
   const parsed = cartographerRequestSchema.safeParse(req.body);
   if (!parsed.success) return void res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
   const { mode, style, message } = parsed.data;
@@ -194,25 +219,30 @@ router.post("/cartographer", async (req: Request, res: Response) => {
   const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (!raw) continue;
-      try {
-        const event = JSON.parse(raw);
-        const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
-      } catch { /**/ }
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+        try {
+          const event = JSON.parse(raw);
+          const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+        } catch (parseErr) {
+          logger.warn({ raw, parseErr }, "Skipping malformed SSE chunk from Cartographer");
+        }
+      }
     }
+  } finally {
+    res.write("data: [DONE]\n\n");
+    res.end();
   }
-  res.write("data: [DONE]\n\n");
-  res.end();
 });
 
 export default router;
