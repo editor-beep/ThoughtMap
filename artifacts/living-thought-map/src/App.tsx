@@ -87,7 +87,9 @@ export default function App() {
     <Router base={base}>
       <Switch>
         <Route path="/info" component={InfoPage} />
-        <Route path="/:rest*" component={CanvasApp} />
+        {/* Wildcard catch-all — must use `*` (not `/:rest*`) so it also
+            matches the root path `/` in wouter v3. */}
+        <Route path="*" component={CanvasApp} />
       </Switch>
     </Router>
   );
