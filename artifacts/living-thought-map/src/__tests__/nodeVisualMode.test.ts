@@ -21,16 +21,16 @@ describe('getNodeVisualMode', () => {
     expect(getNodeVisualMode(0.89)).toBe(NodeVisualMode.COMPACT_CARD)
   })
 
-  it('returns DOT just below the COMPACT_CARD threshold', () => {
-    expect(getNodeVisualMode(0.54)).toBe(NodeVisualMode.DOT)
+  it('returns COMPACT_CARD just below the COMPACT_CARD threshold', () => {
+    expect(getNodeVisualMode(0.54)).toBe(NodeVisualMode.COMPACT_CARD)
   })
 
-  it('returns DOT at zero zoom', () => {
-    expect(getNodeVisualMode(0)).toBe(NodeVisualMode.DOT)
+  it('returns COMPACT_CARD at zero zoom', () => {
+    expect(getNodeVisualMode(0)).toBe(NodeVisualMode.COMPACT_CARD)
   })
 
-  it('returns DOT at negative zoom', () => {
-    expect(getNodeVisualMode(-1)).toBe(NodeVisualMode.DOT)
+  it('returns COMPACT_CARD at negative zoom', () => {
+    expect(getNodeVisualMode(-1)).toBe(NodeVisualMode.COMPACT_CARD)
   })
 })
 

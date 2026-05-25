@@ -8,7 +8,7 @@ export default function DebugZoom() {
 
   const modeColors: Record<string, string> = {
     full:    '#10b981',
-    dot:     '#f59e0b',
+    compact: '#f59e0b',
     cluster: '#a855f7',
   };
 
@@ -38,7 +38,7 @@ export default function DebugZoom() {
         <span style={{ color: modeColors[mode], fontWeight: 'bold' }}>{mode.toUpperCase()}</span>
       </div>
       <div style={{ color: '#334155', fontSize: 9 }}>
-        full&gt;{ZOOM_THRESHOLDS.FULL} · dot&gt;{ZOOM_THRESHOLDS.DOT} · cluster&lt;{ZOOM_THRESHOLDS.CLUSTER}
+        full&gt;{ZOOM_THRESHOLDS.FULL} · compact&gt;{ZOOM_THRESHOLDS.COMPACT} · cluster&lt;{ZOOM_THRESHOLDS.CLUSTER}
       </div>
     </div>
   );

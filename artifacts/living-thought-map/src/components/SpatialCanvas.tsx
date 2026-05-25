@@ -296,13 +296,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       if (prev === NodeVisualMode.FULL_CARD) {
         return zoom < 0.84 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.FULL_CARD;
       }
-      if (prev === NodeVisualMode.COMPACT_CARD) {
-        if (zoom >= 0.95) return NodeVisualMode.FULL_CARD;
-        if (zoom < 0.5) return NodeVisualMode.DOT;
-        return NodeVisualMode.COMPACT_CARD;
-      }
-      // prev === DOT
-      return zoom >= 0.62 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.DOT;
+      // prev === COMPACT_CARD
+      return zoom >= 0.95 ? NodeVisualMode.FULL_CARD : NodeVisualMode.COMPACT_CARD;
     });
   }, [rfViewport.zoom]);
 
@@ -361,7 +356,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   // rendering at a zoom where the hook returns no clusters (which used to
   // produce an empty cluster layer between 0.18 and 0.22).
   const shouldUseClusterMode =
-    nodeVisualMode === NodeVisualMode.DOT &&
+    nodeVisualMode === NodeVisualMode.COMPACT_CARD &&
     rfViewport.zoom < NODE_VISUAL_MODE_THRESHOLDS.CLUSTER &&
     !isDraggingNode;
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);

@@ -5,11 +5,11 @@ import { NodeVisualMode } from '../types/nodeVisualMode';
 
 export const ZOOM_THRESHOLDS = {
   FULL: NODE_VISUAL_MODE_THRESHOLDS.FULL_CARD,
-  DOT: NODE_VISUAL_MODE_THRESHOLDS.COMPACT_CARD,
+  COMPACT: NODE_VISUAL_MODE_THRESHOLDS.COMPACT_CARD,
   CLUSTER: NODE_VISUAL_MODE_THRESHOLDS.CLUSTER,
 } as const;
 
-export type DisplayMode = 'full' | 'dot' | 'cluster';
+export type DisplayMode = 'full' | 'compact' | 'cluster';
 
 export const useDisplayMode = () => {
   const { zoom } = useViewport();
@@ -17,7 +17,7 @@ export const useDisplayMode = () => {
 
   const mode: DisplayMode =
     zoom >= ZOOM_THRESHOLDS.FULL ? 'full' :
-    zoom >= ZOOM_THRESHOLDS.DOT ? 'dot' : 'cluster';
+    zoom < ZOOM_THRESHOLDS.CLUSTER ? 'cluster' : 'compact';
 
   const prevModeRef = useRef<NodeVisualMode>(nodeVisualMode);
   useEffect(() => {
@@ -32,7 +32,6 @@ export const useDisplayMode = () => {
     zoom,
     nodeVisualMode,
     isFull: nodeVisualMode === NodeVisualMode.FULL_CARD,
-    isDot: nodeVisualMode === NodeVisualMode.DOT,
     isCluster: mode === 'cluster',
     thresholds: ZOOM_THRESHOLDS,
   };

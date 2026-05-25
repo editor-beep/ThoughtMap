@@ -4,13 +4,13 @@ import { useDisplayMode } from '../hooks/useDisplayMode';
 
 const MODE_LABELS: Record<string, string> = {
   full:    'Detailed View',
-  dot:     'Overview',
+  compact: 'Overview',
   cluster: 'Dense Terrain',
 };
 
 const MODE_COLORS: Record<string, string> = {
   full:    '#10b981',
-  dot:     '#f59e0b',
+  compact: '#f59e0b',
   cluster: '#a855f7',
 };
 

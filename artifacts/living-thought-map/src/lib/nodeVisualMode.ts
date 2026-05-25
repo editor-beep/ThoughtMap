@@ -8,8 +8,7 @@ export const NODE_VISUAL_MODE_THRESHOLDS = {
 
 export function getNodeVisualMode(zoom: number): NodeVisualMode {
   if (zoom >= NODE_VISUAL_MODE_THRESHOLDS.FULL_CARD) return NodeVisualMode.FULL_CARD;
-  if (zoom >= NODE_VISUAL_MODE_THRESHOLDS.COMPACT_CARD) return NodeVisualMode.COMPACT_CARD;
-  return NodeVisualMode.DOT;
+  return NodeVisualMode.COMPACT_CARD;
 }
 
 export function isFinitePosition(x: number, y: number): boolean {
