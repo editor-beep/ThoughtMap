@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 import { Handle, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
@@ -108,7 +108,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [inlineContent, setInlineContent] = useState(node.content);
   const [showInlineToolbar, setShowInlineToolbar] = useState(false);
-  const { isDot, isCluster } = useDisplayMode();
+  const { isDot, isCluster, nodeVisualMode } = useDisplayMode();
   const { setCenter } = useReactFlow();
   const onRequestExpand = data.onRequestExpand;
   const updateNodeInternals = useUpdateNodeInternals();
@@ -119,9 +119,9 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const cardScale = data.cardScale ?? 'standard';
   const dotScale = data.dotScale ?? 'standard';
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     updateNodeInternals(node.id);
-  }, [isDot, node.id, updateNodeInternals]);
+  }, [nodeVisualMode, node.id, updateNodeInternals]);
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
   const canEditInline = true;
