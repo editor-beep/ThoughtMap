@@ -432,6 +432,34 @@ function initMemoryPalace(w: number, h: number) {
     { x: 820, y: 180, width: 90, height: 160, lineWidth: 2, opacity: 0.78, color: '46,139,139' },
   ];
 
+
+  const blueprintLayer2Giant = [
+    { x: 520, y: 180, width: 130, height: 95, lineWidth: 1.8, opacity: 0.58, color: '46,139,139' },
+    { x: 310, y: 520, width: 145, height: 110, lineWidth: 1.8, opacity: 0.55, color: '46,139,139' },
+  ];
+
+  const blueprintLayer2Rooms = [
+    { x: 650, y: 480, width: 68, height: 52, lineWidth: 1, opacity: 0.65, color: '74,124,142' },
+    { x: 580, y: 455, width: 62, height: 44, lineWidth: 1, opacity: 0.63, color: '74,124,142' },
+    { x: 725, y: 470, width: 74, height: 56, lineWidth: 1, opacity: 0.62, color: '74,124,142' },
+    { x: 610, y: 545, width: 64, height: 46, lineWidth: 1, opacity: 0.64, color: '74,124,142' },
+    { x: 690, y: 545, width: 58, height: 48, lineWidth: 1, opacity: 0.66, color: '74,124,142' },
+  ];
+
+  const blueprintLayer2MicroRooms = [
+    { x: 740, y: 290, width: 14, height: 11 },
+    { x: 756, y: 289, width: 12, height: 10 },
+    { x: 771, y: 291, width: 13, height: 10 },
+    { x: 739, y: 304, width: 11, height: 9 },
+    { x: 752, y: 303, width: 12, height: 9 },
+    { x: 766, y: 304, width: 10, height: 8 },
+    { x: 778, y: 304, width: 11, height: 9 },
+    { x: 744, y: 316, width: 13, height: 10 },
+    { x: 760, y: 316, width: 12, height: 10 },
+    { x: 775, y: 317, width: 12, height: 9 },
+    { x: 736, y: 329, width: 12, height: 9 },
+    { x: 750, y: 330, width: 13, height: 9 },
+  ];
   return (ctx: CanvasRenderingContext2D, t: number) => {
     ctx.fillStyle = '#020912';
     ctx.fillRect(0, 0, w, h);
@@ -480,6 +508,34 @@ function initMemoryPalace(w: number, h: number) {
         ctx.strokeRect(rx, ry, rw, rh);
       }
     }
+
+    // Blueprint layer 2 multi-scale room system
+    for (const rect of [...blueprintLayer2Giant, ...blueprintLayer2Rooms]) {
+      const rx = rect.x * sx;
+      const ry = rect.y * sy;
+      const rw = rect.width * sx;
+      const rh = rect.height * sy;
+      const pulse = 0.9 + 0.1 * Math.sin(t * 0.00024 + rect.x * 0.012);
+      ctx.strokeStyle = `rgba(${rect.color},${rect.opacity * pulse})`;
+      ctx.lineWidth = rect.lineWidth * scale;
+      ctx.strokeRect(rx, ry, rw, rh);
+    }
+
+    // Dense micro-room clusters
+    const microA = 0.34 + 0.04 * Math.sin(t * 0.00022);
+    ctx.strokeStyle = `rgba(74,124,142,${microA})`;
+    ctx.lineWidth = 0.5 * scale;
+    for (const room of blueprintLayer2MicroRooms) {
+      ctx.strokeRect(room.x * sx, room.y * sy, room.width * sx, room.height * sy);
+    }
+
+    // Layer 2 infrastructure shaft
+    ctx.strokeStyle = 'rgba(74,124,142,0.45)';
+    ctx.lineWidth = 2.5 * scale;
+    ctx.beginPath();
+    ctx.moveTo(420 * sx, 650 * sy);
+    ctx.lineTo(420 * sx, Math.min(h, 720 * sy));
+    ctx.stroke();
 
     // connecting corridor (double line)
     ctx.lineCap = 'round';
