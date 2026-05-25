@@ -80,11 +80,6 @@ export interface MapDocument {
   };
 }
 
-export type NodeOrMapReference = {
-  mapId: string;
-  nodeId?: string;
-};
-
 export interface Realm {
   id: string;
   name: string;
@@ -115,13 +110,6 @@ export interface CartographerVariation {
   realms: string[];
   suggestedZone: string;
   reasoning: string;
-}
-
-export interface CartographerResponse {
-  variations?: CartographerVariation[];
-  spatialInsight?: string;
-  message?: string;
-  wanderReflection?: string;
 }
 
 export interface CartographerContext {

@@ -2,7 +2,7 @@ import { DEBUG, IS_DEV } from '../config/debug';
 
 export type ImportType = 'thoughtmap' | 'vaultmind' | 'unknown';
 
-export type NormalizedImportNode = {
+type NormalizedImportNode = {
   id: string;
   title: string;
   body: string;
@@ -10,14 +10,14 @@ export type NormalizedImportNode = {
   tags: string[];
 };
 
-export type NormalizedImportEdge = {
+type NormalizedImportEdge = {
   id: string;
   source: string;
   target: string;
   type: string;
 };
 
-export type NormalizedImport = {
+type NormalizedImport = {
   nodes: NormalizedImportNode[];
   edges: NormalizedImportEdge[];
 };
