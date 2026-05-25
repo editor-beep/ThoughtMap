@@ -24,6 +24,7 @@ import NodeDetailPanel from './NodeDetailPanel';
 import TerrainBackground from './TerrainBackground';
 import CartographerPanel from './CartographerPanel';
 import DebugZoom from './DebugZoom';
+import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
 
@@ -197,19 +198,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
 
 
-  const realmFilteredNodeCount = nodes.length - visibleNodes.length;
-
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return;
-    console.log('[NODE STATE]', {
-      total: nodes.length,
-      rendered: flowNodes.length,
-      hiddenByRealm: realmFilteredNodeCount,
-      hiddenByClustering: Math.max(0, visibleNodes.length - flowNodes.length),
-      zoom: rfViewport.zoom,
-      isClusterMode,
-    });
-  }, [nodes.length, visibleNodes.length, flowNodes.length, realmFilteredNodeCount, rfViewport.zoom, isClusterMode]);
 
   const flowEdges = useMemo(
     () =>
@@ -237,24 +225,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     [isClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds]
   );
 
-  const nodeDebugRows = useMemo(() => {
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
-    const left = -rfViewport.x / rfViewport.zoom;
-    const top = -rfViewport.y / rfViewport.zoom;
-    const right = left + vw / rfViewport.zoom;
-    const bottom = top + vh / rfViewport.zoom;
-    return visibleNodes.map((node) => ({
-      id: node.id,
-      x: node.x,
-      y: node.y,
-      finite: Number.isFinite(node.x) && Number.isFinite(node.y),
-      inViewport: node.x >= left && node.x <= right && node.y >= top && node.y <= bottom,
-      scale: rfViewport.zoom,
-      opacity: 1,
-      zLayer: isClusterMode ? 'cluster-mode' : 'node',
-    }));
-  }, [visibleNodes, rfViewport, isClusterMode]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -312,6 +282,18 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [exitToParent]);
+
+  useEffect(() => {
+    if (!IS_DEV) return;
+    const onDebugHotkey = (event: KeyboardEvent) => {
+      if (event.shiftKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        DEBUG.overlays = !DEBUG.overlays;
+      }
+    };
+    window.addEventListener('keydown', onDebugHotkey);
+    return () => window.removeEventListener('keydown', onDebugHotkey);
+  }, []);
 
   if (currentMapId === MASTER_MAP_ID) {
     return (
@@ -395,21 +377,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         />
         <CanvasController />
         <ViewportTracker onViewport={handleViewport} />
-        <Panel position="top-left"><DebugZoom /></Panel>
-        <Panel position="top-right">
-          <div className="max-h-[40vh] w-[340px] overflow-auto rounded border border-cyan-400/30 bg-slate-950/85 p-2 text-[10px] text-cyan-100 shadow-xl">
-            <div className="mb-1 font-mono text-cyan-300">
-              nodes:{visibleNodes.length} rendered:{flowNodes.length} zoom:{rfViewport.zoom.toFixed(2)} cluster:{String(isClusterMode)}
-            </div>
-            {nodeDebugRows.map((row) => (
-              <div key={row.id} className="grid grid-cols-[1fr_auto_auto] gap-2 border-b border-cyan-500/10 py-0.5 font-mono">
-                <span className="truncate">{row.id}</span>
-                <span>{Math.round(row.x)},{Math.round(row.y)}</span>
-                <span>{row.finite ? (row.inViewport ? 'IN' : 'OUT') : 'BAD'} · s{row.scale.toFixed(2)} · o{row.opacity} · z:{row.zLayer}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
+        {IS_DEV && DEBUG.overlays && (<Panel position="top-left"><DebugZoom /></Panel>)}
         <Panel position="bottom-left"><MapDensityIndicator totalNodes={nodes.length} renderedNodes={flowNodes.length} /></Panel>
         <Panel position="bottom-right">
           <div className="rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">

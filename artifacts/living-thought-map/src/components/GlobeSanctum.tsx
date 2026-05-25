@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Viewport } from 'reactflow';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Billboard, Html, Line, OrbitControls, Text } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { Billboard, Line, OrbitControls, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useThoughtStore } from '../store';
+import { DEBUG } from '../config/debug';
 import type { ThoughtNode } from '../types';
 
 interface GlobeSanctumProps {
@@ -110,10 +111,12 @@ function PlanetarySphere() {
         <sphereGeometry args={[GLOBE_RADIUS, 72, 72]} />
         <meshStandardMaterial color="#0d1b24" roughness={0.94} metalness={0.05} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[GLOBE_RADIUS + 0.015, 36, 36]} />
-        <meshBasicMaterial color="#365c62" wireframe transparent opacity={0.08} />
-      </mesh>
+      {DEBUG.globe ? (
+        <mesh>
+          <sphereGeometry args={[GLOBE_RADIUS + 0.015, 36, 36]} />
+          <meshBasicMaterial color="#365c62" wireframe transparent opacity={0.08} />
+        </mesh>
+      ) : null}
       <mesh>
         <sphereGeometry args={[GLOBE_RADIUS + 0.07, 48, 48]} />
         <meshBasicMaterial color="#2d7d84" transparent opacity={0.06} side={THREE.BackSide} />
@@ -201,31 +204,7 @@ function PlanetaryNodePins({ nodes, focusedNodeId }: { nodes: GlobeNode[]; focus
 
 function GlobeWorld({ nodes, viewport, focusedNodeId }: { nodes: GlobeNode[]; viewport: Viewport; focusedNodeId: string | null }) {
   const edges = useThoughtStore((s) => s.edges);
-  const [debugState, setDebugState] = useState({ frontCount: 0, backCount: 0 });
-  const { camera } = useThree();
   const sanctumScale = 1 + (viewport.zoom - 1) * 0.12;
-  const lastLogRef = useRef(0);
-
-  useFrame((state) => {
-    const now = state.clock.elapsedTime;
-    let frontCount = 0;
-    let backCount = 0;
-    nodes.forEach((node) => {
-      if (getFacing(camera.position, node.pinPosition) > 0) frontCount += 1;
-      else backCount += 1;
-    });
-    setDebugState({ frontCount, backCount });
-    if (now - lastLogRef.current > 2.5) {
-      lastLogRef.current = now;
-      // eslint-disable-next-line no-console
-      console.log('Globe debug', {
-        spherical: nodes.map((n) => ({ id: n.id, lat: Number(n.lat.toFixed(2)), lon: Number(n.lon.toFixed(2)), cartesian: n.pinPosition.toArray().map((v: number) => Number(v.toFixed(3))) })),
-        edgeArcCount: Math.min(220, edges.length),
-        frontCount,
-        backCount,
-      });
-    }
-  });
 
   return (
     <group scale={sanctumScale}>
@@ -236,17 +215,6 @@ function GlobeWorld({ nodes, viewport, focusedNodeId }: { nodes: GlobeNode[]; vi
       <PlanetarySphere />
       <PlanetaryConnections nodes={nodes} focusedNodeId={focusedNodeId} />
       <PlanetaryNodePins nodes={nodes} focusedNodeId={focusedNodeId} />
-      <Html position={[-3.1, 2.8, 0]} transform distanceFactor={10}>
-        <div style={{ pointerEvents: 'none', fontSize: '11px', lineHeight: 1.35, color: '#93bac4', background: 'rgba(3,9,14,0.6)', border: '1px solid rgba(126,182,191,0.3)', borderRadius: 8, padding: '8px 10px', minWidth: 180 }}>
-          <div>Globe Mode</div>
-          <div>{nodes.length} total nodes</div>
-          <div>{nodes.length} spherical pins</div>
-          <div>{nodes.length} rendered pins</div>
-          <div>{Math.min(220, edges.length)} arcs rendered</div>
-          <div>focusedNode: {focusedNodeId ?? 'none'}</div>
-          <div>front/back: {debugState.frontCount}/{debugState.backCount}</div>
-        </div>
-      </Html>
     </group>
   );
 }

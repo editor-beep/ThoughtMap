@@ -1,9 +1,10 @@
 import React from 'react';
 import { useDisplayMode, ZOOM_THRESHOLDS } from '../hooks/useDisplayMode';
+import { DEBUG } from '../config/debug';
 
-/** Temporary debug overlay — remove from SpatialCanvas once threshold tuning is done. */
 export default function DebugZoom() {
   const { mode, zoom } = useDisplayMode();
+  if (!DEBUG.overlays) return null;
 
   const modeColors: Record<string, string> = {
     full:    '#10b981',
