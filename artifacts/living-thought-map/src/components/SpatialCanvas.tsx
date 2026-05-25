@@ -25,7 +25,7 @@ import DebugZoom from './DebugZoom';
 import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
-import { isFinitePosition } from '../lib/nodeVisualMode';
+import { isFinitePosition, NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
 import { EDGE_TYPES } from '../lib/constants';
@@ -243,8 +243,33 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   // than this to the edge counts as off-screen and gets pulled back into view.
   const OFFSCREEN_EDGE_PADDING = 48;
 
+  // Sync React Flow's internal viewport back to a sane value whenever a
+  // gesture (especially trackpad/touch pinch under Safari) produces a NaN or
+  // out-of-range zoom. Without this, our local `rfViewport` is sanitized but
+  // RF's transform pane still renders at `scale(NaN)`, hiding every node
+  // while React's render count stays "valid" — the exact symptom users see
+  // on iPad pinch and Magic Keyboard trackpad pinch.
+  const pendingViewportCorrectionRef = useRef<Viewport | null>(null);
   const handleViewport = useCallback((vp: Viewport) => {
     const nextViewport = sanitizeViewport(vp, MIN_ZOOM, MAX_ZOOM, FALLBACK_VIEWPORT);
+    const sanitizedDiffers =
+      nextViewport.x !== vp.x || nextViewport.y !== vp.y || nextViewport.zoom !== vp.zoom;
+    if (sanitizedDiffers) {
+      const instance = rfInstanceRef.current;
+      // Coalesce repeated corrections into a single rAF so a noisy gesture
+      // stream (e.g. Safari pinch with NaN deltas) can't queue a storm of
+      // setViewport calls. Each frame we apply only the latest correction.
+      const wasIdle = pendingViewportCorrectionRef.current === null;
+      pendingViewportCorrectionRef.current = nextViewport;
+      if (instance && wasIdle) {
+        requestAnimationFrame(() => {
+          const queued = pendingViewportCorrectionRef.current;
+          pendingViewportCorrectionRef.current = null;
+          if (!queued) return;
+          try { instance.setViewport(queued, { duration: 0 }); } catch { /* RF may be unmounting */ }
+        });
+      }
+    }
     if (!isValidViewport(nextViewport)) {
       console.error('[INVALID VIEWPORT]', vp, nextViewport);
       setRfViewport(FALLBACK_VIEWPORT);
@@ -258,18 +283,29 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     });
   }, [MAX_ZOOM, MIN_ZOOM]);
 
-  const stableModeRef = useRef<NodeVisualMode>(NodeVisualMode.FULL_CARD);
-  const nodeVisualMode = useMemo(() => {
+  // Stable hysteresis-based mode selection. Previously this lived in a
+  // `useMemo` that mutated a ref — impure, double-invoked under React 18
+  // StrictMode, and prone to skipping states under fast pinch input. Owning
+  // the mode in real state lets effects drive transitions deterministically.
+  const [nodeVisualMode, setNodeVisualMode] = useState<NodeVisualMode>(NodeVisualMode.FULL_CARD);
+  useEffect(() => {
     const zoom = rfViewport.zoom;
-    const prev = stableModeRef.current;
-    const next =
-      prev === NodeVisualMode.FULL_CARD
-        ? (zoom < 0.84 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.FULL_CARD)
-        : prev === NodeVisualMode.COMPACT_CARD
-          ? (zoom >= 0.95 ? NodeVisualMode.FULL_CARD : zoom < 0.5 ? NodeVisualMode.DOT : NodeVisualMode.COMPACT_CARD)
-          : (zoom >= 0.62 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.DOT);
-    stableModeRef.current = next;
-    return next;
+    if (!Number.isFinite(zoom)) return;
+    setNodeVisualMode((prev) => {
+      // Hysteresis bands: cards engage above the upper threshold, drop to the
+      // next mode below the lower threshold. The gap prevents flicker loops
+      // when zoom hovers near a boundary.
+      if (prev === NodeVisualMode.FULL_CARD) {
+        return zoom < 0.84 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.FULL_CARD;
+      }
+      if (prev === NodeVisualMode.COMPACT_CARD) {
+        if (zoom >= 0.95) return NodeVisualMode.FULL_CARD;
+        if (zoom < 0.5) return NodeVisualMode.DOT;
+        return NodeVisualMode.COMPACT_CARD;
+      }
+      // prev === DOT
+      return zoom >= 0.62 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.DOT;
+    });
   }, [rfViewport.zoom]);
 
   const activeRealmIds = useMemo(
@@ -323,7 +359,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
 
   const { clusters, isolatedNodes } = useClusters(visibleNodes, rfViewport.zoom);
-  const shouldUseClusterMode = nodeVisualMode === NodeVisualMode.DOT && rfViewport.zoom < 0.22 && !isDraggingNode;
+  // Use the same cluster threshold as `useClusters` so we never enter cluster
+  // rendering at a zoom where the hook returns no clusters (which used to
+  // produce an empty cluster layer between 0.18 and 0.22).
+  const shouldUseClusterMode =
+    nodeVisualMode === NodeVisualMode.DOT &&
+    rfViewport.zoom < NODE_VISUAL_MODE_THRESHOLDS.CLUSTER &&
+    !isDraggingNode;
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
   const activeFocusId = selectedNodeId ?? hoveredNodeId;
   const neighborhoodNodeIds = useMemo(() => {

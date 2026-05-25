@@ -1,0 +1,434 @@
+# CODEX TICKET — INVESTIGATE TOUCH/TRACKPAD ZOOM DESYNC + NODE DISAPPEARANCE
+## ISSUE SUMMARY
+The graph behaves correctly when using:
+- explicit zoom toggle buttons
+- mode toggle buttons
+BUT breaks when using:
+- iPad pinch zoom
+- Safari touch gestures
+- Magic Keyboard trackpad pinch/scroll zoom
+- touchpad gesture scaling
+Symptoms:
+- nodes disappear entirely
+- card mode fails to engage
+- dot/card thresholds fail
+- minimap becomes desynced
+- rendered node count still reports valid values
+- zoom label updates but viewport/render state collapses
+- sometimes graph only returns after refresh
+This strongly suggests:
+```txt
+camera zoom state
+≠
+render mode state
+≠
+viewport transform state
+
+There is likely:
+
+* duplicate zoom authority
+* invalid scale normalization
+* NaN transform propagation
+* gesture delta instability
+* ReactFlow / viewport race condition
+* stale derived render state
+* broken threshold crossing logic
+
+⸻
+
+GOAL
+
+Stabilize ALL zoom behavior across:
+
+* mouse wheel
+* trackpad pinch
+* touch pinch
+* Safari gesture events
+* iPadOS Magic Keyboard
+* manual zoom controls
+
+WITHOUT:
+
+* node disappearance
+* render invalidation
+* mode desync
+* minimap corruption
+
+⸻
+
+VERY IMPORTANT
+
+DO NOT:
+
+* rewrite the entire renderer
+* replace ReactFlow
+* redesign zoom architecture from scratch
+
+This ticket is:
+
+investigation + stabilization
+
+NOT:
+
+full engine rewrite
+
+⸻
+
+PRIMARY HYPOTHESIS
+
+The app currently has:
+
+multiple competing zoom systems
+
+Likely examples:
+
+* internal viewport zoom
+* custom graph density mode
+* derived card/dot mode
+* CSS transforms
+* camera state
+* minimap scale state
+
+These are drifting apart under gesture-based input.
+
+⸻
+
+REQUIRED INVESTIGATION
+
+STEP 1 — TRACE ALL ZOOM AUTHORITIES
+
+Audit entire codebase for:
+
+zoom
+scale
+viewport
+transform
+camera
+density
+modeThreshold
+
+Build explicit map of:
+
+* source of truth
+* derived state
+* side effects
+* listeners
+* gesture handlers
+
+Identify:
+
+ALL systems capable of changing zoom
+
+⸻
+
+STEP 2 — LOG REAL ZOOM PIPELINE
+
+Temporarily instrument:
+
+console.group("[ZOOM PIPELINE]")
+
+Track:
+
+* incoming gesture delta
+* computed zoom
+* clamped zoom
+* render mode
+* node visibility mode
+* viewport transform
+* minimap transform
+* render count
+* culled count
+* hidden count
+
+Must reveal:
+
+WHERE desync begins
+
+⸻
+
+STEP 3 — SAFARI/IPAD GESTURE AUDIT
+
+Investigate:
+
+* wheel events
+* gesturestart
+* gesturechange
+* pinch scaling
+* passive listeners
+* Safari zoom normalization
+* deltaMode inconsistencies
+
+Especially:
+
+Magic Keyboard trackpad pinch
+
+This is likely producing:
+
+* unstable deltas
+* huge scale jumps
+* fractional transform explosions
+* invalid thresholds
+
+⸻
+
+STEP 4 — VERIFY MODE THRESHOLD LOGIC
+
+Current system appears to:
+
+switch render modes based on zoom thresholds
+
+Example:
+
+* overview → dots
+* dense terrain → compact
+* detailed → full cards
+
+Investigate:
+
+* threshold crossings
+* hysteresis
+* race conditions
+* double updates
+* stale closures
+
+Potential issue:
+
+render mode updates before viewport stabilizes
+
+⸻
+
+STEP 5 — ADD ZOOM HYSTERESIS
+
+Implement:
+
+stable transition bands
+
+NOT:
+
+hard single-value thresholds
+
+Example:
+
+BAD:
+
+if (zoom > 0.5) cardMode()
+else dotMode()
+
+GOOD:
+
+enterCardMode at 0.58
+exitCardMode at 0.48
+
+Prevents:
+
+mode flickering + collapse loops
+
+⸻
+
+STEP 6 — HARDEN VIEWPORT MATH
+
+Audit for:
+
+* NaN
+* Infinity
+* undefined transform values
+* invalid scale multipliers
+
+Guard ALL viewport transforms:
+
+if (!Number.isFinite(zoom)) return
+
+and:
+
+zoom = clamp(zoom, MIN_ZOOM, MAX_ZOOM)
+
+⸻
+
+STEP 7 — PREVENT NODE CULL CASCADE
+
+Current behavior suggests:
+
+invalid viewport causes all nodes to fail visibility test
+
+Investigate:
+
+* frustum culling
+* viewport clipping
+* render filtering
+* spatial indexing
+* density filtering
+
+Potential issue:
+
+all nodes incorrectly considered offscreen
+
+Add safe fallback:
+
+never cull entire graph unless graph truly empty
+
+⸻
+
+STEP 8 — VERIFY CARD MODE RENDER PATH
+
+Critical clue:
+
+dot mode works reliably
+card mode collapses
+
+This strongly suggests:
+
+* card renderer
+* card bounds
+* card virtualization
+* card collision system
+* card transform math
+
+is unstable.
+
+Audit:
+
+* card width/height scaling
+* transform origins
+* position interpolation
+* drag math
+* zoom scaling
+
+⸻
+
+STEP 9 — MINIMAP SYNCHRONIZATION
+
+Current minimap:
+
+* drifts
+* shows stale topology
+* fails to track viewport
+
+Audit:
+
+* minimap transform source
+* viewport subscriptions
+* scale normalization
+
+Minimap must derive from:
+
+single canonical viewport state
+
+NOT duplicated transforms.
+
+⸻
+
+STEP 10 — CREATE SINGLE ZOOM SOURCE OF TRUTH
+
+At end of investigation:
+
+Refactor to:
+
+ONE authoritative zoom state
+
+Everything derives from:
+
+viewport.zoom
+
+ONLY.
+
+Derived systems:
+
+* density mode
+* card mode
+* minimap
+* culling
+* labels
+* node detail
+
+must NEVER maintain independent zoom state.
+
+⸻
+
+STEP 11 — ADD DEV OVERLAY (TEMPORARY)
+
+Create compact debug overlay:
+
+zoom
+mode
+viewport
+render count
+culled count
+card mode active
+gesture source
+
+Toggleable via:
+
+__DEV__
+
+Remove noisy logs afterward.
+
+⸻
+
+ACCEPTANCE TEST MATRIX
+
+MOUSE
+
+[ ] Wheel zoom stable
+[ ] Nodes never disappear
+[ ] Card/dot transitions stable
+
+TRACKPAD
+
+[ ] Pinch zoom stable
+[ ] No desync
+[ ] No render collapse
+
+IPAD TOUCH
+
+[ ] Pinch zoom stable
+[ ] Safari gestures stable
+[ ] Nodes persist
+
+MODE TRANSITIONS
+
+[ ] Dot → card works
+[ ] Card → dot works
+[ ] No flicker loops
+
+MINIMAP
+
+[ ] Tracks viewport correctly
+[ ] Updates live
+[ ] Never freezes
+
+GRAPH STABILITY
+
+[ ] Render count consistent
+[ ] No invisible nodes with valid render count
+[ ] No refresh required to recover graph
+
+⸻
+
+FAIL CONDITIONS
+
+[ ] Nodes disappear
+[ ] NaN viewport values
+[ ] Minimap drift
+[ ] Gesture zoom freezes
+[ ] Infinite rerenders
+[ ] Runtime errors
+[ ] Full graph cull
+[ ] Threshold flicker
+
+⸻
+
+FINAL IMPLEMENTATION PRINCIPLE
+
+The graph should feel:
+
+physically stable
+
+like:
+
+* moving across terrain
+* descending into density
+* surfacing into abstraction
+
+NOT:
+
+a fragile renderer fighting itself
