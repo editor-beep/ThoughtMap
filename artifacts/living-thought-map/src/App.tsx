@@ -76,8 +76,15 @@ function CanvasApp() {
 }
 
 export default function App() {
+  // Vite serves this artifact under a base path (e.g. `/living-thought-map/`).
+  // Wouter needs to know that base so route patterns like `/info` match the
+  // real URL `/living-thought-map/info`. Without this, every URL falls into
+  // the catch-all and `/info` never renders.
+  const rawBase = import.meta.env.BASE_URL || '/';
+  const base = rawBase.endsWith('/') && rawBase !== '/' ? rawBase.slice(0, -1) : (rawBase === '/' ? '' : rawBase);
+
   return (
-    <Router>
+    <Router base={base}>
       <Switch>
         <Route path="/info" component={InfoPage} />
         <Route path="/:rest*" component={CanvasApp} />
