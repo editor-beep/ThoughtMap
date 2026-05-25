@@ -316,6 +316,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       changes.forEach((change) => {
         if (change.type !== 'position' || !change.id) return;
 
+        // While the user is actively dragging, let React Flow own the node
+        // position. Writing the store back into the `nodes` prop on every
+        // drag tick creates a coordinate-feedback loop where React Flow
+        // applies its pointer delta on top of an already-moved position,
+        // producing wild jumps. We commit the final position once in
+        // onNodeDragStop.
+        if (change.dragging) return;
+
         const nextPosition = change.position;
         if (!isValidXYPosition(nextPosition)) {
           console.error('[INVALID DRAG POSITION — SKIPPING UPDATE]', {
@@ -323,20 +331,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
             nextPosition,
           });
           return;
-        }
-
-        const sourceNode = nodes.find((node) => node.id === change.id);
-        if (IS_DEV && sourceNode) {
-          console.log('[NODE DRAG BEFORE]', {
-            id: sourceNode.id,
-            x: sourceNode.x,
-            y: sourceNode.y,
-            node: sourceNode,
-          });
-          console.log('[NODE DRAG NEXT]', {
-            id: change.id,
-            nextPosition,
-          });
         }
 
         const nextX = nextPosition.x;
@@ -348,7 +342,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         updateNodePosition(change.id, nextX, nextY);
       });
     },
-    [nodes, updateNodePosition]
+    [updateNodePosition]
   );
 
   const onNodesDelete = useCallback(
@@ -421,11 +415,21 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const onNodeDragStop: NodeMouseHandler = useCallback((_event, rfNode) => {
     setIsDraggingNode(false);
     validateFlowNodePosition(rfNode);
-    const latestNodes = useThoughtStore.getState().nodes;
-    const latestVisibleNodes = latestNodes.filter((n) => n.realms.length === 0 || n.realms.some((r) => activeRealmIds.has(r)));
-    console.log('[POST-DRAG NODE COUNT]', latestNodes.length);
-    console.log('[POST-DRAG VISIBLE COUNT]', latestVisibleNodes.length);
-  }, [activeRealmIds, validateFlowNodePosition]);
+
+    // Commit the final drag position to the store exactly once. React Flow
+    // owned the position internally during the drag (see onNodesChange); now
+    // that the gesture is over we persist where the node was released.
+    const finalX = rfNode.position?.x;
+    const finalY = rfNode.position?.y;
+    if (Number.isFinite(finalX) && Number.isFinite(finalY)) {
+      updateNodePosition(rfNode.id, finalX, finalY);
+    } else {
+      console.error('[INVALID DRAG POSITION — SKIPPING UPDATE]', {
+        nodeId: rfNode.id,
+        nextPosition: rfNode.position,
+      });
+    }
+  }, [validateFlowNodePosition, updateNodePosition]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
