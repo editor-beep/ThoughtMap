@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script>
+      (function() {
+        var SUPPRESS = [
+          'ResizeObserver loop completed with undelivered notifications.',
+          'ResizeObserver loop limit exceeded'
+        ];
+        window.addEventListener('error', function(event) {
+          if (SUPPRESS.indexOf(event.message) !== -1) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+          }
+        }, { capture: true });
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>Living Thought Map</title>
