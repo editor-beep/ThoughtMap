@@ -332,7 +332,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
   return (
     <div className="w-full h-full relative isolate">
-      <TerrainBackground />
+      <TerrainBackground viewport={rfViewport} />
       {currentMap && (
         <MapHeader
           crumbs={breadcrumbs}
