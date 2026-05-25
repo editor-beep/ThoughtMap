@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
 import { Search, X, ChevronDown, Download, Upload, Info, Trash2 } from 'lucide-react';
 import SanctumModal from './SanctumModal';
-import type { TerrainId } from '../types';
+import type { TerrainId, ThoughtNode, ThoughtEdge, Realm } from '../types';
 
 const TERRAIN_NAMES: Record<TerrainId, string> = {
   'memory-palace':      'Memory Palace',
@@ -185,11 +185,47 @@ export default function TopNav() {
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const parseImportPayload = (raw: unknown): { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] } | null => {
+      if (!raw || typeof raw !== 'object') return null;
+      const candidate = raw as Record<string, unknown>;
+
+      if (Array.isArray(candidate.nodes) && Array.isArray(candidate.edges) && Array.isArray(candidate.realms)) {
+        return { nodes: candidate.nodes as ThoughtNode[], edges: candidate.edges as ThoughtEdge[], realms: candidate.realms as Realm[] };
+      }
+
+      if (candidate.map && typeof candidate.map === 'object') {
+        const map = candidate.map as Record<string, unknown>;
+        if (Array.isArray(map.nodes) && Array.isArray(map.edges) && Array.isArray(candidate.realms)) {
+          return { nodes: map.nodes as ThoughtNode[], edges: map.edges as ThoughtEdge[], realms: candidate.realms as Realm[] };
+        }
+      }
+
+      if (Array.isArray(candidate.maps)) {
+        const firstMapWithGraph = candidate.maps.find((entry) => {
+          if (!entry || typeof entry !== 'object') return false;
+          const mapEntry = entry as Record<string, unknown>;
+          return Array.isArray(mapEntry.nodes) && Array.isArray(mapEntry.edges);
+        }) as Record<string, unknown> | undefined;
+
+        if (firstMapWithGraph && Array.isArray(firstMapWithGraph.nodes) && Array.isArray(firstMapWithGraph.edges) && Array.isArray(candidate.realms)) {
+          return { nodes: firstMapWithGraph.nodes as ThoughtNode[], edges: firstMapWithGraph.edges as ThoughtEdge[], realms: candidate.realms as Realm[] };
+        }
+      }
+
+      return null;
+    };
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
-        if (data.nodes && data.edges && data.realms) importMap(data);
+        const parsed = parseImportPayload(data);
+        if (!parsed) {
+          console.warn('[ThoughtMap] Import file is missing nodes/edges/realms');
+          return;
+        }
+        importMap(parsed);
       } catch {
         console.warn('[ThoughtMap] Failed to parse imported file');
       }
