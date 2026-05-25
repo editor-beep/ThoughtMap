@@ -93,8 +93,9 @@ function InlineToolbar({ textareaRef, value, onChange }: InlineToolbarProps) {
 
 // ─── Node card ─────────────────────────────────────────────────────────────
 
-export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode } }) {
+export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean } }) {
   const { node } = data;
+  const isFocused = Boolean(data.isFocused);
   const { deleteNode, nodeSearchQuery, updateNode } = useThoughtStore();
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
   const isSearchMatch = nodeSearchQuery.length > 0 && (
@@ -109,7 +110,8 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const { isDot, isCluster } = useDisplayMode();
   const { setCenter } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
-  const showExpanded = isExpanded;
+  const showExpanded = isExpanded || isFocused;
+  const showAsDot = (isDot || isCluster) && !isFocused;
 
   useEffect(() => {
     updateNodeInternals(node.id);
@@ -143,7 +145,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode 
   const commentCount = (node.comments ?? []).length;
   const hasTags = (node.tags ?? []).length > 0;
 
-  if (isDot || isCluster) {
+  if (showAsDot) {
     const dotSize = 16;
     const containerSize = 20;
     const offset = (containerSize - dotSize) / 2;
