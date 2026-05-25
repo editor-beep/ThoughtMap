@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useThoughtStore } from '../../lib/store';
-import { Colors } from '../../constants/colors';
+import { useThoughtStore } from '../lib/store';
+import { Colors } from '../constants/colors';
 
 export default function AddNodeScreen() {
   const router = useRouter();
