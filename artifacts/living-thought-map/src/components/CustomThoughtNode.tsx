@@ -94,7 +94,7 @@ function InlineToolbar({ textareaRef, value, onChange }: InlineToolbarProps) {
 // ─── Node card ─────────────────────────────────────────────────────────────
 
 type EmphasisState = 'default' | 'focused' | 'neighborhood' | 'background';
-export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; cardScale?: 'compact' | 'standard' | 'large'; dotScale?: 'tiny' | 'standard' | 'large'; semanticCompression?: number } }) {
+export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; cardScale?: 'compact' | 'standard' | 'large'; dotScale?: 'tiny' | 'standard' | 'large'; semanticCompression?: number; onRequestExpand?: (nodeId: string) => void } }) {
   const { node } = data;
   const isFocused = Boolean(data.isFocused);
   const { deleteNode, nodeSearchQuery, updateNode } = useThoughtStore();
@@ -110,6 +110,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const [showInlineToolbar, setShowInlineToolbar] = useState(false);
   const { isDot, isCluster } = useDisplayMode();
   const { setCenter } = useReactFlow();
+  const onRequestExpand = data.onRequestExpand;
   const updateNodeInternals = useUpdateNodeInternals();
   const showExpanded = isExpanded || isFocused;
   const showAsDot = (isDot || isCluster) && !isFocused;
@@ -158,7 +159,9 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
       <div
         onClick={(e) => {
           e.stopPropagation();
-          setCenter(node.x + containerSize / 2, node.y + containerSize / 2, { zoom: 0.6, duration: 600 });
+          setCenter(node.x + containerSize / 2, node.y + containerSize / 2, { zoom: 0.72, duration: 350 });
+          window.setTimeout(() => setCenter(node.x + 100, node.y + 50, { zoom: 0.95, duration: 350 }), 180);
+          onRequestExpand?.(node.id);
         }}
         title={node.title}
         className="cursor-pointer relative"
