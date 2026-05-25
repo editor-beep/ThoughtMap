@@ -631,8 +631,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
             background: '#0b0f19',
             border: '1px solid #111827',
             margin: 0,
-            position: 'relative',
+            position: 'absolute',
+            right: HUD_SPACING,
+            bottom: HUD_SPACING,
+            width: 'clamp(140px, 18vw, 220px)',
+            height: 'clamp(140px, 18vw, 220px)',
             zIndex: HUD_LAYERS.minimap,
+            pointerEvents: 'auto',
           }}
           maskColor="rgba(3,7,18,0.7)"
         />
@@ -647,7 +652,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         </div>
         <div
           className="absolute flex flex-col items-end pointer-events-none"
-          style={{ right: HUD_SPACING, bottom: HUD_SPACING, gap: HUD_STACK_GAP, zIndex: HUD_LAYERS.overlays }}
+          style={{
+            right: HUD_SPACING,
+            bottom: `calc(${HUD_SPACING}px + clamp(140px, 18vw, 220px) + ${HUD_STACK_GAP}px)`,
+            gap: HUD_STACK_GAP,
+            zIndex: HUD_LAYERS.overlays,
+          }}
         >
           <div className="pointer-events-auto rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">
             <div className="mb-2 text-slate-500 uppercase tracking-wider">Graph Density</div>
