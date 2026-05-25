@@ -389,6 +389,10 @@ function initInterstellar(w: number, h: number) {
 function initMemoryPalace(w: number, h: number) {
   const scale = Math.min(w, h) / 900;
   const cx = w * 0.5, cy = h * 0.5;
+  const baseW = 1280;
+  const baseH = 720;
+  const sx = w / baseW;
+  const sy = h / baseH;
 
   const rooms = [
     { x: cx - 100 * scale, y: cy - 180 * scale, width: 200 * scale, height: 360 * scale, label: 'CENTRAL ARCHIVE', hidden: false },
@@ -417,6 +421,15 @@ function initMemoryPalace(w: number, h: number) {
     { x: cx - 180 * scale, y: cy + 120 * scale, r: 80 * scale },
     { x: cx + 150 * scale, y: cy - 200 * scale, r: 60 * scale },
     { x: cx + 280 * scale, y: cy + 150 * scale, r: 50 * scale },
+  ];
+
+  const blueprintRects = [
+    { x: 380, y: 220, width: 520, height: 480, lineWidth: 3, opacity: 0.82, color: '46,139,139', radius: 8 },
+    { x: 420, y: 280, width: 240, height: 180, lineWidth: 1.1, opacity: 0.55, color: '74,124,142' },
+    { x: 680, y: 310, width: 180, height: 320, lineWidth: 1.1, opacity: 0.55, color: '74,124,142' },
+    { x: 480, y: 380, width: 160, height: 240, lineWidth: 2, opacity: 0.65, color: '46,139,139' },
+    { x: 220, y: 280, width: 140, height: 110, lineWidth: 2.2, opacity: 0.75, color: '46,139,139' },
+    { x: 820, y: 180, width: 90, height: 160, lineWidth: 2, opacity: 0.78, color: '46,139,139' },
   ];
 
   return (ctx: CanvasRenderingContext2D, t: number) => {
@@ -449,6 +462,48 @@ function initMemoryPalace(w: number, h: number) {
     ctx.setLineDash([8, 5]);
     ctx.beginPath(); ctx.moveTo(w * 0.08, 0); ctx.lineTo(w, h * 0.85); ctx.stroke();
     ctx.setLineDash([]);
+
+    // Blueprint layer 1 structural mass
+    for (const rect of blueprintRects) {
+      const rx = rect.x * sx;
+      const ry = rect.y * sy;
+      const rw = rect.width * sx;
+      const rh = rect.height * sy;
+      const pulse = 0.92 + 0.08 * Math.sin(t * 0.0002 + rect.x * 0.01);
+      ctx.strokeStyle = `rgba(${rect.color},${rect.opacity * pulse})`;
+      ctx.lineWidth = rect.lineWidth * scale;
+      if (rect.radius) {
+        ctx.beginPath();
+        ctx.roundRect(rx, ry, rw, rh, rect.radius * scale);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(rx, ry, rw, rh);
+      }
+    }
+
+    // connecting corridor (double line)
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(46,139,139,0.70)';
+    ctx.lineWidth = 7 * scale;
+    ctx.beginPath();
+    ctx.moveTo(380 * sx, 340 * sy);
+    ctx.lineTo(220 * sx, 340 * sy);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(5,13,26,0.90)';
+    ctx.lineWidth = 3.5 * scale;
+    ctx.beginPath();
+    ctx.moveTo(380 * sx, 340 * sy);
+    ctx.lineTo(220 * sx, 340 * sy);
+    ctx.stroke();
+
+    // corridor exiting viewport
+    ctx.strokeStyle = 'rgba(46,139,139,0.75)';
+    ctx.lineWidth = 6 * scale;
+    ctx.beginPath();
+    ctx.moveTo(920 * sx, 420 * sy);
+    ctx.lineTo(Math.min(w + 20 * scale, 1050 * sx), 420 * sy);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
 
     // Hidden rooms
     ctx.strokeStyle = 'rgba(0,180,220,0.055)'; ctx.lineWidth = 0.8;
