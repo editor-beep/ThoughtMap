@@ -25,7 +25,7 @@ import DebugZoom from './DebugZoom';
 import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
-import { getNodeVisualMode, isFinitePosition } from '../lib/nodeVisualMode';
+import { isFinitePosition } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
 import { EDGE_TYPES } from '../lib/constants';
@@ -191,6 +191,14 @@ function clampZoom(zoom: number, minZoom: number, maxZoom: number): number {
   return Math.max(minZoom, Math.min(maxZoom, zoom));
 }
 
+function sanitizeViewport(vp: Viewport, minZoom: number, maxZoom: number, fallback: Viewport): Viewport {
+  const safeZoom = clampZoom(vp.zoom, minZoom, maxZoom);
+  const safeX = Number.isFinite(vp.x) ? vp.x : fallback.x;
+  const safeY = Number.isFinite(vp.y) ? vp.y : fallback.y;
+  if (!Number.isFinite(safeZoom)) return fallback;
+  return { x: safeX, y: safeY, zoom: safeZoom };
+}
+
 function toSafePosition(nodeId: string, x: number, y: number) {
   if (isFinitePosition(x, y)) return { x, y };
   console.error('[INVALID NODE POSITION]', nodeId, { x, y, fallback: FALLBACK_POSITION });
@@ -221,6 +229,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  const [lastGestureSource, setLastGestureSource] = useState<'wheel' | 'touch' | 'unknown'>('unknown');
   const [cardScale, setCardScale] = useState<'compact' | 'standard' | 'large'>('standard');
   const [dotScale, setDotScale] = useState<'tiny' | 'standard' | 'large'>('standard');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -235,13 +244,33 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const OFFSCREEN_EDGE_PADDING = 48;
 
   const handleViewport = useCallback((vp: Viewport) => {
-    if (!isValidViewport(vp)) {
-      console.error('[INVALID VIEWPORT]', vp);
+    const nextViewport = sanitizeViewport(vp, MIN_ZOOM, MAX_ZOOM, FALLBACK_VIEWPORT);
+    if (!isValidViewport(nextViewport)) {
+      console.error('[INVALID VIEWPORT]', vp, nextViewport);
       setRfViewport(FALLBACK_VIEWPORT);
       return;
     }
-    setRfViewport(vp);
-  }, []);
+    setRfViewport((current) => {
+      if (current.x === nextViewport.x && current.y === nextViewport.y && current.zoom === nextViewport.zoom) {
+        return current;
+      }
+      return nextViewport;
+    });
+  }, [MAX_ZOOM, MIN_ZOOM]);
+
+  const stableModeRef = useRef<NodeVisualMode>(NodeVisualMode.FULL_CARD);
+  const nodeVisualMode = useMemo(() => {
+    const zoom = rfViewport.zoom;
+    const prev = stableModeRef.current;
+    const next =
+      prev === NodeVisualMode.FULL_CARD
+        ? (zoom < 0.84 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.FULL_CARD)
+        : prev === NodeVisualMode.COMPACT_CARD
+          ? (zoom >= 0.95 ? NodeVisualMode.FULL_CARD : zoom < 0.5 ? NodeVisualMode.DOT : NodeVisualMode.COMPACT_CARD)
+          : (zoom >= 0.62 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.DOT);
+    stableModeRef.current = next;
+    return next;
+  }, [rfViewport.zoom]);
 
   const activeRealmIds = useMemo(
     () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
@@ -293,9 +322,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     }
   }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
 
-  const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
-  const shouldUseClusterMode = isClusterMode && !isDraggingNode;
-  const nodeVisualMode = getNodeVisualMode(rfViewport.zoom);
+  const { clusters, isolatedNodes } = useClusters(visibleNodes, rfViewport.zoom);
+  const shouldUseClusterMode = nodeVisualMode === NodeVisualMode.DOT && rfViewport.zoom < 0.22 && !isDraggingNode;
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
   const activeFocusId = selectedNodeId ?? hoveredNodeId;
   const neighborhoodNodeIds = useMemo(() => {
@@ -461,6 +489,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     const normalized = normalizePointerEvent(event);
     if (normalized.pointerType === 'touch') {
       lastTouchPointerAtRef.current = Date.now();
+      setLastGestureSource('touch');
     }
     if (IS_DEV && DEBUG.pointerEvents) {
       console.log('[POINTER EVENT]', {
@@ -473,6 +502,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, []);
 
   const handleWheelDiagnostics = useCallback((event: React.WheelEvent) => {
+    setLastGestureSource('wheel');
     if (IS_DEV && DEBUG.pointerEvents) {
       console.log('[WHEEL EVENT]', {
         deltaX: event.deltaX,
@@ -485,6 +515,30 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       event.preventDefault();
     }
   }, [rfViewport.zoom]);
+
+  useEffect(() => {
+    if (!rfWrapperRef.current) return;
+    const target = rfWrapperRef.current;
+    const onGesture = (event: Event) => {
+      setLastGestureSource('touch');
+      if (IS_DEV && DEBUG.pointerEvents) {
+        console.group('[ZOOM PIPELINE]');
+        console.log('gesture', event.type);
+        console.log('viewport', rfViewport);
+        console.log('mode', nodeVisualMode);
+        console.log('rendered', flowNodes.length, 'visible', visibleNodes.length);
+        console.groupEnd();
+      }
+    };
+    target.addEventListener('gesturestart', onGesture, { passive: true });
+    target.addEventListener('gesturechange', onGesture, { passive: true });
+    target.addEventListener('gestureend', onGesture, { passive: true });
+    return () => {
+      target.removeEventListener('gesturestart', onGesture);
+      target.removeEventListener('gesturechange', onGesture);
+      target.removeEventListener('gestureend', onGesture);
+    };
+  }, [flowNodes.length, nodeVisualMode, rfViewport, visibleNodes.length]);
 
   const handleEdgeTypeSelect = (type: EdgeType) => {
     if (!pendingConnection) return;
@@ -701,6 +755,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           style={{ left: HUD_SPACING, bottom: HUD_SPACING, gap: HUD_STACK_GAP, zIndex: HUD_LAYERS.overlays }}
         >
           {IS_DEV && DEBUG.overlays && <DebugZoom />}
+          {IS_DEV && DEBUG.overlays && (
+            <div className="pointer-events-none rounded border border-void-700/90 bg-void-900/90 px-2 py-1 text-[10px] font-mono text-slate-300">
+              <div>zoom {rfViewport.zoom.toFixed(3)} · {lastGestureSource}</div>
+              <div>mode {nodeVisualMode}</div>
+              <div>viewport {Math.round(rfViewport.x)}, {Math.round(rfViewport.y)}</div>
+              <div>rendered {flowNodes.length} · hidden {Math.max(nodes.length - flowNodes.length, 0)}</div>
+            </div>
+          )}
           <CanvasZoomControls />
         </div>
         <div
