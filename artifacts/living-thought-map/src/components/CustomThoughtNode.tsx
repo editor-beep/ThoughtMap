@@ -94,7 +94,7 @@ function InlineToolbar({ textareaRef, value, onChange }: InlineToolbarProps) {
 // ─── Node card ─────────────────────────────────────────────────────────────
 
 type EmphasisState = 'default' | 'focused' | 'neighborhood' | 'background';
-export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; cardScale?: 'compact' | 'standard' | 'large'; dotScale?: 'tiny' | 'standard' | 'large'; semanticCompression?: number; onRequestExpand?: (nodeId: string) => void } }) {
+export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; semanticCompression?: number; onRequestExpand?: (nodeId: string) => void } }) {
   const { node } = data;
   const isFocused = Boolean(data.isFocused);
   const { deleteNode, nodeSearchQuery, updateNode } = useThoughtStore();
@@ -116,8 +116,6 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const showAsDot = (isDot || isCluster) && !isFocused;
   const emphasis = data.emphasis ?? 'default';
   const semanticCompression = data.semanticCompression ?? 1;
-  const cardScale = data.cardScale ?? 'standard';
-  const dotScale = data.dotScale ?? 'standard';
 
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
@@ -150,7 +148,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const hasChildMap = Boolean(node.childMapId ?? node.subMapId);
 
   if (showAsDot) {
-    const dotSize = dotScale === 'tiny' ? 10 : dotScale === 'large' ? 20 : 16;
+    const dotSize = 16;
     const containerSize = dotSize + 4;
     const offset = (containerSize - dotSize) / 2;
     return (
@@ -210,7 +208,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
         boxShadow: isSearchMatch ? '0 0 0 2px rgba(6,182,212,0.5), 0 0 24px rgba(6,182,212,0.3)' : `0 0 20px ${config.glow}`,
         minHeight: `${COLLAPSED_MIN_HEIGHT}px`,
         opacity: emphasis === 'background' ? 0.22 : emphasis === 'neighborhood' ? 0.88 : 1,
-        transform: `scale(${emphasis === 'focused' ? 1.08 : emphasis === 'neighborhood' ? 1.03 : cardScale === 'compact' ? 0.92 : cardScale === 'large' ? 1.1 : 1})`,
+        transform: `scale(${emphasis === 'focused' ? 1.08 : emphasis === 'neighborhood' ? 1.03 : 1})`,
         filter: emphasis === 'background' ? 'saturate(0.75)' : 'none',
         transition: 'opacity 160ms ease, transform 180ms ease, filter 180ms ease',
       }}
