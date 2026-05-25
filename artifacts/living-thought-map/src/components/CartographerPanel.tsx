@@ -9,6 +9,11 @@ export default function CartographerPanel() {
     cartographerWanderResponse,
     closeCartographerPanel,
     requestWanderMode,
+    requestAnalyzeMode,
+    cartographerStyle,
+    setCartographerStyle,
+    cartographerMode,
+    setCartographerMode,
     clearWanderResponse,
     requestCartographerExtractionFromContent,
     nodes,
@@ -102,13 +107,22 @@ export default function CartographerPanel() {
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 The Cartographer observes your map from within, noticing patterns, tensions, and unexplored territories.
               </p>
+              <div className="flex gap-2">
+                <select value={cartographerMode} onChange={(e)=>setCartographerMode(e.target.value as any)} className="bg-void-900 border border-void-700 rounded px-2 py-1 text-xs">
+                  <option value="wander">Wander</option>
+                  <option value="analyze">Analyze</option>
+                </select>
+                <select value={cartographerStyle} onChange={(e)=>setCartographerStyle(e.target.value as any)} className="bg-void-900 border border-void-700 rounded px-2 py-1 text-xs">
+                  <option value="default">Default</option><option value="mythic">Mythic</option><option value="academic">Academic</option><option value="systems">Systems</option><option value="ritual">Ritual</option><option value="void">Void</option>
+                </select>
+              </div>
               <button
-                onClick={requestWanderMode}
+                onClick={cartographerMode === "analyze" ? requestAnalyzeMode : requestWanderMode}
                 disabled={nodes.length === 0}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-cosmic-cyan/10 border border-cosmic-cyan/30 text-cosmic-cyan text-xs font-mono hover:bg-cosmic-cyan/20 hover:border-cosmic-cyan/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
               >
                 <Wind size={14} className="group-hover:animate-pulse" />
-                <span>Invoke Wander Mode</span>
+                <span>{cartographerMode === "analyze" ? "Invoke Analyze Mode" : "Invoke Wander Mode"}</span>
               </button>
               {nodes.length === 0 && (
                 <p className="text-[10px] text-slate-600 text-center">

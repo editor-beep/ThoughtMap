@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { DEBUG, IS_DEV } from '../config/debug';
 import { persist } from 'zustand/middleware';
-import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, MapDocument } from '../types';
+import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, CartographerStyle, CartographerMode, MapDocument } from '../types';
 import { adaptVaultMindToThoughtMap, detectImportType, normalizeImport } from '../lib/importAdapters';
 import { EDGE_TYPES } from '../lib/constants';
 
@@ -159,6 +159,8 @@ interface MapState {
   cartographerAppliedIndices: number[];
   cartographerPanelOpen: boolean;
   cartographerWanderResponse: string | null;
+  cartographerStyle: CartographerStyle;
+  cartographerMode: CartographerMode;
   importStatusMessage: string | null;
 
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
@@ -193,7 +195,10 @@ interface MapState {
   dismissCartographerSuggestions: () => void;
   openCartographerPanel: () => void;
   closeCartographerPanel: () => void;
+  setCartographerStyle: (style: CartographerStyle) => void;
+  setCartographerMode: (mode: CartographerMode) => void;
   requestWanderMode: () => Promise<void>;
+  requestAnalyzeMode: () => Promise<void>;
   clearWanderResponse: () => void;
   createMap: (title: string, parentMapId?: string, parentNodeId?: string) => string;
   switchMap: (mapId: string) => void;
@@ -251,6 +256,8 @@ export const useThoughtStore = create<MapState>()(
       cartographerAppliedIndices: [],
       cartographerPanelOpen: false,
       cartographerWanderResponse: null,
+      cartographerStyle: "default",
+      cartographerMode: "wander",
       importStatusMessage: null,
       createMap: (title, parentMapId, parentNodeId) => {
         const id = `map_${crypto.randomUUID()}`;
@@ -691,7 +698,10 @@ export const useThoughtStore = create<MapState>()(
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
           activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          topology: { nodeCount: state.nodes.length },
           mapContext: currentMapDoc ? {
+            title: currentMapDoc.title,
+            parentTitle: parentMapDoc?.title,
             mapLevel: currentMapDoc.level,
             mapTitle: currentMapDoc.title,
             parentMapTitle: parentMapDoc?.title,
@@ -702,7 +712,7 @@ export const useThoughtStore = create<MapState>()(
           const res = await fetch('/api/cartographer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'extract', message: message.content, context }),
+            body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: message.content, context }),
             signal: AbortSignal.timeout(30000),
           });
 
@@ -747,7 +757,10 @@ export const useThoughtStore = create<MapState>()(
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
           activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          topology: { nodeCount: state.nodes.length },
           mapContext: currentMapDoc ? {
+            title: currentMapDoc.title,
+            parentTitle: parentMapDoc?.title,
             mapLevel: currentMapDoc.level,
             mapTitle: currentMapDoc.title,
             parentMapTitle: parentMapDoc?.title,
@@ -758,7 +771,7 @@ export const useThoughtStore = create<MapState>()(
           const res = await fetch('/api/cartographer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'extract', message: content, context }),
+            body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: content, context }),
             signal: AbortSignal.timeout(30000),
           });
 
@@ -885,6 +898,8 @@ export const useThoughtStore = create<MapState>()(
       },
 
       openCartographerPanel: () => set({ cartographerPanelOpen: true }),
+      setCartographerStyle: (style) => set({ cartographerStyle: style }),
+      setCartographerMode: (mode) => set({ cartographerMode: mode }),
       closeCartographerPanel: () => set({ cartographerPanelOpen: false, cartographerWanderResponse: null }),
 
       requestWanderMode: async () => {
@@ -897,7 +912,10 @@ export const useThoughtStore = create<MapState>()(
           nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
           activeTerrain: state.activeTerrain,
           activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          topology: { nodeCount: state.nodes.length },
           mapContext: currentMapDoc ? {
+            title: currentMapDoc.title,
+            parentTitle: parentMapDoc?.title,
             mapLevel: currentMapDoc.level,
             mapTitle: currentMapDoc.title,
             parentMapTitle: parentMapDoc?.title,
@@ -908,7 +926,7 @@ export const useThoughtStore = create<MapState>()(
           const res = await fetch('/api/cartographer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'wander', message: 'Survey the map and offer an observation.', context }),
+            body: JSON.stringify({ mode: 'wander', style: get().cartographerStyle, message: 'Survey the map and offer an observation.', context }),
             signal: AbortSignal.timeout(30000),
           });
 
@@ -940,6 +958,34 @@ export const useThoughtStore = create<MapState>()(
       },
 
       clearWanderResponse: () => set({ cartographerWanderResponse: null }),
+
+      requestAnalyzeMode: async () => {
+        set({ cartographerLoading: true, cartographerWanderResponse: null });
+        const state = get();
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
+          activeTerrain: state.activeTerrain,
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          topology: { nodeCount: state.nodes.length },
+          mapContext: { title: state.maps[state.currentMapId]?.title },
+        };
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'analyze', style: state.cartographerStyle, message: 'Analyze the current map.', context }),
+            signal: AbortSignal.timeout(30000),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Analyze mode failed');
+          set({ cartographerWanderResponse: JSON.stringify(data, null, 2) });
+        } catch (err) {
+          console.error('[Cartographer] Analyze mode failed:', err);
+          set({ cartographerWanderResponse: 'Analyze mode failed.' });
+        }
+        set({ cartographerLoading: false });
+      },
+
 
       undo: () => {
         const { undoStack } = get();
