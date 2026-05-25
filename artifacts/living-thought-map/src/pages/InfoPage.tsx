@@ -29,7 +29,7 @@ export default function InfoPage() {
   const basePath = import.meta.env.BASE_URL || '/';
 
   return (
-    <div className="w-screen min-h-dvh bg-void-900 text-slate-300 font-mono">
+    <div className="w-screen h-dvh overflow-y-auto bg-void-900 text-slate-300 font-mono">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-10 space-y-4">
         <header className="border border-void-700/40 rounded-lg p-5 md:p-6 bg-void-900/60">
           <div className="flex items-center gap-3 mb-3">
