@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import 'reactflow/dist/style.css';
-import { Router, useLocation } from 'wouter';
+import { Router, Route, Switch, useLocation } from 'wouter';
 import { Sparkles, Map } from 'lucide-react';
 import TopNav from './components/TopNav';
 import SpatialCanvas from './components/SpatialCanvas';
 import ThoughtStreamRail from './components/ThoughtStreamRail';
 import { useThoughtStore, MASTER_MAP_ID } from './store';
+import InfoPage from './pages/InfoPage';
 
 function MapUrlSync() {
   const { currentMapId, switchMap, maps } = useThoughtStore();
@@ -28,20 +29,18 @@ function MapUrlSync() {
   return null;
 }
 
-export default function App() {
+function CanvasApp() {
   const [streamOpen, setStreamOpen] = useState(false);
   const [immersive, setImmersive] = useState(false);
   const currentMapId = useThoughtStore((state) => state.currentMapId);
   const isMasterMapView = currentMapId === MASTER_MAP_ID;
 
   return (
-    <Router>
+    <>
       <MapUrlSync />
       <div className="flex flex-col w-screen h-dvh bg-void-900 text-slate-300 font-sans antialiased overflow-hidden">
-        {/* Top navigation bar */}
         {!immersive && <TopNav />}
 
-        {/* Canvas + right rail row */}
         <div className="flex flex-1 min-h-0">
           <main className="flex-1 h-full relative min-w-0 pb-14 md:pb-0">
             <SpatialCanvas immersive={immersive} onImmersiveToggle={() => setImmersive(!immersive)} />
@@ -53,7 +52,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Mobile bottom navigation */}
         {!isMasterMapView && (
           <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-void-900/95 border-t border-void-800/60 backdrop-blur-sm flex items-center z-50">
             <button
@@ -73,6 +71,17 @@ export default function App() {
           </nav>
         )}
       </div>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Switch>
+        <Route path="/info" component={InfoPage} />
+        <Route path="/:rest*" component={CanvasApp} />
+      </Switch>
     </Router>
   );
 }
