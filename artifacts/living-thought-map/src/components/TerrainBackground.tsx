@@ -3,8 +3,13 @@ import { useThoughtStore } from '../store';
 import type { TerrainId } from '../types';
 import TerrainCanvas from './TerrainCanvas';
 import GlobeSanctum from './GlobeSanctum';
+import type { Viewport } from 'reactflow';
 
-export default function TerrainBackground() {
+interface TerrainBackgroundProps {
+  viewport: Viewport;
+}
+
+export default function TerrainBackground({ viewport }: TerrainBackgroundProps) {
   const activeTerrain = useThoughtStore((s) => s.activeTerrain);
   const [displayedTerrain, setDisplayedTerrain] = useState<TerrainId>(activeTerrain);
   const [incomingTerrain, setIncomingTerrain] = useState<TerrainId | null>(null);
@@ -36,13 +41,14 @@ export default function TerrainBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ zIndex: -10 }}>
       {displayedTerrain === 'terrestrial-globe' ? (
-        <GlobeSanctum />
+        <GlobeSanctum viewport={viewport} />
       ) : (
         <TerrainCanvas terrain={displayedTerrain} />
       )}
       {incomingTerrain && (
         incomingTerrain === 'terrestrial-globe' ? (
           <GlobeSanctum
+            viewport={viewport}
             style={{
               opacity: incomingOpacity,
               transition: 'opacity 1500ms cubic-bezier(0.4,0,0.2,1)',

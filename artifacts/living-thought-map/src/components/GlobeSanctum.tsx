@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { Viewport } from 'reactflow';
 
 // ─── Seeded PRNG (Park-Miller LCG) ────────────────────────────────────────────
 function makeRand(seed: number) {
@@ -76,7 +77,7 @@ interface GlyphDef {
   kind:       GlyphKind;
   fx:         number;   // fractional viewport x (0-1)
   fy:         number;   // fractional viewport y (0-1)
-  size:       number;   // px
+  size?:      number;   // px
   op:         number;   // opacity 0.1-0.2
   col:        string;
   char?:      string;   // symbol glyphs only
@@ -114,16 +115,17 @@ const GLYPHS: GlyphDef[] = [
 function renderGlyph(g: GlyphDef, w: number, h: number, i: number): React.ReactNode {
   const x = g.fx * w;
   const y = g.fy * h;
+  const size = g.size ?? 6;
 
   switch (g.kind) {
     case 'circle':
-      return <circle key={i} cx={x} cy={y} r={g.size} fill="none" stroke={g.col} strokeWidth="0.5" opacity={g.op} />;
+      return <circle key={i} cx={x} cy={y} r={size} fill="none" stroke={g.col} strokeWidth="0.5" opacity={g.op} />;
 
     case 'crosshair':
       return (
         <g key={i} transform={`translate(${x}, ${y})`} stroke={g.col} strokeWidth="0.5" opacity={g.op}>
-          <line x1={-g.size} y1={0} x2={g.size} y2={0} />
-          <line x1={0} y1={-g.size} x2={0} y2={g.size} />
+          <line x1={-size} y1={0} x2={size} y2={0} />
+          <line x1={0} y1={-size} x2={0} y2={size} />
           <circle cx={0} cy={0} r={1} fill={g.col} stroke="none" />
         </g>
       );
@@ -131,7 +133,7 @@ function renderGlyph(g: GlyphDef, w: number, h: number, i: number): React.ReactN
     case 'diamond':
       return (
         <path key={i}
-          d={`M ${x},${y - g.size} L ${x + g.size * 0.55},${y} L ${x},${y + g.size} L ${x - g.size * 0.55},${y} Z`}
+          d={`M ${x},${y - size} L ${x + size * 0.55},${y} L ${x},${y + size} L ${x - size * 0.55},${y} Z`}
           stroke={g.col} strokeWidth="0.5" fill="none" opacity={g.op}
         />
       );
@@ -139,14 +141,14 @@ function renderGlyph(g: GlyphDef, w: number, h: number, i: number): React.ReactN
     case 'triangle':
       return (
         <path key={i}
-          d={`M ${x},${y - g.size} L ${x + g.size * 0.866},${y + g.size * 0.5} L ${x - g.size * 0.866},${y + g.size * 0.5} Z`}
+          d={`M ${x},${y - size} L ${x + size * 0.866},${y + size * 0.5} L ${x - size * 0.866},${y + size * 0.5} Z`}
           stroke={g.col} strokeWidth="0.5" fill="none" opacity={g.op}
         />
       );
 
     case 'symbol':
       return (
-        <text key={i} x={x} y={y} fontSize={g.size} fill={g.col} opacity={g.op}
+        <text key={i} x={x} y={y} fontSize={size} fill={g.col} opacity={g.op}
           fontFamily="monospace" textAnchor="middle" dominantBaseline="central">
           {g.char}
         </text>
@@ -174,8 +176,12 @@ function renderGlyph(g: GlyphDef, w: number, h: number, i: number): React.ReactN
 
 // ─── Component ────────────────────────────────────────────────────────────────
 interface Dims { w: number; h: number }
+interface GlobeSanctumProps {
+  style?: React.CSSProperties;
+  viewport: Viewport;
+}
 
-export default function GlobeSanctum({ style }: { style?: React.CSSProperties }) {
+function GlobeSanctum({ style, viewport }: GlobeSanctumProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState<Dims>({ w: 800, h: 600 });
 
@@ -191,6 +197,22 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
   }, []);
 
   const { w, h } = dims;
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setPrefersReducedMotion(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  const farX = viewport.x * 0.025;
+  const farY = viewport.y * 0.025;
+  const nearX = viewport.x * 0.05;
+  const nearY = viewport.y * 0.05;
+  const sanctumScale = 1 + ((viewport.zoom - 1) * 0.18);
+
   const cx    = w * 0.57;
   const cy    = h * 0.48;
   const r     = Math.min(w, h) * 0.48;
@@ -238,7 +260,8 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         width="100%"
         height="100%"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ position: 'absolute', inset: 0, display: 'block' }}
+        data-reduced-motion={prefersReducedMotion ? '1' : '0'}
+        style={{ position: 'absolute', inset: 0, display: 'block', pointerEvents: 'none' }}
       >
         <style>{`
           @keyframes gs-halo-breathe {
@@ -362,10 +385,15 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
           </filter>
         </defs>
 
-        <g id="gs-main-composition" filter="url(#gs-phosphor-soften)">
+        <g
+          id="gs-main-composition"
+          filter="url(#gs-phosphor-soften)"
+          transform={`translate(${w / 2} ${h / 2}) scale(${sanctumScale}) translate(${-w / 2} ${-h / 2})`}
+        >
           {/* ── Background ── */}
           <rect width="100%" height="100%" fill="#050D1A" />
 
+          <g id="gs-far-plane" transform={`translate(${farX} ${farY})`}>
           {/* ── L2: Starfield (behind planetary shell) ── */}
           <g id="gs-starfield">
             {STARS.map((s, i) => (
@@ -379,6 +407,20 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
               />
             ))}
           </g>
+          </g>
+
+        <g id="gs-mid-plane">
+        {/* ── L4: Fog/Haze ── */}
+        <g id="gs-fog">
+          <ellipse cx={cx - r * 0.12} cy={cy + r * 0.09} rx={r * 1.06} ry={r * 0.48} fill="#5ABABA" opacity="0.04" />
+          <ellipse cx={cx + r * 0.16} cy={cy - r * 0.18} rx={r * 0.86} ry={r * 0.31} fill="#7FFFD4" opacity="0.028" />
+        </g>
+
+        {/* ── L5: Sector fragments ── */}
+        <g id="gs-sectors" fill="none" stroke="#7FFFD4" strokeWidth="0.7" strokeOpacity="0.09">
+          <path d={`M ${cx - r * 0.78} ${cy - r * 0.29} L ${cx - r * 0.18} ${cy - r * 0.52} L ${cx + r * 0.24} ${cy - r * 0.33}`} />
+          <path d={`M ${cx - r * 0.44} ${cy + r * 0.44} L ${cx + r * 0.06} ${cy + r * 0.20} L ${cx + r * 0.48} ${cy + r * 0.34}`} />
+        </g>
 
         {/* ── L3: Orbital rings behind shell ── */}
         <g id="gs-rings-behind" fill="none" strokeLinecap="round">
@@ -476,15 +518,18 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
         <g id="gs-halo-pulse">
           <circle cx={cx} cy={cy} r={haloR} fill="url(#gs-halo-grad)" filter="url(#gs-halo-blur)" />
         </g>
+        </g>
 
+          <g id="gs-near-plane" transform={`translate(${nearX} ${nearY})`}>
           {/* ── L7: Glyph systems and occult annotation ── */}
           <g id="gs-glyphs">
             {GLYPHS.map((g, i) => renderGlyph(g, w, h, i))}
           </g>
+          </g>
         </g>
 
         {/* ── L8: Full-screen finishing overlays ── */}
-        <g id="gs-screen-fx">
+        <g id="gs-screen-fx" transform={`translate(${farX} ${farY})`}>
           <rect id="gs-noise-layer-a" width="100%" height="100%" fill="#FFFFFF" filter="url(#gs-noise-overlay-a)" opacity="0.042" />
           <rect id="gs-noise-layer-b" width="100%" height="100%" fill="#FFFFFF" filter="url(#gs-noise-overlay-b)" opacity="0.026" />
           <rect width="100%" height="100%" fill="url(#gs-edge-vignette)" opacity="0.42" />
@@ -508,3 +553,5 @@ export default function GlobeSanctum({ style }: { style?: React.CSSProperties })
     </div>
   );
 }
+
+export default React.memo(GlobeSanctum);
