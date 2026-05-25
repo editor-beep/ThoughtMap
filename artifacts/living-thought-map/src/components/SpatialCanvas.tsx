@@ -27,6 +27,8 @@ import DebugZoom from './DebugZoom';
 import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
+import { getNodeVisualMode, isFinitePosition } from '../lib/nodeVisualMode';
+import { NodeVisualMode } from '../types/nodeVisualMode';
 
 const nodeTypes = {
   thoughtMapNode: CustomThoughtNode,
@@ -139,6 +141,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
   const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
+  const nodeVisualMode = getNodeVisualMode(rfViewport.zoom);
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
   const activeFocusId = selectedNodeId ?? hoveredNodeId;
   const neighborhoodNodeIds = useMemo(() => {
@@ -163,7 +166,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       }));
 
       // Isolated single nodes fall back to their regular dot rendering.
-      const singleNodes = isolatedNodes.map((node) => ({
+      const singleNodes = isolatedNodes.filter((node) => isFinitePosition(node.x, node.y)).map((node) => ({
         id: node.id,
         type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
         position: { x: node.x, y: node.y },
@@ -175,13 +178,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           cardScale,
           dotScale,
           semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
+        onRequestExpand: setSelectedNodeId,
         },
       }));
 
       return [...clusterNodes, ...singleNodes];
     }
 
-    return visibleNodes.map((node) => ({
+    return visibleNodes.filter((node) => isFinitePosition(node.x, node.y)).map((node) => ({
       id: node.id,
       type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
       position: { x: node.x, y: node.y },
@@ -193,9 +197,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         cardScale,
         dotScale,
         semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
+        onRequestExpand: setSelectedNodeId,
       }
     }));
   }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
+
+  useEffect(() => {
+    console.log('[SELECTED NODE]', selectedNodeId);
+  }, [selectedNodeId]);
 
 
 
@@ -382,7 +391,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         <Panel position="bottom-right">
           <div className="rounded-lg border border-void-700/80 bg-void-900/85 p-2 text-[10px] font-mono text-slate-300">
             <div className="mb-2 text-slate-500 uppercase tracking-wider">Graph Density</div>
-            <div className="mb-1 text-slate-400">Card size</div>
+            <div className="mb-1 text-slate-400">Card size ({nodeVisualMode === NodeVisualMode.FULL_CARD ? 'full' : nodeVisualMode === NodeVisualMode.COMPACT_CARD ? 'compact' : 'dot'})</div>
             <div className="mb-2 flex gap-1">
               {(['compact', 'standard', 'large'] as const).map((size) => (
                 <button key={size} onClick={() => setCardScale(size)} className={`rounded px-2 py-1 ${cardScale === size ? 'bg-cosmic-cyan/20 text-cyan-200 border border-cosmic-cyan/40' : 'bg-void-800 text-slate-400 border border-void-700'}`}>{size}</button>
