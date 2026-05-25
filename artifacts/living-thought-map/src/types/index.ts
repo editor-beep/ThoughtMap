@@ -101,12 +101,7 @@ export interface ChatMessage {
   complete?: boolean;
 }
 
-export type TerrainId =
-  | 'memory-palace'
-  | 'interstellar-plane'
-  | 'terrestrial-globe'
-  | 'mythic-landscape'
-  | 'the-void';
+export type TerrainId = 'blackspace';
 
 export type CartographerMode = 'extract' | 'converse' | 'wander' | 'analyze';
 export type CartographerStyle = 'default' | 'mythic' | 'academic' | 'systems' | 'ritual' | 'void';
@@ -136,7 +131,7 @@ export interface CartographerContext {
     x: number;
     y: number;
   }>;
-  activeTerrain: TerrainId;
+
   activeRealms: string[];
   topology?: {
     nodeCount: number;

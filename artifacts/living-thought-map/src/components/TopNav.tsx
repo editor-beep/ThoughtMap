@@ -1,26 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
 import { Search, X, ChevronDown, Download, Upload, Info, Trash2 } from 'lucide-react';
-import SanctumModal from './SanctumModal';
-import type { TerrainId } from '../types';
-
-const TERRAIN_NAMES: Record<TerrainId, string> = {
-  'memory-palace':      'Memory Palace',
-  'interstellar-plane': 'Interstellar Plane',
-  'terrestrial-globe':  'Terrestrial Globe',
-  'mythic-landscape':   'Mythic Landscape',
-  'the-void':           'The Void',
-};
-
-const TERRAIN_COLORS: Record<TerrainId, string> = {
-  'memory-palace':      '#f59e0b',
-  'interstellar-plane': '#a855f7',
-  'terrestrial-globe':  '#06b6d4',
-  'mythic-landscape':   '#10b981',
-  'the-void':           '#475569',
-};
-
-type DropdownId = 'anchors' | 'realms' | 'sanctum' | 'exportimport';
+type DropdownId = 'anchors' | 'realms' | 'exportimport';
 
 interface DropdownButtonProps {
   label: React.ReactNode;
@@ -51,7 +32,6 @@ export default function TopNav() {
   const {
     nodes, edges, realms,
     toggleRealm, addRealm, focusNode, deleteNode, addNode,
-    activeTerrain, setTerrain,
     importMap,
     importStatusMessage,
     setNodeSearchQuery,
@@ -67,7 +47,6 @@ export default function TopNav() {
   const [nodeSearch, setNodeSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<DropdownId | null>(null);
-  const [isSanctumModalOpen, setIsSanctumModalOpen] = useState(false);
   const [newRealmInput, setNewRealmInput] = useState('');
   const [showNewRealmInput, setShowNewRealmInput] = useState(false);
   const [showNewAnchorInput, setShowNewAnchorInput] = useState(false);
@@ -498,50 +477,6 @@ export default function TopNav() {
         )}
       </div>
 
-      {/* ── Sanctum ── */}
-      <div className="relative flex-shrink-0">
-        <DropdownButton
-          label="Sanctum"
-          isOpen={openDropdown === 'sanctum'}
-          onClick={() => toggleDropdown('sanctum')}
-        />
-        {openDropdown === 'sanctum' && (
-          <div className="absolute top-full left-0 mt-1 w-56 bg-void-900 border border-void-700/60 rounded-lg shadow-2xl overflow-hidden">
-            {(Object.keys(TERRAIN_NAMES) as TerrainId[]).map((id) => (
-              <button
-                key={id}
-                onClick={() => { setTerrain(id); setOpenDropdown(null); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-mono transition-colors ${
-                  activeTerrain === id
-                    ? 'text-cosmic-cyan bg-void-800/60'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-void-800/40'
-                }`}
-              >
-                <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{
-                    backgroundColor: TERRAIN_COLORS[id],
-                    boxShadow: activeTerrain === id ? `0 0 6px ${TERRAIN_COLORS[id]}` : 'none',
-                  }}
-                />
-                <span>{TERRAIN_NAMES[id]}</span>
-                {activeTerrain === id && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cosmic-cyan animate-pulse flex-shrink-0" />
-                )}
-              </button>
-            ))}
-            <div className="border-t border-void-700/40">
-              <button
-                onClick={() => { setIsSanctumModalOpen(true); setOpenDropdown(null); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono text-slate-500 hover:text-slate-300 hover:bg-void-800/40 transition-colors"
-              >
-                Open full Sanctum…
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* ── Export / Import ── */}
       <div className="relative flex-shrink-0">
         <DropdownButton
@@ -594,7 +529,6 @@ export default function TopNav() {
         onChange={handleImportFile}
       />
 
-      {isSanctumModalOpen && <SanctumModal onClose={() => setIsSanctumModalOpen(false)} />}
     </nav>
   );
 }
