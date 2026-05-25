@@ -30,7 +30,7 @@ function renderInline(text: string): React.ReactNode[] {
 function MarkdownText({ text }: { text: string }) {
   const paragraphs = text.split(/\n{2,}/);
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 select-text">
       {paragraphs.map((para, pi) => {
         const lines = para.split('\n');
         return (
@@ -70,6 +70,34 @@ function toTitleFromContent(content: string): string {
 
 function normalizeFullText(content: string): string {
   return content.trim();
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to legacy copy for non-secure contexts and blocked clipboard permissions.
+  }
+
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    textArea.style.pointerEvents = 'none';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return copied;
+  } catch {
+    return false;
+  }
 }
 
 const CHAT_VOICE_OPTIONS: { value: CartographerStyle; label: string }[] = [
@@ -118,6 +146,7 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
   const [useManualMode, setUseManualMode] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(true);
   const [bubbleSelection, setBubbleSelection] = useState<{ msgId: string; text: string } | null>(null);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [chatVoice, setChatVoice] = useState<CartographerStyle>('default');
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -156,6 +185,12 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
     return () => document.removeEventListener('selectionchange', onSelectionChange);
   }, []);
 
+  useEffect(() => {
+    if (!copyNotice) return;
+    const timeout = window.setTimeout(() => setCopyNotice(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [copyNotice]);
+
   const handleBubbleMouseUp = (messageId: string) => {
     const text = window.getSelection()?.toString().trim() ?? '';
     if (text.length > 2) {
@@ -165,9 +200,12 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
 
   const copyHighlight = async () => {
     if (!bubbleSelection) return;
-    await navigator.clipboard.writeText(bubbleSelection.text);
-    setBubbleSelection(null);
-    window.getSelection()?.removeAllRanges();
+    const copied = await copyText(bubbleSelection.text);
+    setCopyNotice(copied ? 'Selection copied' : 'Copy blocked by browser');
+    if (copied) {
+      setBubbleSelection(null);
+      window.getSelection()?.removeAllRanges();
+    }
   };
 
   const pinHighlight = () => {
@@ -189,7 +227,8 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
 
   const handleCopyMessage = async (messageContent: string) => {
     const text = getDisplayContent(messageContent);
-    await navigator.clipboard.writeText(text);
+    const copied = await copyText(text);
+    setCopyNotice(copied ? 'Message copied' : 'Copy blocked by browser');
   };
 
   const quickPinMessage = (messageId: string, rawContent: string, kind: 'note' | 'research' | 'full') => {
@@ -302,6 +341,12 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
           <X size={16} />
         </button>
       </div>
+
+      {copyNotice && (
+        <div className="mx-4 mt-2 rounded border border-cosmic-cyan/30 bg-cosmic-cyan/10 px-2.5 py-1 text-[11px] text-cosmic-cyan/80">
+          {copyNotice}
+        </div>
+      )}
 
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-5 min-h-0">
         {chatHistory.map((message) => (
