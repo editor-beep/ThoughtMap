@@ -29,6 +29,7 @@ import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
 import { getNodeVisualMode, isFinitePosition } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
+import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
 
 const nodeTypes = {
   thoughtMapNode: CustomThoughtNode,
@@ -103,6 +104,11 @@ function isValidViewport(vp: Viewport): boolean {
   return Number.isFinite(vp.x) && Number.isFinite(vp.y) && Number.isFinite(vp.zoom) && vp.zoom > 0;
 }
 
+function clampZoom(zoom: number, minZoom: number, maxZoom: number): number {
+  if (!Number.isFinite(zoom)) return minZoom;
+  return Math.max(minZoom, Math.min(maxZoom, zoom));
+}
+
 function toSafePosition(nodeId: string, x: number, y: number) {
   if (isFinitePosition(x, y)) return { x, y };
   console.error('[INVALID NODE POSITION]', nodeId, { x, y, fallback: FALLBACK_POSITION });
@@ -136,6 +142,9 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [cardScale, setCardScale] = useState<'compact' | 'standard' | 'large'>('standard');
   const [dotScale, setDotScale] = useState<'tiny' | 'standard' | 'large'>('standard');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const lastTouchPointerAtRef = useRef(0);
+  const MIN_ZOOM = 0.05;
+  const MAX_ZOOM = 2.5;
 
   const handleViewport = useCallback((vp: Viewport) => {
     if (!isValidViewport(vp)) {
@@ -321,7 +330,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           });
         }
 
-        updateNodePosition(change.id, nextPosition.x, nextPosition.y);
+        const nextX = nextPosition.x;
+        const nextY = nextPosition.y;
+        if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) {
+          console.error('[INVALID POINTER POSITION]', nextX, nextY);
+          return;
+        }
+        updateNodePosition(change.id, nextX, nextY);
       });
     },
     [nodes, updateNodePosition]
@@ -342,6 +357,35 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       setPendingConnection({ source: params.source, target: params.target });
     }
   }, []);
+
+  const handlePointerDiagnostics = useCallback((event: React.PointerEvent) => {
+    const normalized = normalizePointerEvent(event);
+    if (normalized.pointerType === 'touch') {
+      lastTouchPointerAtRef.current = Date.now();
+    }
+    if (IS_DEV && DEBUG.pointerEvents) {
+      console.log('[POINTER EVENT]', {
+        type: event.type,
+        pointerType: normalized.pointerType,
+        clientX: normalized.clientX,
+        clientY: normalized.clientY,
+      });
+    }
+  }, []);
+
+  const handleWheelDiagnostics = useCallback((event: React.WheelEvent) => {
+    if (IS_DEV && DEBUG.pointerEvents) {
+      console.log('[WHEEL EVENT]', {
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        ctrlKey: event.ctrlKey,
+      });
+    }
+    const viewportZoom = clampZoom(rfViewport.zoom, MIN_ZOOM, MAX_ZOOM);
+    if (!Number.isFinite(viewportZoom)) {
+      event.preventDefault();
+    }
+  }, [rfViewport.zoom]);
 
   const handleEdgeTypeSelect = (type: EdgeType) => {
     if (!pendingConnection) return;
@@ -456,8 +500,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         nodeTypes={nodeTypes}
         deleteKeyCode="Delete"
         proOptions={{ hideAttribution: true }}
-        minZoom={0.05}
-        maxZoom={2.5}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        onPaneMouseMove={(event) => {
+          if (Date.now() - lastTouchPointerAtRef.current < 40) return;
+          handlePointerDiagnostics(event as unknown as React.PointerEvent);
+        }}
+        onPaneScroll={handleWheelDiagnostics}
       >
         <Controls className="!bg-void-800 !border-void-700 !text-slate-400 !fill-slate-400" />
         <MiniMap

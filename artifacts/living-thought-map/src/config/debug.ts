@@ -2,6 +2,7 @@ export const DEBUG = {
   overlays: false,
   renderStats: false,
   nodeVisibility: false,
+  pointerEvents: false,
   imports: true,
   globe: false,
   minimap: false,
