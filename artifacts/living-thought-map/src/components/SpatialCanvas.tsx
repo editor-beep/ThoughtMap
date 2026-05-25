@@ -142,6 +142,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [cardScale, setCardScale] = useState<'compact' | 'standard' | 'large'>('standard');
   const [dotScale, setDotScale] = useState<'tiny' | 'standard' | 'large'>('standard');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [isDraggingNode, setIsDraggingNode] = useState(false);
   const lastTouchPointerAtRef = useRef(0);
   const MIN_ZOOM = 0.05;
   const MAX_ZOOM = 2.5;
@@ -202,6 +203,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
 
   const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
+  const shouldUseClusterMode = isClusterMode && !isDraggingNode;
   const nodeVisualMode = getNodeVisualMode(rfViewport.zoom);
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
   const activeFocusId = selectedNodeId ?? hoveredNodeId;
@@ -216,7 +218,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [activeFocusId, edgePairs]);
 
   const flowNodes = useMemo(() => {
-    if (isClusterMode) {
+    if (shouldUseClusterMode) {
       const clusterNodes = clusters.map((c, i) => ({
         id: `cluster-${i}`,
         type: 'clusterMarker',
@@ -267,7 +269,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       }
     };
     });
-  }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
+  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
 
   useEffect(() => {
     console.log('[SELECTED NODE]', selectedNodeId);
@@ -277,7 +279,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
   const flowEdges = useMemo(
     () =>
-      isClusterMode
+      shouldUseClusterMode
         ? []
         : edges
             .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
@@ -298,8 +300,15 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
                 opacity: activeFocusId ? (isNeighborEdge ? 0.9 : 0.2) : 0.75,
               }
             };}),
-    [isClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds]
+    [shouldUseClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds]
   );
+
+  const validateFlowNodePosition = useCallback((rfNode: Node) => {
+    const px = rfNode.position?.x;
+    const py = rfNode.position?.y;
+    console.assert(Number.isFinite(px), '[CARD POSITION INVALID X]', rfNode.id, px);
+    console.assert(Number.isFinite(py), '[CARD POSITION INVALID Y]', rfNode.id, py);
+  }, []);
 
 
   const onNodesChange = useCallback(
@@ -405,6 +414,19 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     setSelectedNodeId(rfNode.id);
   }, [nodes, openSubMap, focusNode]);
 
+  const onNodeDragStart: NodeMouseHandler = useCallback(() => {
+    setIsDraggingNode(true);
+  }, []);
+
+  const onNodeDragStop: NodeMouseHandler = useCallback((_event, rfNode) => {
+    setIsDraggingNode(false);
+    validateFlowNodePosition(rfNode);
+    const latestNodes = useThoughtStore.getState().nodes;
+    const latestVisibleNodes = latestNodes.filter((n) => n.realms.length === 0 || n.realms.some((r) => activeRealmIds.has(r)));
+    console.log('[POST-DRAG NODE COUNT]', latestNodes.length);
+    console.log('[POST-DRAG VISIBLE COUNT]', latestVisibleNodes.length);
+  }, [activeRealmIds, validateFlowNodePosition]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const isCmdCtrl = event.metaKey || event.ctrlKey;
@@ -494,6 +516,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         onEdgesDelete={onEdgesDelete}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
         onNodeMouseEnter={(_, node) => !node.id.startsWith('cluster-') && setHoveredNodeId(node.id)}
         onNodeMouseLeave={() => setHoveredNodeId(null)}
         onPaneClick={() => setSelectedNodeId(null)}
