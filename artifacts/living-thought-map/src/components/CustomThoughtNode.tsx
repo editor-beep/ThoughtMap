@@ -119,9 +119,6 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const cardScale = data.cardScale ?? 'standard';
   const dotScale = data.dotScale ?? 'standard';
 
-  useEffect(() => {
-    updateNodeInternals(node.id);
-  }, [showAsDot, node.id, updateNodeInternals]);
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
   const canEditInline = true;
