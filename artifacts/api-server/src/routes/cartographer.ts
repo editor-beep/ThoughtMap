@@ -109,7 +109,23 @@ Topology summary:
 - nodeCount: ${topology.nodeCount}
 - activeRealms: ${context.activeRealms.join(", ") || "none"}
 - centralNodes: ${(topology.centralNodes ?? []).join(", ") || "none"}
-- mapTitle: ${context.mapContext?.title ?? "unknown"}` + (mode === "analyze" ? `\n\nReturn STRICT JSON only with keys: coreInsight,tensions,leveragePoints,mythicResonance,systemicImplications,recommendedNextNodes,hiddenConnections. Each field must contain concrete, graph-usable synthesis rather than atmospheric prose.` : "");
+- mapTitle: ${context.mapContext?.title ?? "unknown"}` +
+    (mode === "extract" ? `\n\nReturn STRICT JSON only matching this schema:
+{
+  "variations": [
+    {
+      "title": "concise map-ready title",
+      "content": "substantive synthesis paragraph",
+      "type": "Thought|Joke|Character|Myth|Research|Canon|Contradiction|Artifact|Fragment",
+      "realms": ["realm-id-or-empty-array"],
+      "suggestedZone": "center|periphery|near:<existingNodeId>",
+      "reasoning": "one sentence on why this node belongs here"
+    }
+  ],
+  "spatialInsight": "one sentence about how this thought fits the map topology"
+}
+Generate 2-4 variations covering meaningfully different framings. Never return an empty variations array — if input is sparse, infer adjacent concepts and provide candidate starting points.` : "") +
+    (mode === "analyze" ? `\n\nReturn STRICT JSON only with keys: coreInsight,tensions,leveragePoints,mythicResonance,systemicImplications,recommendedNextNodes,hiddenConnections. Each field must contain concrete, graph-usable synthesis rather than atmospheric prose.` : "");
 }
 
 router.post("/cartographer", async (req: Request, res: Response) => {
