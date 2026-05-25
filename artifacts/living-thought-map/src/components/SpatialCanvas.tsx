@@ -109,6 +109,20 @@ function toSafePosition(nodeId: string, x: number, y: number) {
   return FALLBACK_POSITION;
 }
 
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isValidXYPosition(pos: unknown): pos is { x: number; y: number } {
+  return (
+    !!pos &&
+    typeof pos === 'object' &&
+    isFiniteNumber((pos as { x?: unknown }).x) &&
+    isFiniteNumber((pos as { y?: unknown }).y)
+  );
+}
+
 interface SpatialCanvasProps {
   immersive: boolean;
   onImmersiveToggle: () => void;
@@ -168,6 +182,15 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     console.log('[VISIBLE COUNT]', visibleNodes.length);
     console.log('[CAMERA]', { viewport: rfViewport });
   }, [nodes.length, visibleNodes, rfViewport]);
+
+  useEffect(() => {
+    if (nodes.length > 0 && visibleNodes.length === 0) {
+      console.error('[VISIBLE NODE COLLAPSE]', {
+        total: nodes.length,
+        zoom: rfViewport.zoom,
+      });
+    }
+  }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
 
   const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
   const nodeVisualMode = getNodeVisualMode(rfViewport.zoom);
@@ -273,16 +296,35 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       changes.forEach((change) => {
-        if (change.type === 'position' && change.position && change.id) {
-          if (!isFinitePosition(change.position.x, change.position.y)) {
-            console.error('[INVALID DRAG POSITION]', change.id, change.position);
-            return;
-          }
-          updateNodePosition(change.id, change.position.x, change.position.y);
+        if (change.type !== 'position' || !change.id) return;
+
+        const nextPosition = change.position;
+        if (!isValidXYPosition(nextPosition)) {
+          console.error('[INVALID DRAG POSITION — SKIPPING UPDATE]', {
+            nodeId: change.id,
+            nextPosition,
+          });
+          return;
         }
+
+        const sourceNode = nodes.find((node) => node.id === change.id);
+        if (IS_DEV && sourceNode) {
+          console.log('[NODE DRAG BEFORE]', {
+            id: sourceNode.id,
+            x: sourceNode.x,
+            y: sourceNode.y,
+            node: sourceNode,
+          });
+          console.log('[NODE DRAG NEXT]', {
+            id: change.id,
+            nextPosition,
+          });
+        }
+
+        updateNodePosition(change.id, nextPosition.x, nextPosition.y);
       });
     },
-    [updateNodePosition]
+    [nodes, updateNodePosition]
   );
 
   const onNodesDelete = useCallback(
