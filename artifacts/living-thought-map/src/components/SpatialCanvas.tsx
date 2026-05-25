@@ -95,6 +95,20 @@ function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) 
   return null;
 }
 
+
+const FALLBACK_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
+const FALLBACK_POSITION = { x: 0, y: 0 };
+
+function isValidViewport(vp: Viewport): boolean {
+  return Number.isFinite(vp.x) && Number.isFinite(vp.y) && Number.isFinite(vp.zoom) && vp.zoom > 0;
+}
+
+function toSafePosition(nodeId: string, x: number, y: number) {
+  if (isFinitePosition(x, y)) return { x, y };
+  console.error('[INVALID NODE POSITION]', nodeId, { x, y, fallback: FALLBACK_POSITION });
+  return FALLBACK_POSITION;
+}
+
 interface SpatialCanvasProps {
   immersive: boolean;
   onImmersiveToggle: () => void;
@@ -109,7 +123,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [dotScale, setDotScale] = useState<'tiny' | 'standard' | 'large'>('standard');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
-  const handleViewport = useCallback((vp: Viewport) => setRfViewport(vp), []);
+  const handleViewport = useCallback((vp: Viewport) => {
+    if (!isValidViewport(vp)) {
+      console.error('[INVALID VIEWPORT]', vp);
+      setRfViewport(FALLBACK_VIEWPORT);
+      return;
+    }
+    setRfViewport(vp);
+  }, []);
 
   const activeRealmIds = useMemo(
     () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
@@ -140,6 +161,14 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
+  useEffect(() => {
+    if (!IS_DEV) return;
+    console.log('[GRAPH NODE COUNT]', nodes.length);
+    console.log('[VISIBLE NODE IDS]', visibleNodes.map((n) => n.id));
+    console.log('[VISIBLE COUNT]', visibleNodes.length);
+    console.log('[CAMERA]', { viewport: rfViewport });
+  }, [nodes.length, visibleNodes, rfViewport]);
+
   const { clusters, isolatedNodes, isClusterMode } = useClusters(visibleNodes, rfViewport.zoom);
   const nodeVisualMode = getNodeVisualMode(rfViewport.zoom);
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
@@ -166,10 +195,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       }));
 
       // Isolated single nodes fall back to their regular dot rendering.
-      const singleNodes = isolatedNodes.filter((node) => isFinitePosition(node.x, node.y)).map((node) => ({
+      const singleNodes = isolatedNodes.map((node) => {
+        const safePosition = toSafePosition(node.id, node.x, node.y);
+        return {
         id: node.id,
         type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-        position: { x: node.x, y: node.y },
+        position: safePosition,
         data: {
           node,
           onOpen: openSubMap,
@@ -178,17 +209,20 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           cardScale,
           dotScale,
           semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
-        onRequestExpand: setSelectedNodeId,
+          onRequestExpand: setSelectedNodeId,
         },
-      }));
+      };
+      });
 
       return [...clusterNodes, ...singleNodes];
     }
 
-    return visibleNodes.filter((node) => isFinitePosition(node.x, node.y)).map((node) => ({
+    return visibleNodes.map((node) => {
+      const safePosition = toSafePosition(node.id, node.x, node.y);
+      return {
       id: node.id,
       type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-      position: { x: node.x, y: node.y },
+      position: safePosition,
       data: {
         node,
         onOpen: openSubMap,
@@ -199,7 +233,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
         onRequestExpand: setSelectedNodeId,
       }
-    }));
+    };
+    });
   }, [isClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, cardScale, dotScale, rfViewport.zoom]);
 
   useEffect(() => {
@@ -239,6 +274,10 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     (changes: NodeChange[]) => {
       changes.forEach((change) => {
         if (change.type === 'position' && change.position && change.id) {
+          if (!isFinitePosition(change.position.x, change.position.y)) {
+            console.error('[INVALID DRAG POSITION]', change.id, change.position);
+            return;
+          }
           updateNodePosition(change.id, change.position.x, change.position.y);
         }
       });
@@ -375,8 +414,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         nodeTypes={nodeTypes}
         deleteKeyCode="Delete"
         proOptions={{ hideAttribution: true }}
-        fitView
-        fitViewOptions={{ padding: 0.25 }}
+        minZoom={0.05}
+        maxZoom={2.5}
       >
         <Controls className="!bg-void-800 !border-void-700 !text-slate-400 !fill-slate-400" />
         <MiniMap

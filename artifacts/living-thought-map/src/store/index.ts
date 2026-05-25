@@ -337,6 +337,10 @@ export const useThoughtStore = create<MapState>()(
       },
 
       updateNodePosition: (id, x, y) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          console.error('[INVALID DRAG POSITION]', id, { x, y });
+          return;
+        }
         set((state) => ({
           nodes: state.nodes.map((node) => (node.id === id ? { ...node, x, y } : node)),
         }));
