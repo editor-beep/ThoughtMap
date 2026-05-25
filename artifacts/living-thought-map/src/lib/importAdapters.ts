@@ -1,42 +1,91 @@
 export type ImportType = 'thoughtmap' | 'vaultmind' | 'unknown';
 
+export type NormalizedImportNode = {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  tags: string[];
+};
+
+export type NormalizedImportEdge = {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+};
+
+export type NormalizedImport = {
+  nodes: NormalizedImportNode[];
+  edges: NormalizedImportEdge[];
+};
+
 export function detectImportType(data: any): ImportType {
   if (data?.nodes && data?.edges) {
     return 'thoughtmap';
   }
-  if (data?.artifacts || data?.relationships) {
+  if (data?.artifacts || data?.concepts || data?.relationships) {
     return 'vaultmind';
   }
   return 'unknown';
 }
 
-export function adaptVaultMindToThoughtMap(data: any) {
-  const artifacts = data?.artifacts ?? [];
-  const relationships = data?.relationships ?? [];
+function normalizeNode(raw: any, index: number): NormalizedImportNode {
+  return {
+    id: raw?.id ?? crypto.randomUUID(),
+    title: raw?.title ?? raw?.name ?? raw?.label ?? `Artifact ${index + 1}`,
+    body: raw?.body ?? raw?.summary ?? raw?.description ?? '',
+    type: raw?.type ?? 'thought',
+    tags: Array.isArray(raw?.tags) ? raw.tags : [],
+  };
+}
 
-  const nodes = artifacts.map((artifact: any, index: number) => ({
-    id: artifact?.id ?? crypto.randomUUID(),
-    title: artifact?.title ?? artifact?.name ?? 'Untitled Artifact',
-    content: artifact?.body ?? artifact?.summary ?? '',
-    type: artifact?.type ?? 'thought',
-    tags: artifact?.tags ?? [],
+function normalizeEdge(raw: any): NormalizedImportEdge {
+  return {
+    id: raw?.id ?? crypto.randomUUID(),
+    source: raw?.source ?? raw?.sourceId,
+    target: raw?.target ?? raw?.targetId,
+    type: raw?.type ?? 'related',
+  };
+}
+
+export function normalizeImport(data: any): NormalizedImport {
+  const rawNodes = data?.artifacts ?? data?.concepts ?? [];
+  const rawEdges = data?.relationships ?? data?.edges ?? [];
+
+  console.log('[RAW NODE COUNT]', rawNodes.length);
+
+  const nodes = rawNodes.map(normalizeNode);
+  const edges = rawEdges
+    .map(normalizeEdge)
+    .filter((edge: NormalizedImportEdge) => typeof edge.source === 'string' && typeof edge.target === 'string');
+
+  console.log('[NORMALIZED NODE COUNT]', nodes.length);
+  console.log('[NORMALIZED EDGE COUNT]', edges.length);
+
+  return {
+    nodes,
+    edges,
+  };
+}
+
+export function adaptVaultMindToThoughtMap(data: any) {
+  const normalized = normalizeImport(data);
+
+  const nodes = normalized.nodes.map((node, index: number) => ({
+    id: node.id,
+    title: node.title,
+    content: node.body,
+    type: node.type,
+    tags: node.tags,
     x: Math.cos(index * 0.5) * 400,
     y: Math.sin(index * 0.5) * 400,
     realms: [],
   }));
 
-  const edges = relationships
-    .filter((rel: any) => rel && typeof rel.source === 'string' && typeof rel.target === 'string')
-    .map((rel: any) => ({
-      id: crypto.randomUUID(),
-      source: rel.source,
-      target: rel.target,
-      type: rel.type ?? 'related',
-    }));
-
   return {
     nodes,
-    edges,
+    edges: normalized.edges,
     realms: [],
   };
 }
