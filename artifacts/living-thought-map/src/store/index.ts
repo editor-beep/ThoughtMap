@@ -178,7 +178,7 @@ interface MapState {
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
 
   undo: () => void;
-  importMap: (data: { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] }) => void;
+  importMap: (data: unknown) => void;
 
   requestCartographerExtraction: (messageId: string) => Promise<void>;
   requestCartographerExtractionFromContent: (content: string) => Promise<void>;
@@ -890,7 +890,44 @@ export const useThoughtStore = create<MapState>()(
         }
       },
 
-      importMap: ({ nodes, edges, realms }) => {
+      importMap: (raw) => {
+        const parseImportPayload = (input: unknown): { nodes: ThoughtNode[]; edges: ThoughtEdge[]; realms: Realm[] } | null => {
+          if (!input || typeof input !== 'object') return null;
+          const candidate = input as Record<string, unknown>;
+
+          if (Array.isArray(candidate.nodes) && Array.isArray(candidate.edges) && Array.isArray(candidate.realms)) {
+            return { nodes: candidate.nodes as ThoughtNode[], edges: candidate.edges as ThoughtEdge[], realms: candidate.realms as Realm[] };
+          }
+
+          if (candidate.map && typeof candidate.map === 'object') {
+            const map = candidate.map as Record<string, unknown>;
+            if (Array.isArray(map.nodes) && Array.isArray(map.edges) && Array.isArray(candidate.realms)) {
+              return { nodes: map.nodes as ThoughtNode[], edges: map.edges as ThoughtEdge[], realms: candidate.realms as Realm[] };
+            }
+          }
+
+          if (Array.isArray(candidate.maps)) {
+            const firstMapWithGraph = candidate.maps.find((entry) => {
+              if (!entry || typeof entry !== 'object') return false;
+              const mapEntry = entry as Record<string, unknown>;
+              return Array.isArray(mapEntry.nodes) && Array.isArray(mapEntry.edges);
+            }) as Record<string, unknown> | undefined;
+
+            if (firstMapWithGraph && Array.isArray(firstMapWithGraph.nodes) && Array.isArray(firstMapWithGraph.edges) && Array.isArray(candidate.realms)) {
+              return { nodes: firstMapWithGraph.nodes as ThoughtNode[], edges: firstMapWithGraph.edges as ThoughtEdge[], realms: candidate.realms as Realm[] };
+            }
+          }
+
+          return null;
+        };
+
+        const parsed = parseImportPayload(raw);
+        if (!parsed) {
+          console.warn('[ThoughtMap] Import file is missing nodes/edges/realms');
+          return;
+        }
+
+        const { nodes, edges, realms } = parsed;
         set((state) => {
           const existingIds = new Set(state.nodes.map((n) => n.id));
           const newNodes = nodes.filter((n) => !existingIds.has(n.id));
