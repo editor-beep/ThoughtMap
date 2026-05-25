@@ -47,6 +47,7 @@ export interface ThoughtNode {
   isAnchor?: boolean;
   isSemanticField?: boolean;
   subMapId?: string | null;
+  childMapId?: string | null;
   importance?: number;
 }
 
@@ -65,6 +66,7 @@ export interface MapDocument {
   level: MapLevel;
   parentMapId: string | null;
   parentNodeId: string | null;
+  sourceNodeId?: string | null;
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
   createdAt: string;

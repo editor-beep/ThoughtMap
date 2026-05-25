@@ -8,7 +8,7 @@ import { renderMarkdown } from '../lib/markdown';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, X, ChevronDown,
-  Paperclip, MessageCircle, Bold, Italic,
+  Paperclip, MessageCircle, Bold, Italic, GitBranch,
   type LucideIcon
 } from 'lucide-react';
 
@@ -147,6 +147,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const hasAttachments = (node.attachments ?? []).length > 0;
   const commentCount = (node.comments ?? []).length;
   const hasTags = (node.tags ?? []).length > 0;
+  const hasChildMap = Boolean(node.childMapId ?? node.subMapId);
 
   if (showAsDot) {
     const dotSize = dotScale === 'tiny' ? 10 : dotScale === 'large' ? 20 : 16;
@@ -160,7 +161,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
           window.setTimeout(() => setCenter(node.x + 100, node.y + 50, { zoom: 0.95, duration: 350 }), 180);
           onRequestExpand?.(node.id);
         }}
-        title={node.title}
+        title={hasChildMap ? `${node.title} · Has sub-map` : node.title}
         className="cursor-pointer relative"
         style={{ width: containerSize, height: containerSize, opacity: emphasis === 'background' ? 0.3 : emphasis === 'neighborhood' ? 0.85 : 1, filter: emphasis === 'focused' ? 'brightness(1.2)' : 'none', transform: emphasis === 'focused' ? 'scale(1.12)' : emphasis === 'neighborhood' ? 'scale(1.05)' : 'scale(1)' }}
       >
@@ -230,6 +231,9 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
             <MessageCircle size={9} />
             {commentCount}
           </span>
+        )}
+        {hasChildMap && (
+          <GitBranch size={10} className="text-cosmic-cyan/80 flex-shrink-0" title="Has sub-map" />
         )}
 
         <button

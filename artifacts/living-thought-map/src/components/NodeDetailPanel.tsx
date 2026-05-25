@@ -5,6 +5,7 @@ import {
   Archive, AlertTriangle, Package, Layers, Trash2, Compass,
   Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered,
   Paperclip, Image, Link, FileText, MessageCircle, Tag, Plus, Copy,
+  GitBranchPlus,
   type LucideIcon
 } from 'lucide-react';
 import { useThoughtStore } from '../store';
@@ -535,6 +536,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
     nodes, realms, edges, updateNode, deleteNode, deleteEdge,
     nodeChats, nodeChatStreaming, sendNodeChatMessage,
     requestCartographerExtractionFromContent, cartographerLoading,
+    splitNodeIntoNewMap, openSubMap,
   } = useThoughtStore();
 
   const node = nodes.find((n) => n.id === nodeId) ?? null;
@@ -550,6 +552,7 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
   const [chatVoice, setChatVoice] = useState<CartographerStyle>('default');
   const [pendingComment, setPendingComment] = useState<{ start: number; end: number } | null>(null);
   const [showAddComment, setShowAddComment] = useState(false);
+  const [includeNeighborsOnSplit, setIncludeNeighborsOnSplit] = useState(false);
 
   // Floating toolbar state
   const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number } | null>(null);
@@ -966,6 +969,32 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
 
           {/* Delete */}
           <div className="pt-3 border-t border-void-800/60">
+            <div className="mb-3">
+              <button
+                onClick={() => {
+                  if (node.childMapId) {
+                    openSubMap(node.id);
+                    return;
+                  }
+                  const mapId = splitNodeIntoNewMap(node.id, includeNeighborsOnSplit);
+                  if (mapId) openSubMap(node.id);
+                }}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-cosmic-cyan transition-colors"
+              >
+                <GitBranchPlus size={11} />
+                {node.childMapId ? 'Open Sub-Map' : 'Split Into New Map'}
+              </button>
+              {!node.childMapId && (
+                <label className="mt-2 flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                  <input
+                    type="checkbox"
+                    checked={includeNeighborsOnSplit}
+                    onChange={(e) => setIncludeNeighborsOnSplit(e.target.checked)}
+                  />
+                  Include directly connected nodes
+                </label>
+              )}
+            </div>
             <button
               onClick={() => { deleteNode(node.id); onClose(); }}
               className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cosmic-rose transition-colors"

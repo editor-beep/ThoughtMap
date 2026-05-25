@@ -138,6 +138,7 @@ interface MapState {
   renameMap: (id: string, title: string) => void;
   createSemanticField: (parentMapId: string, nodeData: Partial<ThoughtNode>) => string;
   openSubMap: (nodeId: string) => void;
+  splitNodeIntoNewMap: (nodeId: string, includeNeighbors?: boolean) => string | null;
   exitToParent: () => void;
 }
 
@@ -201,6 +202,7 @@ export const useThoughtStore = create<MapState>()(
           level: parentMapId ? 'detail' : 'master',
           parentMapId: parentMapId ?? null,
           parentNodeId: parentNodeId ?? null,
+          sourceNodeId: parentNodeId ?? null,
           nodes: [],
           edges: [],
           createdAt: now,
@@ -248,7 +250,62 @@ export const useThoughtStore = create<MapState>()(
       },
       openSubMap: (nodeId) => {
         const node = get().nodes.find((n) => n.id === nodeId);
-        if (node?.isSemanticField && node.subMapId) get().switchMap(node.subMapId);
+        const childMapId = node?.childMapId ?? node?.subMapId;
+        if (childMapId) get().switchMap(childMapId);
+      },
+      splitNodeIntoNewMap: (nodeId, includeNeighbors = false) => {
+        const state = get();
+        const sourceNode = state.nodes.find((n) => n.id === nodeId);
+        const currentMap = state.maps[state.currentMapId];
+        if (!sourceNode || !currentMap) return null;
+
+        const now = new Date().toISOString();
+        const mapId = `map_${crypto.randomUUID()}`;
+        const rootId = `node_${crypto.randomUUID()}`;
+        const importedNodes = includeNeighbors
+          ? state.nodes.filter((n) => n.id !== sourceNode.id && state.edges.some((e) => (e.source === sourceNode.id && e.target === n.id) || (e.target === sourceNode.id && e.source === n.id)))
+          : [];
+        const importedNodeIdMap: Record<string, string> = {};
+        importedNodes.forEach((n) => { importedNodeIdMap[n.id] = `node_${crypto.randomUUID()}`; });
+
+        const seededRoot: ThoughtNode = { ...sourceNode, id: rootId, createdAt: sourceNode.createdAt ?? now };
+        const duplicatedNeighbors: ThoughtNode[] = importedNodes.map((n) => ({ ...n, id: importedNodeIdMap[n.id], createdAt: n.createdAt ?? now }));
+        const childEdges: ThoughtEdge[] = includeNeighbors
+          ? state.edges
+            .filter((e) => (e.source === sourceNode.id && importedNodeIdMap[e.target]) || (e.target === sourceNode.id && importedNodeIdMap[e.source]) || (importedNodeIdMap[e.source] && importedNodeIdMap[e.target]))
+            .map((e) => ({
+              ...e,
+              id: `edge_${crypto.randomUUID()}`,
+              source: e.source === sourceNode.id ? rootId : importedNodeIdMap[e.source],
+              target: e.target === sourceNode.id ? rootId : importedNodeIdMap[e.target],
+            }))
+          : [];
+
+        const newMap: MapDocument = {
+          id: mapId,
+          title: sourceNode.title,
+          level: 'detail',
+          parentMapId: state.currentMapId,
+          parentNodeId: sourceNode.id,
+          sourceNodeId: sourceNode.id,
+          nodes: [seededRoot, ...duplicatedNeighbors],
+          edges: childEdges,
+          createdAt: now,
+          updatedAt: now,
+          metadata: {
+            description: sourceNode.content.slice(0, 280),
+          },
+        };
+
+        set((s) => ({
+          maps: {
+            ...s.maps,
+            [s.currentMapId]: { ...s.maps[s.currentMapId], nodes: s.nodes, edges: s.edges, updatedAt: now },
+            [mapId]: newMap,
+          },
+          nodes: s.nodes.map((n) => (n.id === sourceNode.id ? { ...n, childMapId: mapId, subMapId: mapId, isSemanticField: true } : n)),
+        }));
+        return mapId;
       },
       exitToParent: () => {
         const { maps, currentMapId } = get();
