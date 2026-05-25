@@ -34,7 +34,7 @@ export default function TopNav() {
   const infoPath = `${normalizedBasePath}/info`;
 
   const {
-    nodes, edges, realms,
+    nodes, edges, realms, maps,
     toggleRealm, addRealm, focusNode, deleteNode, addNode,
     importMap,
     importStatusMessage,
@@ -150,7 +150,7 @@ export default function TopNav() {
   };
 
   const handleExport = () => {
-    const data = { nodes, edges, realms };
+    const data = { maps, currentMapId, realms };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

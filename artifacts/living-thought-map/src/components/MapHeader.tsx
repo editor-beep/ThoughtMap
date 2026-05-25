@@ -53,7 +53,7 @@ export default function MapHeader({
             {title}
           </h2>
         )}
-        {isDetail && <button className="text-xs text-cyan-300" onClick={onExit}>Exit to Parent</button>}
+        {isDetail && <button className="text-xs text-cyan-300" onClick={onExit}>Back to Parent Map</button>}
       </div>
     </div>
   );
