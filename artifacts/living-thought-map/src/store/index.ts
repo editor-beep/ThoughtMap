@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { DEBUG, IS_DEV } from '../config/debug';
 import { persist } from 'zustand/middleware';
-import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, CartographerStyle, CartographerMode, MapDocument } from '../types';
+import { ThoughtNode, ThoughtEdge, Realm, ChatMessage, NodeType, EdgeType, TerrainId, CartographerVariation, CartographerContext, CartographerStyle, CartographerMode, MapDocument, CrystallizationResult, Tension } from '../types';
 import { adaptVaultMindToThoughtMap, detectImportType, normalizeImport } from '../lib/importAdapters';
 import { EDGE_TYPES } from '../lib/constants';
 
@@ -103,6 +103,12 @@ interface MapState {
   importStatusMessage: string | null;
   activeTerrain: TerrainId;
 
+  crystallizationResult: CrystallizationResult | null;
+  crystallizationLoading: boolean;
+  crystallizationTurns: number;
+  crystallizationAppliedNodes: number[];
+  crystallizationAppliedTensions: number[];
+
   addNode: (node: Omit<ThoughtNode, 'id' | 'createdAt'>) => string;
   updateNodePosition: (id: string, x: number, y: number) => void;
   updateNode: (id: string, updates: Partial<Pick<ThoughtNode, 'title' | 'content' | 'type' | 'realms' | 'tags' | 'attachments' | 'comments' | 'isAnchor'>>) => void;
@@ -145,6 +151,14 @@ interface MapState {
   openSubMap: (nodeId: string) => void;
   splitNodeIntoNewMap: (nodeId: string, includeNeighbors?: boolean) => string | null;
   exitToParent: () => void;
+
+  crystallizeConversationWindow: (turns?: number) => Promise<void>;
+  setCrystallizationTurns: (n: number) => void;
+  applyCrystallizationNode: (index: number, customTitle?: string) => void;
+  applyCrystallizationTension: (index: number) => void;
+  noteCrystallizationTheme: (index: number) => void;
+  sendCrystallizationExpansion: (phrase: string) => Promise<void>;
+  dismissCrystallization: () => void;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -198,6 +212,12 @@ export const useThoughtStore = create<MapState>()(
       cartographerStyle: "default",
       cartographerMode: "wander",
       importStatusMessage: null,
+
+      crystallizationResult: null,
+      crystallizationLoading: false,
+      crystallizationTurns: 3,
+      crystallizationAppliedNodes: [],
+      crystallizationAppliedTensions: [],
       createMap: (title, parentMapId, parentNodeId) => {
         const id = `map_${crypto.randomUUID()}`;
         const now = new Date().toISOString();
@@ -976,6 +996,167 @@ export const useThoughtStore = create<MapState>()(
         set({ cartographerLoading: false });
       },
 
+
+      crystallizeConversationWindow: async (turns) => {
+        const useTurns = Math.min(turns ?? get().crystallizationTurns, 5);
+        set({ crystallizationLoading: true, crystallizationResult: null, crystallizationAppliedNodes: [], crystallizationAppliedTensions: [] });
+
+        const history = get().chatHistory.filter((m) => m.complete !== false);
+        const windowMessages = history.slice(-useTurns * 2);
+        if (windowMessages.length === 0) {
+          set({ crystallizationLoading: false });
+          return;
+        }
+
+        const windowText = windowMessages.map((m) => `[${m.role === 'user' ? 'User' : 'AI'}]: ${m.content}`).join('\n\n');
+
+        const state = get();
+        const currentMapDoc = state.maps[state.currentMapId];
+        const parentMapDoc = currentMapDoc?.parentMapId ? state.maps[currentMapDoc.parentMapId] : null;
+        const context: CartographerContext = {
+          nodes: state.nodes.map((n) => ({ id: n.id, title: n.title, type: n.type, realms: n.realms, x: n.x, y: n.y })),
+          activeRealms: state.realms.filter((r) => r.isActive).map((r) => r.id),
+          topology: { nodeCount: state.nodes.length },
+          mapContext: currentMapDoc ? {
+            title: currentMapDoc.title,
+            parentTitle: parentMapDoc?.title,
+            mapLevel: currentMapDoc.level,
+            mapTitle: currentMapDoc.title,
+            parentMapTitle: parentMapDoc?.title,
+          } : undefined,
+        };
+
+        try {
+          const res = await fetch('/api/cartographer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'crystallize', style: get().cartographerStyle, message: windowText, context }),
+            signal: AbortSignal.timeout(30000),
+          });
+          if (!res.ok) {
+            let errorMsg = `API error: ${res.status}`;
+            try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
+            throw new Error(errorMsg);
+          }
+          const data = await res.json() as Partial<CrystallizationResult>;
+          set({
+            crystallizationLoading: false,
+            crystallizationResult: {
+              coreNodes: data.coreNodes ?? [],
+              tensions: data.tensions ?? [],
+              emergentThemes: data.emergentThemes ?? [],
+              candidateExpansions: data.candidateExpansions ?? [],
+              spatialInsight: data.spatialInsight ?? '',
+            },
+          });
+        } catch (err) {
+          console.error('[Crystallize] Failed:', err);
+          set({ crystallizationLoading: false });
+        }
+      },
+
+      setCrystallizationTurns: (n) => set({ crystallizationTurns: Math.min(5, Math.max(1, n)) }),
+
+      applyCrystallizationNode: (index, customTitle) => {
+        const result = get().crystallizationResult;
+        if (!result || index >= result.coreNodes.length) return;
+        if (get().crystallizationAppliedNodes.includes(index)) return;
+
+        const variation = result.coreNodes[index];
+        const state = get();
+
+        let x = (Math.random() - 0.5) * 400;
+        let y = (Math.random() - 0.5) * 400;
+
+        if (variation.suggestedZone?.startsWith('near:')) {
+          const nearNodeId = variation.suggestedZone.slice(5);
+          const nearNode = state.nodes.find((n) => n.id === nearNodeId);
+          if (nearNode) {
+            x = nearNode.x + 150 + (Math.random() - 0.5) * 100;
+            y = nearNode.y + (Math.random() - 0.5) * 100;
+          }
+        } else {
+          const zoneOffsets: Record<string, { x: number; y: number }> = {
+            center: { x: 0, y: 0 },
+            northern: { x: 0, y: -300 },
+            southern: { x: 0, y: 300 },
+            eastern: { x: 300, y: 0 },
+            western: { x: -300, y: 0 },
+          };
+          const offset = zoneOffsets[variation.suggestedZone] ?? zoneOffsets.center;
+          x = offset.x + (Math.random() - 0.5) * 200;
+          y = offset.y + (Math.random() - 0.5) * 200;
+        }
+
+        const nodeId = get().addNode({
+          title: customTitle ?? variation.title,
+          content: variation.content,
+          type: variation.type,
+          realms: variation.realms,
+          x,
+          y,
+        });
+        get().focusNode(nodeId);
+        set((s) => ({ crystallizationAppliedNodes: [...s.crystallizationAppliedNodes, index] }));
+      },
+
+      applyCrystallizationTension: (index) => {
+        const result = get().crystallizationResult;
+        if (!result || index >= result.tensions.length) return;
+        if (get().crystallizationAppliedTensions.includes(index)) return;
+
+        const tension: Tension = result.tensions[index];
+        const state = get();
+
+        const x = (Math.random() - 0.5) * 400;
+        const y = (Math.random() - 0.5) * 400;
+
+        const nodeId = get().addNode({
+          title: tension.title,
+          content: tension.description,
+          type: 'contradiction',
+          realms: [],
+          x,
+          y,
+        });
+
+        // Connect to existing nodes matching conceptA or conceptB
+        const findNode = (label: string) =>
+          state.nodes.find((n) => n.title.toLowerCase().trim() === label.toLowerCase().trim());
+
+        const nodeA = findNode(tension.conceptA);
+        const nodeB = findNode(tension.conceptB);
+        if (nodeA) get().addEdge(nodeId, nodeA.id, 'contradicts');
+        if (nodeB) get().addEdge(nodeId, nodeB.id, 'contradicts');
+
+        get().focusNode(nodeId);
+        set((s) => ({ crystallizationAppliedTensions: [...s.crystallizationAppliedTensions, index] }));
+      },
+
+      noteCrystallizationTheme: (index) => {
+        const result = get().crystallizationResult;
+        if (!result || index >= result.emergentThemes.length) return;
+        const theme = result.emergentThemes[index];
+        const x = (Math.random() - 0.5) * 400;
+        const y = (Math.random() - 0.5) * 400;
+        const nodeId = get().addNode({
+          title: theme.label,
+          content: theme.description,
+          type: 'fragment',
+          realms: [],
+          x,
+          y,
+        });
+        get().focusNode(nodeId);
+      },
+
+      sendCrystallizationExpansion: async (phrase) => {
+        await get().sendChatMessage(phrase);
+      },
+
+      dismissCrystallization: () => {
+        set({ crystallizationResult: null, crystallizationAppliedNodes: [], crystallizationAppliedTensions: [] });
+      },
 
       undo: () => {
         const { undoStack } = get();

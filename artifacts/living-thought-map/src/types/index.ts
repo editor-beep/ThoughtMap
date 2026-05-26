@@ -100,7 +100,7 @@ export interface ChatMessage {
 
 export type TerrainId = 'blackspace';
 
-export type CartographerMode = 'extract' | 'converse' | 'wander' | 'analyze';
+export type CartographerMode = 'extract' | 'converse' | 'wander' | 'analyze' | 'crystallize';
 export type CartographerStyle = 'default' | 'mythic' | 'academic' | 'systems' | 'ritual' | 'void';
 
 export interface CartographerVariation {
@@ -137,4 +137,26 @@ export interface CartographerContext {
     mapTitle?: string;
     parentMapTitle?: string;
   };
+}
+
+export interface Tension {
+  title: string;
+  conceptA: string;
+  conceptB: string;
+  description: string;
+  reasoning: string;
+}
+
+export interface EmergentTheme {
+  label: string;
+  description: string;
+  intensity: 'faint' | 'building' | 'strong';
+}
+
+export interface CrystallizationResult {
+  coreNodes: CartographerVariation[];
+  tensions: Tension[];
+  emergentThemes: EmergentTheme[];
+  candidateExpansions: string[];
+  spatialInsight: string;
 }
