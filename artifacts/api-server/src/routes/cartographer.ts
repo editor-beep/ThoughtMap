@@ -20,7 +20,7 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
-type CartographerMode = "extract" | "converse" | "wander" | "analyze";
+type CartographerMode = "extract" | "converse" | "wander" | "analyze" | "crystallize";
 type CartographerStyle = "default" | "mythic" | "academic" | "systems" | "ritual" | "void";
 type TerrainId = "memory-palace" | "interstellar-plane" | "terrestrial-globe" | "mythic-landscape" | "the-void";
 
@@ -74,7 +74,7 @@ const contextSchema = z.object({
 }).default({ nodes: [], activeTerrain: "the-void", activeRealms: [] });
 
 const cartographerRequestSchema = z.object({
-  mode: z.enum(["extract", "converse", "wander", "analyze"]).default("extract"),
+  mode: z.enum(["extract", "converse", "wander", "analyze", "crystallize"]).default("extract"),
   style: z.enum(["default", "mythic", "academic", "systems", "ritual", "void"]).default("default"),
   message: z.string().max(10_000),
   context: contextSchema.optional(),
@@ -142,7 +142,47 @@ Topology summary:
   "spatialInsight": "one sentence about how this thought fits the map topology"
 }
 Generate exactly 2-4 variations covering meaningfully different framings. You MUST return a non-empty variations array — do not return an empty array under any circumstances. If the input is sparse or unclear, infer the most likely adjacent concepts and provide candidate nodes as starting points.` : "") +
-    (mode === "analyze" ? `\n\nReturn STRICT JSON only with keys: coreInsight,tensions,leveragePoints,mythicResonance,systemicImplications,recommendedNextNodes,hiddenConnections. Each field must contain concrete, graph-usable synthesis rather than atmospheric prose.` : "");
+    (mode === "analyze" ? `\n\nReturn STRICT JSON only with keys: coreInsight,tensions,leveragePoints,mythicResonance,systemicImplications,recommendedNextNodes,hiddenConnections. Each field must contain concrete, graph-usable synthesis rather than atmospheric prose.` : "") +
+    (mode === "crystallize" ? `\n\nYou are performing conceptual archaeology on a conversation window. This is not extraction — it is geological reading. Identify what has crystallized under pressure.
+
+Return STRICT JSON matching this schema:
+{
+  "coreNodes": [
+    {
+      "title": "concise map-ready title",
+      "content": "substantive synthesis paragraph",
+      "type": "Thought|Joke|Character|Myth|Research|Canon|Contradiction|Artifact|Fragment",
+      "realms": [],
+      "suggestedZone": "center|periphery|near:<existingNodeId>",
+      "reasoning": "one sentence on why this has solidified"
+    }
+  ],
+  "tensions": [
+    {
+      "title": "short fault-line label",
+      "conceptA": "first pole",
+      "conceptB": "second pole",
+      "description": "synthesis of the contradiction",
+      "reasoning": "why this tension matters to the map"
+    }
+  ],
+  "emergentThemes": [
+    {
+      "label": "atmospheric field label",
+      "description": "what is accumulating without yet crystallizing",
+      "intensity": "faint|building|strong"
+    }
+  ],
+  "candidateExpansions": ["adjacent territory 1", "adjacent territory 2"],
+  "spatialInsight": "one sentence on how these crystallizations relate to the existing map"
+}
+
+Rules:
+- coreNodes: 0-4. Only include concepts that have genuine density — recurrence, argument, or structural weight.
+- tensions: 0-3. Contradictions that are load-bearing in the conversation, not incidental.
+- emergentThemes: 0-3. Patterns that are present but not yet ready to be nodes.
+- candidateExpansions: 0-4 short phrases pointing to adjacent intellectual territories.
+- Do not manufacture structure. An empty array is valid if nothing has crystallized in that category.` : "");
 }
 
 router.post("/cartographer", async (req: Request, res: Response) => {
@@ -163,7 +203,7 @@ router.post("/cartographer", async (req: Request, res: Response) => {
   const model = "gemini-2.0-flash";
   const systemPrompt = buildSystemPrompt(mode, style, context);
 
-  const isJsonMode = mode === "extract" || mode === "analyze";
+  const isJsonMode = mode === "extract" || mode === "analyze" || mode === "crystallize";
   const url = isJsonMode
     ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
     : `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
@@ -199,6 +239,12 @@ router.post("/cartographer", async (req: Request, res: Response) => {
     const result = await upstream.json() as Record<string, unknown>;
     const rawText = (result.candidates as Array<{content:{parts:Array<{text:string}>}}> | undefined)?.[0]?.content?.parts?.[0]?.text ?? "";
     try { return void res.json(JSON.parse(rawText)); } catch { return void res.status(502).json({ error: "Invalid JSON from model for extract mode" }); }
+  }
+
+  if (mode === "crystallize") {
+    const result = await upstream.json() as Record<string, unknown>;
+    const rawText = (result.candidates as Array<{content:{parts:Array<{text:string}>}}> | undefined)?.[0]?.content?.parts?.[0]?.text ?? "";
+    try { return void res.json(JSON.parse(rawText)); } catch { return void res.status(502).json({ error: "Invalid JSON from model for crystallize mode" }); }
   }
 
   if (mode === "analyze") {

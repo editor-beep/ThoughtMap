@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useThoughtStore } from '../store';
-import { Send, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Copy, Pin, GitBranchPlus } from 'lucide-react';
+import { Send, Sparkles, User as UserIcon, X, ChevronLeft, ChevronRight, Copy, Pin, GitBranchPlus, Layers } from 'lucide-react';
 import CartographerSuggestionPanel from './CartographerSuggestionPanel';
+import CrystallizationResultPanel from './CrystallizationResultPanel';
 import { NodeType, CartographerStyle } from '../types';
 
 function getDisplayContent(content: string): string {
@@ -135,6 +136,11 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
     cartographerLoading,
     cartographerSuggestions,
     dismissCartographerSuggestions,
+    crystallizationResult,
+    crystallizationLoading,
+    crystallizationTurns,
+    setCrystallizationTurns,
+    crystallizeConversationWindow,
   } = useThoughtStore();
   const [input, setInput] = useState('');
   const [extractTargetId, setExtractTargetId] = useState<string | null>(null);
@@ -174,6 +180,12 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
       setRailCollapsed(false);
     }
   }, [cartographerExtractingMessageId, cartographerLoading, cartographerSuggestions]);
+
+  useEffect(() => {
+    if (crystallizationLoading || crystallizationResult) {
+      setRailCollapsed(false);
+    }
+  }, [crystallizationLoading, crystallizationResult]);
 
   useEffect(() => {
     const onSelectionChange = () => {
@@ -460,10 +472,10 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
                   <button
                     onClick={() => openExtract(message.id)}
                     disabled={cartographerLoading}
-                    className="flex items-center gap-1 text-[11px] text-cosmic-cyan/50 hover:text-cosmic-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+                    title="Crystallize this message"
+                    className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-cosmic-cyan/70 transition-colors disabled:opacity-30 disabled:cursor-not-allowed group"
                   >
-                    <GitBranchPlus size={11} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-6 transition-transform'}`} />
-                    <span>Crystallize</span>
+                    <GitBranchPlus size={10} className={`${cartographerExtractingMessageId === message.id && cartographerLoading ? 'animate-spin' : 'group-hover:rotate-6 transition-transform'}`} />
                   </button>
                 )}
               </div>
@@ -476,8 +488,11 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
         ))}
       </div>
 
-      {/* Cartographer Suggestion Panel */}
+      {/* Cartographer Suggestion Panel (per-message extraction) */}
       {showCartographerPanel && <CartographerSuggestionPanel onSwitchToManual={switchToManualMode} />}
+
+      {/* Crystallization Result Panel (window-based) */}
+      <CrystallizationResultPanel />
 
       {/* Manual extraction panel */}
       {showManualPanel && (
@@ -573,6 +588,36 @@ export default function ThoughtStreamRail({ isOpen, onClose }: { isOpen: boolean
               Materialize
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Global Crystallize Bar */}
+      {chatHistory.filter((m) => m.complete !== false).length >= 2 && (
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-t border-void-800/40 bg-void-900/40">
+          <button
+            onClick={() => crystallizeConversationWindow()}
+            disabled={crystallizationLoading || isStreaming}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-void-700/60 bg-void-800/60 text-[11px] font-mono text-slate-400 hover:text-cosmic-cyan hover:border-cosmic-cyan/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed group flex-shrink-0"
+          >
+            <Layers size={11} className={`${crystallizationLoading ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
+            <span>{crystallizationLoading ? 'Reading...' : 'Crystallize'}</span>
+          </button>
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                onClick={() => setCrystallizationTurns(n)}
+                className={`w-6 h-6 rounded text-[10px] font-mono transition-colors ${
+                  crystallizationTurns === n
+                    ? 'bg-void-700 text-slate-200 border border-void-600'
+                    : 'text-slate-600 hover:text-slate-400'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <span className="text-[9px] font-mono text-slate-700 ml-auto">turns</span>
         </div>
       )}
 
