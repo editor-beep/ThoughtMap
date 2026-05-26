@@ -28,7 +28,7 @@ export default function CartographerPanel() {
       onClick={closeCartographerPanel}
     >
       <div
-        className="bg-void-800 border border-void-700 rounded-xl w-full max-w-md mx-4 shadow-2xl overflow-hidden"
+        className="bg-void-800 border border-void-700 rounded-xl w-full max-w-md mx-4 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-void-700/60 bg-void-900/40">
@@ -51,7 +51,7 @@ export default function CartographerPanel() {
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
           <div className="flex items-center gap-4 text-[11px] font-mono text-slate-500">
             <span>{nodes.length} nodes anchored</span>
             <span className="text-void-700">|</span>
