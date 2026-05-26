@@ -1,25 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { createRateLimiter } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 
-// ── Simple in-memory rate limiter ──────────────────────────────────────────
-const RATE_LIMIT_MAX = 20; // requests per window
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  return false;
-}
+const isRateLimited = createRateLimiter(20, 60_000);
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -67,7 +53,7 @@ When you identify a clear conceptual relationship between nodes that already exi
 Edge types: evolves_from | contradicts | references | remixes | supports
 Only emit LINK tokens for nodes explicitly listed in the canvas context below. Do not invent node titles.`;
 
-function buildSystemInstruction(contextNodes?: { id: string; title: string; type: string; realm?: string }[], terrain?: string, focusedNodeId?: string, voice: keyof typeof VOICE_GUIDANCE = 'default'): string {
+export function buildSystemInstruction(contextNodes?: { id: string; title: string; type: string; realm?: string }[], terrain?: string, focusedNodeId?: string, voice: keyof typeof VOICE_GUIDANCE = 'default'): string {
   const lines: string[] = [];
   if (terrain) lines.push(`Active terrain: ${terrain}`);
   lines.push(`Voice style: ${voice} — ${VOICE_GUIDANCE[voice]}`);
