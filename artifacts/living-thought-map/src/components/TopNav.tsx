@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
 import { Search, X, ChevronDown, Download, Upload, Info, Trash2, Plus } from 'lucide-react';
+import AuthPanel from './AuthPanel';
 type DropdownId = 'anchors' | 'realms' | 'exportimport';
 
 interface DropdownButtonProps {
@@ -34,7 +35,7 @@ export default function TopNav() {
   const infoPath = `${normalizedBasePath}/info`;
 
   const {
-    nodes, edges, realms, maps,
+    nodes, realms, maps,
     toggleRealm, addRealm, focusNode, deleteNode, addNode,
     importMap,
     importStatusMessage,
@@ -271,11 +272,12 @@ export default function TopNav() {
           <option value="archive">Archive</option>
         </select>
 
-        <div className="ml-auto flex-shrink-0">
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           <a href={infoPath} className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors">
             <Info size={12} />
             <span>INFO</span>
           </a>
+          <AuthPanel />
         </div>
       </nav>
     );
@@ -538,8 +540,8 @@ export default function TopNav() {
         )}
       </div>
 
-      {/* ── Info (rightmost) ── */}
-      <div className="ml-auto flex-shrink-0">
+      {/* ── Info + Auth (rightmost) ── */}
+      <div className="ml-auto flex items-center gap-2 flex-shrink-0">
         <a
           href={infoPath}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors"
@@ -547,6 +549,7 @@ export default function TopNav() {
           <Info size={12} />
           <span>INFO</span>
         </a>
+        <AuthPanel />
       </div>
 
       {/* Hidden file input */}

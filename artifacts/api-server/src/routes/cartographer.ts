@@ -1,24 +1,12 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
+import { requireSubscription } from "../middlewares/subscription.js";
+import { recordUsage } from "../lib/usage.js";
 
 const router: IRouter = Router();
 
-const RATE_LIMIT_MAX = 20;
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  return false;
-}
+const MAX_INPUT_CHARS = 50_000;
 
 type CartographerMode = "extract" | "converse" | "wander" | "analyze";
 type CartographerStyle = "default" | "mythic" | "academic" | "systems" | "ritual" | "void";
@@ -145,19 +133,15 @@ Generate exactly 2-4 variations covering meaningfully different framings. You MU
     (mode === "analyze" ? `\n\nReturn STRICT JSON only with keys: coreInsight,tensions,leveragePoints,mythicResonance,systemicImplications,recommendedNextNodes,hiddenConnections. Each field must contain concrete, graph-usable synthesis rather than atmospheric prose.` : "");
 }
 
-router.post("/cartographer", async (req: Request, res: Response) => {
-  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
-    ?? req.socket.remoteAddress
-    ?? "unknown";
-  if (isRateLimited(ip)) {
-    res.status(429).json({ error: "Too many requests — please wait a moment before trying again" });
-    return;
-  }
-
+router.post("/cartographer", requireSubscription, async (req: Request, res: Response) => {
   const parsed = cartographerRequestSchema.safeParse(req.body);
   if (!parsed.success) return void res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
   const { mode, style, message } = parsed.data;
   const context = contextSchema.parse(parsed.data.context ?? {});
+
+  if (message.length > MAX_INPUT_CHARS) {
+    return void res.status(413).json({ error: "Request payload too large" });
+  }
   const apiKey = process.env.GEMINI_API_KEY ?? "";
   if (!apiKey) return void res.status(500).json({ error: "Server misconfiguration: missing GEMINI_API_KEY" });
   const model = "gemini-2.0-flash";
@@ -198,12 +182,16 @@ router.post("/cartographer", async (req: Request, res: Response) => {
   if (mode === "extract") {
     const result = await upstream.json() as Record<string, unknown>;
     const rawText = (result.candidates as Array<{content:{parts:Array<{text:string}>}}> | undefined)?.[0]?.content?.parts?.[0]?.text ?? "";
+    const tokens = (result.usageMetadata as { totalTokenCount?: number } | undefined)?.totalTokenCount ?? 0;
+    if (req.user) recordUsage(req.user.id, tokens).catch((err) => logger.error({ err }, "Failed to record extract usage"));
     try { return void res.json(JSON.parse(rawText)); } catch { return void res.status(502).json({ error: "Invalid JSON from model for extract mode" }); }
   }
 
   if (mode === "analyze") {
     const result = await upstream.json() as Record<string, unknown>;
     const rawText = (result.candidates as Array<{content:{parts:Array<{text:string}>}}> | undefined)?.[0]?.content?.parts?.[0]?.text ?? "";
+    const tokens = (result.usageMetadata as { totalTokenCount?: number } | undefined)?.totalTokenCount ?? 0;
+    if (req.user) recordUsage(req.user.id, tokens).catch((err) => logger.error({ err }, "Failed to record analyze usage"));
     let parsedJson: unknown;
     try { parsedJson = JSON.parse(rawText); } catch { return void res.status(502).json({ error: "Malformed JSON from analyze mode", raw: rawText }); }
     const valid = analyzeOutputSchema.safeParse(parsedJson);
@@ -219,6 +207,7 @@ router.post("/cartographer", async (req: Request, res: Response) => {
   const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let totalTokens = 0;
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -234,6 +223,8 @@ router.post("/cartographer", async (req: Request, res: Response) => {
           const event = JSON.parse(raw);
           const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+          const usage = event.usageMetadata;
+          if (usage?.totalTokenCount) totalTokens = usage.totalTokenCount as number;
         } catch (parseErr) {
           logger.warn({ raw, parseErr }, "Skipping malformed SSE chunk from Cartographer");
         }
@@ -242,6 +233,11 @@ router.post("/cartographer", async (req: Request, res: Response) => {
   } finally {
     res.write("data: [DONE]\n\n");
     res.end();
+    if (req.user) {
+      recordUsage(req.user.id, totalTokens).catch((err) =>
+        logger.error({ err }, "Failed to record cartographer usage")
+      );
+    }
   }
 });
 

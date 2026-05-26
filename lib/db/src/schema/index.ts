@@ -1,4 +1,4 @@
-import { pgTable, text, real, boolean, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, real, boolean, timestamp, primaryKey, integer, jsonb } from "drizzle-orm/pg-core";
 
 // ── Nodes ──────────────────────────────────────────────────────────────────
 
@@ -74,3 +74,45 @@ export const chatMessagesTable = pgTable("chat_messages", {
 
 export type InsertChatMessage = typeof chatMessagesTable.$inferInsert;
 export type SelectChatMessage = typeof chatMessagesTable.$inferSelect;
+
+// ── Users ──────────────────────────────────────────────────────────────────
+
+export const usersTable = pgTable("users", {
+  id: text("id").primaryKey(),
+  googleId: text("google_id").notNull().unique(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type InsertUser = typeof usersTable.$inferInsert;
+export type SelectUser = typeof usersTable.$inferSelect;
+
+// ── Subscriptions ──────────────────────────────────────────────────────────
+
+export const subscriptionsTable = pgTable("subscriptions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique().references(() => usersTable.id, { onDelete: "cascade" }),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
+  status: text("status").notNull().default("none"), // 'active' | 'trialing' | 'past_due' | 'canceled' | 'none'
+  currentPeriodEnd: timestamp("current_period_end"),
+  monthlyRequestLimit: integer("monthly_request_limit").notNull().default(500),
+  requestsThisPeriod: integer("requests_this_period").notNull().default(0),
+  tokensThisPeriod: integer("tokens_this_period").notNull().default(0),
+  periodResetAt: timestamp("period_reset_at"),
+});
+
+export type InsertSubscription = typeof subscriptionsTable.$inferInsert;
+export type SelectSubscription = typeof subscriptionsTable.$inferSelect;
+
+// ── User snapshots (cloud sync) ────────────────────────────────────────────
+
+export const userSnapshotsTable = pgTable("user_snapshots", {
+  userId: text("user_id").primaryKey().references(() => usersTable.id, { onDelete: "cascade" }),
+  data: jsonb("data").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type InsertUserSnapshot = typeof userSnapshotsTable.$inferInsert;
+export type SelectUserSnapshot = typeof userSnapshotsTable.$inferSelect;

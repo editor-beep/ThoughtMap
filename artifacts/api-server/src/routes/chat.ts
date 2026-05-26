@@ -1,25 +1,12 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { logger } from "../lib/logger";
+import { logger } from "../lib/logger.js";
+import { requireSubscription } from "../middlewares/subscription.js";
+import { recordUsage } from "../lib/usage.js";
 
 const router: IRouter = Router();
 
-// ── Simple in-memory rate limiter ──────────────────────────────────────────
-const RATE_LIMIT_MAX = 20; // requests per window
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  return false;
-}
+const MAX_INPUT_CHARS = 50_000;
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -80,22 +67,20 @@ function buildSystemInstruction(contextNodes?: { id: string; title: string; type
   return `${BASE_SYSTEM_PROMPT}\n\n## Current Canvas Context\n${lines.join("\n")}`;
 }
 
-router.post("/chat", async (req: Request, res: Response) => {
-  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
-    ?? req.socket.remoteAddress
-    ?? "unknown";
-
-  if (isRateLimited(ip)) {
-    res.status(429).json({ error: "Too many requests — please wait a moment before trying again" });
-    return;
-  }
-
+router.post("/chat", requireSubscription, async (req: Request, res: Response) => {
   const parsed = chatRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
     return;
   }
   const { messages, contextNodes, terrain, focusedNodeId, voice = 'default' } = parsed.data;
+
+  // Guard against oversized inputs
+  const inputSize = JSON.stringify(messages).length + JSON.stringify(contextNodes ?? []).length;
+  if (inputSize > MAX_INPUT_CHARS) {
+    res.status(413).json({ error: "Request payload too large" });
+    return;
+  }
 
   const apiKey = process.env.GEMINI_API_KEY ?? "";
   if (!apiKey) {
@@ -162,6 +147,7 @@ router.post("/chat", async (req: Request, res: Response) => {
   const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let totalTokens = 0;
 
   try {
     while (true) {
@@ -183,6 +169,9 @@ router.post("/chat", async (req: Request, res: Response) => {
             const chunk = { choices: [{ delta: { content: text } }] };
             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
           }
+          // Capture token usage from the final chunk
+          const usage = event.usageMetadata;
+          if (usage?.totalTokenCount) totalTokens = usage.totalTokenCount as number;
         } catch (parseErr) {
           logger.warn({ raw, parseErr }, "Skipping malformed SSE chunk from Gemini");
         }
@@ -191,6 +180,12 @@ router.post("/chat", async (req: Request, res: Response) => {
   } finally {
     res.write("data: [DONE]\n\n");
     res.end();
+    // Record usage asynchronously — don't block the response
+    if (req.user) {
+      recordUsage(req.user.id, totalTokens).catch((err) =>
+        logger.error({ err }, "Failed to record chat usage")
+      );
+    }
   }
 });
 

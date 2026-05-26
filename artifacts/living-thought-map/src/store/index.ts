@@ -70,6 +70,14 @@ function normalizeNodePosition(
   return { x: clampWorld(x), y: clampWorld(y) };
 }
 
+// ─── API helpers ───────────────────────────────────────────────────────────
+
+function authHeaders(token: string | null): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+type SubscriptionErrorCode = 'subscription_required' | 'usage_limit_reached';
+
 // ─── Store ─────────────────────────────────────────────────────────────────
 
 type UndoAction = { type: 'deleteNode'; node: ThoughtNode; edges: ThoughtEdge[] } | { type: 'deleteEdge'; edge: ThoughtEdge };
@@ -139,6 +147,18 @@ interface MapState {
   requestWanderMode: () => Promise<void>;
   requestAnalyzeMode: () => Promise<void>;
   clearWanderResponse: () => void;
+  // Auth & billing state
+  authToken: string | null;
+  user: { id: string; email: string; name: string | null } | null;
+  subscriptionStatus: 'active' | 'past_due' | 'canceled' | 'none' | null;
+  lastSyncedAt: number | null;
+  subscriptionError: 'subscription_required' | 'usage_limit_reached' | null;
+  setAuth: (token: string, user: { id: string; email: string; name: string | null }, subscriptionStatus: string) => void;
+  clearAuth: () => void;
+  setSubscriptionStatus: (status: 'active' | 'past_due' | 'canceled' | 'none') => void;
+  clearSubscriptionError: () => void;
+  setLastSyncedAt: (ts: number) => void;
+
   createMap: (title: string, parentMapId?: string, parentNodeId?: string) => string;
   switchMap: (mapId: string) => void;
   renameMap: (id: string, title: string) => void;
@@ -198,6 +218,25 @@ export const useThoughtStore = create<MapState>()(
       cartographerStyle: "default",
       cartographerMode: "wander",
       importStatusMessage: null,
+
+      // Auth & billing
+      authToken: null,
+      user: null,
+      subscriptionStatus: null,
+      lastSyncedAt: null,
+      subscriptionError: null,
+
+      setAuth: (token, user, subscriptionStatus) => {
+        const status = (['active', 'past_due', 'canceled', 'none'].includes(subscriptionStatus)
+          ? subscriptionStatus
+          : 'none') as 'active' | 'past_due' | 'canceled' | 'none';
+        set({ authToken: token, user, subscriptionStatus: status, subscriptionError: null });
+      },
+      clearAuth: () => set({ authToken: null, user: null, subscriptionStatus: null, lastSyncedAt: null }),
+      setSubscriptionStatus: (status) => set({ subscriptionStatus: status }),
+      clearSubscriptionError: () => set({ subscriptionError: null }),
+      setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
+
       createMap: (title, parentMapId, parentNodeId) => {
         const id = `map_${crypto.randomUUID()}`;
         const now = new Date().toISOString();
@@ -436,13 +475,20 @@ export const useThoughtStore = create<MapState>()(
         const makeRequest = () =>
           fetch('/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders(get().authToken) },
             body: JSON.stringify({ messages: history, voice }),
             signal: AbortSignal.timeout(45000),
           });
 
         const streamResponse = async (res: Response) => {
           if (!res.ok || !res.body) {
+            if (res.status === 401) { set({ authToken: null, user: null, subscriptionStatus: null }); throw new Error('authentication_required'); }
+            if (res.status === 402) {
+              const body = await res.clone().json().catch(() => ({})) as { error?: string };
+              const code = (body.error === 'usage_limit_reached' ? 'usage_limit_reached' : 'subscription_required') as SubscriptionErrorCode;
+              set({ subscriptionError: code });
+              throw new Error(code);
+            }
             if (res.status === 504) throw new Error('The AI took too long to respond');
             let apiErr = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) apiErr = body.error; } catch { /**/ }
@@ -552,8 +598,7 @@ export const useThoughtStore = create<MapState>()(
 
         set({ isStreaming: false });
 
-        // ── Auto-shift terrain based on conversation theme ──
-        const allMessages = get().chatHistory;
+        // ── Auto-shift terrain based on conversation theme ── (placeholder)
       },
 
       extractToMap: (messageId, type, title, realmId) => {
@@ -608,12 +653,16 @@ export const useThoughtStore = create<MapState>()(
         try {
           const res = await fetch('/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders(get().authToken) },
             body: JSON.stringify({ messages: contextMessages, voice }),
             signal: AbortSignal.timeout(45000),
           });
 
-          if (!res.ok || !res.body) throw new Error(`API error: ${res.status}`);
+          if (!res.ok || !res.body) {
+            if (res.status === 401) { set({ authToken: null, user: null, subscriptionStatus: null }); throw new Error('authentication_required'); }
+            if (res.status === 402) { const b = await res.clone().json().catch(() => ({})) as { error?: string }; set({ subscriptionError: (b.error === 'usage_limit_reached' ? 'usage_limit_reached' : 'subscription_required') as SubscriptionErrorCode }); throw new Error(b.error ?? 'subscription_required'); }
+            throw new Error(`API error: ${res.status}`);
+          }
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
@@ -697,12 +746,14 @@ export const useThoughtStore = create<MapState>()(
         try {
           const res = await fetch('/api/cartographer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders(get().authToken) },
             body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: extractionMessage, context }),
             signal: AbortSignal.timeout(30000),
           });
 
           if (!res.ok) {
+            if (res.status === 401) { set({ authToken: null, user: null, subscriptionStatus: null }); throw new Error('authentication_required'); }
+            if (res.status === 402) { const b = await res.clone().json().catch(() => ({})) as { error?: string }; set({ subscriptionError: (b.error === 'usage_limit_reached' ? 'usage_limit_reached' : 'subscription_required') as SubscriptionErrorCode }); throw new Error(b.error ?? 'subscription_required'); }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
             throw new Error(errorMsg);
@@ -755,12 +806,14 @@ export const useThoughtStore = create<MapState>()(
         try {
           const res = await fetch('/api/cartographer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders(get().authToken) },
             body: JSON.stringify({ mode: 'extract', style: get().cartographerStyle, message: cleanForExtraction(content), context }),
             signal: AbortSignal.timeout(30000),
           });
 
           if (!res.ok) {
+            if (res.status === 401) { set({ authToken: null, user: null, subscriptionStatus: null }); throw new Error('authentication_required'); }
+            if (res.status === 402) { const b = await res.clone().json().catch(() => ({})) as { error?: string }; set({ subscriptionError: (b.error === 'usage_limit_reached' ? 'usage_limit_reached' : 'subscription_required') as SubscriptionErrorCode }); throw new Error(b.error ?? 'subscription_required'); }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
             throw new Error(errorMsg);
@@ -909,12 +962,16 @@ export const useThoughtStore = create<MapState>()(
         try {
           const res = await fetch('/api/cartographer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders(get().authToken) },
             body: JSON.stringify({ mode: 'wander', style: get().cartographerStyle, message: 'Survey the map and offer an observation.', context }),
             signal: AbortSignal.timeout(30000),
           });
 
-          if (!res.ok || !res.body) throw new Error('Wander mode failed');
+          if (!res.ok || !res.body) {
+            if (res.status === 401) { set({ authToken: null, user: null, subscriptionStatus: null }); throw new Error('authentication_required'); }
+            if (res.status === 402) { const b = await res.clone().json().catch(() => ({})) as { error?: string }; set({ subscriptionError: (b.error === 'usage_limit_reached' ? 'usage_limit_reached' : 'subscription_required') as SubscriptionErrorCode }); throw new Error(b.error ?? 'subscription_required'); }
+            throw new Error('Wander mode failed');
+          }
 
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
@@ -959,11 +1016,13 @@ export const useThoughtStore = create<MapState>()(
         try {
           const res = await fetch('/api/cartographer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders(get().authToken) },
             body: JSON.stringify({ mode: 'analyze', style: state.cartographerStyle, message: 'Analyze the current map.', context }),
             signal: AbortSignal.timeout(30000),
           });
           if (!res.ok) {
+            if (res.status === 401) { set({ authToken: null, user: null, subscriptionStatus: null }); throw new Error('authentication_required'); }
+            if (res.status === 402) { const b = await res.clone().json().catch(() => ({})) as { error?: string }; set({ subscriptionError: (b.error === 'usage_limit_reached' ? 'usage_limit_reached' : 'subscription_required') as SubscriptionErrorCode }); throw new Error(b.error ?? 'subscription_required'); }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
             throw new Error(errorMsg);
@@ -1164,6 +1223,10 @@ export const useThoughtStore = create<MapState>()(
           nodeChats: state.nodeChats,
           cartographerStyle: state.cartographerStyle,
           cartographerMode: state.cartographerMode,
+          authToken: state.authToken,
+          user: state.user,
+          subscriptionStatus: state.subscriptionStatus,
+          lastSyncedAt: state.lastSyncedAt,
         };
       },
       onRehydrateStorage: () => (state) => {

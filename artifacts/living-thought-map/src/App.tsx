@@ -5,6 +5,7 @@ import { Sparkles, Map } from 'lucide-react';
 import TopNav from './components/TopNav';
 import SpatialCanvas from './components/SpatialCanvas';
 import ThoughtStreamRail from './components/ThoughtStreamRail';
+import UpgradeModal from './components/UpgradeModal';
 import { useThoughtStore, MASTER_MAP_ID } from './store';
 import InfoPage from './pages/InfoPage';
 
@@ -38,6 +39,7 @@ function CanvasApp() {
   return (
     <>
       <MapUrlSync />
+      <UpgradeModal />
       <div className="flex flex-col w-screen h-dvh bg-void-900 text-slate-300 font-sans antialiased overflow-hidden">
         {!immersive && <TopNav />}
 
