@@ -7,9 +7,11 @@ import { renderMarkdown } from '../lib/markdown';
 import {
   Sparkles, Smile, User, BookOpen, Microscope,
   Archive, AlertTriangle, Package, Layers, X, ChevronDown,
-  Paperclip, MessageCircle, Bold, Italic, GitBranch,
+  Paperclip, MessageCircle, Bold, Italic, GitBranch, Navigation, Pencil,
   type LucideIcon
 } from 'lucide-react';
+import { EdgeType } from '../types';
+import { EDGE_TYPES } from '../lib/constants';
 
 interface TypeConfig {
   icon: LucideIcon;
@@ -19,6 +21,14 @@ interface TypeConfig {
   dotColor: string;
   dotShape: 'circle' | 'diamond';
 }
+
+const EDGE_COLORS: Record<string, string> = {
+  evolves_from: '#06b6d4',
+  contradicts:  '#f43f5e',
+  references:   '#3b82f6',
+  remixes:      '#a855f7',
+  supports:     '#10b981',
+};
 
 const TYPE_CONFIGS: Record<ThoughtNode['type'], TypeConfig> = {
   thought:       { icon: Sparkles,      border: 'border-cosmic-cyan/50',    iconColor: 'text-cosmic-cyan',    glow: 'rgba(6,182,212,0.22)',    dotColor: '#c4b5fd', dotShape: 'circle'  },
@@ -93,10 +103,10 @@ function InlineToolbar({ textareaRef, value, onChange }: InlineToolbarProps) {
 // ─── Node card ─────────────────────────────────────────────────────────────
 
 type EmphasisState = 'default' | 'focused' | 'neighborhood' | 'background';
-export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; semanticCompression?: number; onRequestExpand?: (nodeId: string) => void } }) {
+export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode; isFocused?: boolean; emphasis?: EmphasisState; semanticCompression?: number; onRequestExpand?: (nodeId: string) => void; onOpenPanel?: (nodeId: string, tab: 'chat' | 'edit') => void } }) {
   const { node } = data;
   const isFocused = Boolean(data.isFocused);
-  const { deleteNode, nodeSearchQuery, updateNode } = useThoughtStore();
+  const { deleteNode, nodeSearchQuery, updateNode, addNode, addEdge: storeAddEdge } = useThoughtStore();
   const config = TYPE_CONFIGS[node.type] ?? TYPE_CONFIGS.thought;
   const isSearchMatch = nodeSearchQuery.length > 0 && (
     node.title.toLowerCase().includes(nodeSearchQuery) ||
@@ -111,6 +121,11 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const showExpanded = isExpanded || isFocused;
   const emphasis = data.emphasis ?? 'default';
   const semanticCompression = data.semanticCompression ?? 1;
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const COLLAPSED_MIN_HEIGHT = 60;
   const inlineRef = useRef<HTMLTextAreaElement | null>(null);
@@ -137,6 +152,44 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
     }
   }, [node.content]);
 
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    if (isInlineEditing) return;
+    pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
+    longPressTimerRef.current = setTimeout(() => {
+      setMenuOpen(true);
+      longPressTimerRef.current = null;
+    }, 500);
+  }, [isInlineEditing]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!pointerDownPosRef.current || !longPressTimerRef.current) return;
+    const dx = e.clientX - pointerDownPosRef.current.x;
+    const dy = e.clientY - pointerDownPosRef.current.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 6) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      pointerDownPosRef.current = null;
+    }
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    pointerDownPosRef.current = null;
+  }, []);
+
+  const handleBranch = useCallback((edgeType: EdgeType) => {
+    const newId = addNode({ title: 'New node', content: '', type: 'thought', x: node.x + 280, y: node.y + 80, realms: [] });
+    storeAddEdge(node.id, newId, edgeType);
+    setBranchPickerOpen(false);
+    setMenuOpen(false);
+  }, [node.id, node.x, node.y, addNode, storeAddEdge]);
+
+  useEffect(() => () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }, []);
+
   const hasAttachments = (node.attachments ?? []).length > 0;
   const commentCount = (node.comments ?? []).length;
   const hasTags = (node.tags ?? []).length > 0;
@@ -153,6 +206,10 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
         filter: emphasis === 'background' ? 'saturate(0.75)' : 'none',
         transition: 'opacity 160ms ease, transform 180ms ease, filter 180ms ease',
       }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
     >
       <Handle type="target" position={Position.Top} className="!bg-void-700 !w-2 !h-2 !border-void-600" />
 
@@ -311,6 +368,71 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
         style={{ left: 0, bottom: 0, width: '100%', height: '20px', transform: 'translateY(50%)', borderRadius: '0 0 8px 8px', border: 'none' }}
         className="!bg-void-600/10 hover:!bg-void-600/40 transition-colors cursor-crosshair"
       />
+
+      {/* Long-press context menu — inside card DOM so it scales with canvas zoom */}
+      {menuOpen && (
+        <div
+          className="nodrag absolute inset-0 z-50 flex items-center justify-center rounded-lg"
+          style={{ backgroundColor: 'rgba(10,10,20,0.85)', backdropFilter: 'blur(4px)' }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {!branchPickerOpen ? (
+            <div className="flex flex-col items-center gap-1.5 px-3 py-2 w-full">
+              <button
+                className="nodrag w-full flex items-center gap-2 px-3 py-1.5 rounded bg-void-700/80 border border-void-600/60 text-[11px] font-mono text-slate-200 hover:bg-void-600 transition-colors"
+                onClick={() => setBranchPickerOpen(true)}
+              >
+                <GitBranch size={11} className="text-cosmic-cyan" /> Branch
+              </button>
+              <button
+                className="nodrag w-full flex items-center gap-2 px-3 py-1.5 rounded bg-void-700/80 border border-void-600/60 text-[11px] font-mono text-slate-200 hover:bg-void-600 transition-colors"
+                onClick={() => { data.onOpenPanel?.(node.id, 'chat'); setMenuOpen(false); }}
+              >
+                <Navigation size={11} className="text-cosmic-cyan" /> Navigate
+              </button>
+              <button
+                className="nodrag w-full flex items-center gap-2 px-3 py-1.5 rounded bg-void-700/80 border border-void-600/60 text-[11px] font-mono text-slate-200 hover:bg-void-600 transition-colors"
+                onClick={() => { data.onOpenPanel?.(node.id, 'edit'); setMenuOpen(false); }}
+              >
+                <Pencil size={11} className="text-slate-400" /> Edit
+              </button>
+              <button
+                className="nodrag w-full flex items-center gap-2 px-3 py-1.5 rounded bg-void-700/80 border border-cosmic-rose/30 text-[11px] font-mono text-cosmic-rose hover:bg-cosmic-rose/10 transition-colors"
+                onClick={() => { deleteNode(node.id); setMenuOpen(false); }}
+              >
+                <X size={11} /> Delete
+              </button>
+              <button
+                className="nodrag mt-1 text-[9px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1.5 px-3 py-2 w-full">
+              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1">Connect as</span>
+              {EDGE_TYPES.map((et) => (
+                <button
+                  key={et}
+                  className="nodrag w-full px-3 py-1.5 rounded-full text-[10px] font-mono font-semibold border transition-colors hover:opacity-90"
+                  style={{ borderColor: EDGE_COLORS[et] + '60', color: EDGE_COLORS[et], backgroundColor: EDGE_COLORS[et] + '18' }}
+                  onClick={() => handleBranch(et)}
+                >
+                  {et.replace('_', ' ')}
+                </button>
+              ))}
+              <button
+                className="nodrag mt-1 text-[9px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
+                onClick={() => setBranchPickerOpen(false)}
+              >
+                back
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
