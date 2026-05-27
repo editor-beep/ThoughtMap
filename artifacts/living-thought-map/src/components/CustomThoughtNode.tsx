@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-import { Handle, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow';
+import { Handle, Position, useUpdateNodeInternals } from 'reactflow';
 import { ThoughtNode } from '../types';
 import { useThoughtStore } from '../store';
 import { renderMarkdown } from '../lib/markdown';
@@ -107,8 +107,6 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [inlineContent, setInlineContent] = useState(node.content);
   const [showInlineToolbar, setShowInlineToolbar] = useState(false);
-  const { setCenter } = useReactFlow();
-  const onRequestExpand = data.onRequestExpand;
   const updateNodeInternals = useUpdateNodeInternals();
   const showExpanded = isExpanded || isFocused;
   const emphasis = data.emphasis ?? 'default';
@@ -178,6 +176,7 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
         )}
 
         <button
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded((prev) => {
@@ -189,14 +188,15 @@ export default function CustomThoughtNode({ data }: { data: { node: ThoughtNode;
             });
           }}
           className="p-0.5 rounded hover:bg-void-700 text-slate-500 hover:text-slate-300 transition-colors"
-          title={isExpanded ? 'Collapse' : 'Expand'}
+          title={showExpanded ? 'Collapse' : 'Expand'}
         >
           <ChevronDown
             size={12}
-            className={`transition-transform duration-200 ease-in-out${isExpanded ? ' rotate-180' : ''}`}
+            className={`transition-transform duration-200 ease-in-out${showExpanded ? ' rotate-180' : ''}`}
           />
         </button>
         <button
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); deleteNode(node.id); }}
           className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-void-700 text-slate-600 hover:text-cosmic-rose"
           title="Delete node"
