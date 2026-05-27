@@ -102,6 +102,8 @@ interface MapState {
   openSubMap: (nodeId: string) => void;
   splitNodeIntoNewMap: (nodeId: string, includeNeighbors?: boolean) => string | null;
   exitToParent: () => void;
+  linkMapToNode: (childMapId: string, parentNodeId: string, parentNodeMapId: string) => void;
+  decoupleMapFromNode: (childMapId: string) => void;
 
   crystallizeConversationWindow: (turns?: number) => Promise<void>;
   setCrystallizationTurns: (n: number) => void;
@@ -268,6 +270,46 @@ export const useThoughtStore = create<MapState>()(
         const { maps, currentMapId } = get();
         const current = maps[currentMapId];
         if (current?.parentMapId) get().switchMap(current.parentMapId);
+      },
+
+      linkMapToNode: (childMapId, parentNodeId, parentNodeMapId) => {
+        const { maps, currentMapId, nodes } = get();
+        const now = new Date().toISOString();
+        const updatedParentNodes = (maps[parentNodeMapId]?.nodes ?? []).map((n) =>
+          n.id === parentNodeId
+            ? { ...n, childMapId, subMapId: childMapId, isSemanticField: true }
+            : n
+        );
+        set((s) => ({
+          ...(parentNodeMapId === currentMapId
+            ? { nodes: nodes.map((n) => n.id === parentNodeId ? { ...n, childMapId, subMapId: childMapId, isSemanticField: true } : n) }
+            : {}),
+          maps: {
+            ...s.maps,
+            [parentNodeMapId]: { ...s.maps[parentNodeMapId], nodes: updatedParentNodes, updatedAt: now },
+            [childMapId]: { ...s.maps[childMapId], parentMapId: parentNodeMapId, parentNodeId, updatedAt: now },
+          },
+        }));
+      },
+
+      decoupleMapFromNode: (childMapId) => {
+        const { maps, currentMapId } = get();
+        const childMap = maps[childMapId];
+        if (!childMap?.parentNodeId) return;
+        const { parentNodeId, parentMapId } = childMap;
+        if (!parentMapId) return;
+        const now = new Date().toISOString();
+        const updatedParentNodes = (maps[parentMapId]?.nodes ?? []).filter((n) => n.id !== parentNodeId);
+        set((s) => ({
+          ...(parentMapId === currentMapId
+            ? { nodes: s.nodes.filter((n) => n.id !== parentNodeId) }
+            : {}),
+          maps: {
+            ...s.maps,
+            [parentMapId]: { ...s.maps[parentMapId], nodes: updatedParentNodes, updatedAt: now },
+            [childMapId]: { ...s.maps[childMapId], parentMapId: MASTER_MAP_ID, parentNodeId: null, sourceNodeId: null, updatedAt: now },
+          },
+        }));
       },
 
       addNode: (nodeData) => {
