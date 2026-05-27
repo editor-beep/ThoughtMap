@@ -662,7 +662,7 @@ export default function NodeDetailPanel({ nodeId, onClose, initialTab }: Props) 
   ];
 
   return (
-    <div className="absolute right-0 top-0 h-full w-[380px] bg-void-900/98 border-l border-void-700/60 flex flex-col z-30 backdrop-blur-md shadow-2xl">
+    <div className="absolute right-0 top-0 h-full w-full md:w-[380px] bg-void-900/98 border-l border-void-700/60 flex flex-col z-30 backdrop-blur-md shadow-2xl">
 
       {/* Floating rich text toolbar (portal-style fixed positioning) */}
       {toolbarPos && (
