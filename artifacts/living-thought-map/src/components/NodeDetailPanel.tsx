@@ -71,6 +71,7 @@ type Tab = 'chat' | 'edit' | 'links';
 interface Props {
   nodeId: string | null;
   onClose: () => void;
+  initialTab?: Tab;
 }
 
 // ─── Rich text toolbar ─────────────────────────────────────────────────────
@@ -531,7 +532,7 @@ function CommentsSection({ content, comments, onChange, textareaRef, pendingComm
 
 // ─── Main panel ────────────────────────────────────────────────────────────
 
-export default function NodeDetailPanel({ nodeId, onClose }: Props) {
+export default function NodeDetailPanel({ nodeId, onClose, initialTab }: Props) {
   const {
     nodes, realms, edges, updateNode, deleteNode, deleteEdge,
     nodeChats, nodeChatStreaming, sendNodeChatMessage,
@@ -569,12 +570,12 @@ export default function NodeDetailPanel({ nodeId, onClose }: Props) {
       setAttachments(node.attachments ?? []);
       setComments(node.comments ?? []);
     }
-    setTab('chat');
+    setTab(initialTab ?? 'chat');
     setChatInput('');
     setPendingComment(null);
     setShowAddComment(false);
     setToolbarPos(null);
-  }, [node?.id]);
+  }, [node?.id, initialTab]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });

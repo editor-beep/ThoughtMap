@@ -228,6 +228,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const { nodes, edges, realms, maps, currentMapId, switchMap, renameMap, updateNodePosition, addEdge, deleteNode, deleteEdge, updateEdgeType, selectedEdgeId, setSelectedEdgeId, openCartographerPanel, openSubMap, exitToParent, focusNode } = useThoughtStore();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeTab, setSelectedNodeTab] = useState<'chat' | 'edit'>('chat');
   const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [lastGestureSource, setLastGestureSource] = useState<'wheel' | 'touch' | 'unknown'>('unknown');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -237,6 +238,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const rfWrapperRef = useRef<HTMLDivElement | null>(null);
   const MIN_ZOOM = 0.05;
   const MAX_ZOOM = 2.5;
+
+  const handleOpenPanel = useCallback((nodeId: string, tab: 'chat' | 'edit') => {
+    setSelectedNodeTab(tab);
+    setSelectedNodeId(nodeId);
+  }, []);
+
   // Padding (in screen px) from the viewport edge — a node released closer
   // than this to the edge counts as off-screen and gets pulled back into view.
   const OFFSCREEN_EDGE_PADDING = 48;
@@ -396,6 +403,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
           emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
           semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
           onRequestExpand: setSelectedNodeId,
+          onOpenPanel: handleOpenPanel,
         },
       };
       });
@@ -416,10 +424,11 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
         semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
         onRequestExpand: setSelectedNodeId,
+        onOpenPanel: handleOpenPanel,
       }
     };
     });
-  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, rfViewport.zoom]);
+  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, rfViewport.zoom, handleOpenPanel]);
 
   useEffect(() => {
     if (IS_DEV && DEBUG.selection) {
@@ -870,7 +879,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         </div>
       )}
 
-      <NodeDetailPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} />
+      <NodeDetailPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} initialTab={selectedNodeTab} />
     </div>
   );
 }
