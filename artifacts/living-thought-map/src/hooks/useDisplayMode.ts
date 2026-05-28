@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useViewport } from 'reactflow';
 import { getNodeVisualMode, NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
+import { IS_DEV } from '../config/debug';
 
 export const ZOOM_THRESHOLDS = {
   FULL: NODE_VISUAL_MODE_THRESHOLDS.FULL_CARD,
@@ -22,7 +23,7 @@ export const useDisplayMode = () => {
   const prevModeRef = useRef<NodeVisualMode>(nodeVisualMode);
   useEffect(() => {
     if (prevModeRef.current !== nodeVisualMode) {
-      console.log('[NODE MODE TRANSITION]', prevModeRef.current, nodeVisualMode);
+      if (IS_DEV) console.log('[NODE MODE TRANSITION]', prevModeRef.current, nodeVisualMode);
       prevModeRef.current = nodeVisualMode;
     }
   }, [nodeVisualMode]);
