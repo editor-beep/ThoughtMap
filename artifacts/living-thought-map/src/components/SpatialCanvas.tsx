@@ -98,15 +98,48 @@ function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) 
 
 function CanvasZoomControls() {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const buttonClassName = 'h-8 w-8 rounded border border-void-700 bg-void-800/90 text-slate-300 hover:bg-void-700 hover:text-slate-100 transition-colors';
+  // h-11 w-11 = 44px — meets Apple HIG minimum touch target size for iPhone/iPad
+  const buttonClassName = 'h-11 w-11 rounded border border-void-700 bg-void-800/90 text-slate-300 hover:bg-void-700 hover:text-slate-100 transition-colors';
 
   return (
     <div className="flex flex-col gap-1.5 pointer-events-auto">
       <button aria-label="Zoom in" onClick={() => zoomIn({ duration: 180 })} className={buttonClassName}>+</button>
       <button aria-label="Zoom out" onClick={() => zoomOut({ duration: 180 })} className={buttonClassName}>−</button>
-      <button aria-label="Fit view" onClick={() => fitView({ duration: 240, padding: 0.2 })} className={buttonClassName}>⤢</button>
+      <button aria-label="Fit view" onClick={() => fitView({ duration: 240, padding: 0.25 })} className={buttonClassName}>⤢</button>
     </div>
   );
+}
+
+/** Wires ⌘/Ctrl + = / − / 0 keyboard shortcuts to canvas zoom. */
+function CanvasKeyboardControls() {
+  const { zoomIn, zoomOut, setViewport, getViewport } = useReactFlow();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName ?? '';
+      const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement | null)?.isContentEditable;
+      if (isEditable) return;
+
+      const isCmdCtrl = event.metaKey || event.ctrlKey;
+      if (!isCmdCtrl) return;
+
+      if (event.key === '=' || event.key === '+') {
+        event.preventDefault();
+        zoomIn({ duration: 180 });
+      } else if (event.key === '-') {
+        event.preventDefault();
+        zoomOut({ duration: 180 });
+      } else if (event.key === '0') {
+        event.preventDefault();
+        const vp = getViewport();
+        setViewport({ ...vp, zoom: 1 }, { duration: 300 });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomIn, zoomOut, setViewport, getViewport]);
+
+  return null;
 }
 
 function CanonicalMiniMap({ nodes, edges, viewport, wrapperRef }: {
@@ -359,11 +392,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
 
   const { clusters, isolatedNodes } = useClusters(visibleNodes, rfViewport.zoom);
-  // Use the same cluster threshold as `useClusters` so we never enter cluster
-  // rendering at a zoom where the hook returns no clusters (which used to
-  // produce an empty cluster layer between 0.18 and 0.22).
+  // Drive cluster mode directly from zoom rather than from the hysteresis-based
+  // nodeVisualMode state. nodeVisualMode lags one render behind rfViewport.zoom
+  // (it updates in a useEffect), which produced a brief empty canvas whenever
+  // the zoom crossed the cluster threshold while nodeVisualMode was still
+  // FULL_CARD. At zoom < 0.18 we are always in compact territory anyway.
   const shouldUseClusterMode =
-    nodeVisualMode === NodeVisualMode.COMPACT_CARD &&
     rfViewport.zoom < NODE_VISUAL_MODE_THRESHOLDS.CLUSTER &&
     !isDraggingNode;
   const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
@@ -550,23 +584,27 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
         ctrlKey: event.ctrlKey,
       });
     }
-    const viewportZoom = clampZoom(rfViewport.zoom, MIN_ZOOM, MAX_ZOOM);
-    if (!Number.isFinite(viewportZoom)) {
-      event.preventDefault();
-    }
-  }, [rfViewport.zoom]);
+  }, []);
+
+  // Keep a ref of the values used only for debug logging so the gesture
+  // listener can be registered exactly once (on mount) rather than being torn
+  // down and re-attached on every viewport tick. Unnecessary re-registration
+  // can cause missed gesturestart events during pinch animations on iOS.
+  const gestureDebugRef = useRef({ flowNodesLength: 0, nodeVisualMode: NodeVisualMode.FULL_CARD as NodeVisualMode, rfViewport: FALLBACK_VIEWPORT, visibleNodesLength: 0 });
+  gestureDebugRef.current = { flowNodesLength: flowNodes.length, nodeVisualMode, rfViewport, visibleNodesLength: visibleNodes.length };
 
   useEffect(() => {
-    if (!rfWrapperRef.current) return;
     const target = rfWrapperRef.current;
+    if (!target) return;
     const onGesture = (event: Event) => {
       setLastGestureSource('touch');
       if (IS_DEV && DEBUG.pointerEvents) {
+        const { flowNodesLength, nodeVisualMode: mode, rfViewport: vp, visibleNodesLength } = gestureDebugRef.current;
         console.group('[ZOOM PIPELINE]');
         console.log('gesture', event.type);
-        console.log('viewport', rfViewport);
-        console.log('mode', nodeVisualMode);
-        console.log('rendered', flowNodes.length, 'visible', visibleNodes.length);
+        console.log('viewport', vp);
+        console.log('mode', mode);
+        console.log('rendered', flowNodesLength, 'visible', visibleNodesLength);
         console.groupEnd();
       }
     };
@@ -578,7 +616,8 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       target.removeEventListener('gesturechange', onGesture);
       target.removeEventListener('gestureend', onGesture);
     };
-  }, [flowNodes.length, nodeVisualMode, rfViewport, visibleNodes.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleEdgeTypeSelect = (type: EdgeType) => {
     if (!pendingConnection) return;
@@ -789,6 +828,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
       >
         <CanonicalMiniMap nodes={nodes} edges={edges} viewport={rfViewport} wrapperRef={rfWrapperRef} />
         <CanvasController />
+        <CanvasKeyboardControls />
         <ViewportTracker onViewport={handleViewport} />
         <div
           className="absolute flex flex-col pointer-events-none"
