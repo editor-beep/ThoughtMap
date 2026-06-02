@@ -346,6 +346,11 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     [realms]
   );
 
+  const knownRealmIds = useMemo(
+    () => new Set(realms.map((r) => r.id)),
+    [realms]
+  );
+
   const currentMap = maps[currentMapId] ?? null;
   const isDetail = currentMap?.level === 'detail';
 
@@ -364,8 +369,18 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [currentMap, maps, switchMap]);
 
   const visibleNodes = useMemo(
-    () => nodes.filter((n) => n.realms.length === 0 || n.realms.some((r) => activeRealmIds.has(r))),
-    [nodes, activeRealmIds]
+    () =>
+      nodes.filter((n) => {
+        if (n.realms.length === 0) return true;
+        // Only realms that actually exist in the store can hide a node. Realm
+        // ids that don't match any known realm (e.g. ids invented by the
+        // Cartographer AI) must NOT hide the node — otherwise valid nodes
+        // vanish and the whole canvas goes blank.
+        const knownRealms = n.realms.filter((r) => knownRealmIds.has(r));
+        if (knownRealms.length === 0) return true;
+        return knownRealms.some((r) => activeRealmIds.has(r));
+      }),
+    [nodes, activeRealmIds, knownRealmIds]
   );
 
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
@@ -383,13 +398,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [nodes.length, visibleNodes, rfViewport]);
 
   useEffect(() => {
-    if (nodes.length > 0 && visibleNodes.length === 0) {
-      console.error('[VISIBLE NODE COLLAPSE]', {
-        total: nodes.length,
-        zoom: rfViewport.zoom,
-      });
+    // Fires only when the collapse condition toggles (not on every zoom tick),
+    // and only in development, so it never floods the production console.
+    if (IS_DEV && nodes.length > 0 && visibleNodes.length === 0) {
+      console.warn('[VISIBLE NODE COLLAPSE]', { total: nodes.length });
     }
-  }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
+  }, [nodes.length, visibleNodes.length]);
 
   const { clusters, isolatedNodes } = useClusters(visibleNodes, rfViewport.zoom);
   // Drive cluster mode directly from zoom rather than from the hysteresis-based
