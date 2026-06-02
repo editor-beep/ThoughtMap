@@ -100,7 +100,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     parts: [{ text: m.content }],
   }));
 
-  const model = "gemini-2.0-flash";
+  const model = "gemini-2.5-flash";
   const systemText = buildSystemInstruction(contextNodes, terrain, focusedNodeId, voice);
 
   let upstream: Response | globalThis.Response;
