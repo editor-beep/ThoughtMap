@@ -1,0 +1,1 @@
+- [Realm visibility, NaN drag, preview noise](realm-visibility-filter.md) — Cartographer orphan realm ids blank the canvas; trackpad NaN drags need store-position restore; "not an error object" is harness noise.
