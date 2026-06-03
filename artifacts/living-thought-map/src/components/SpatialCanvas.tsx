@@ -2,8 +2,6 @@ import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import ReactFlow, {
   NodeChange,
   Connection,
-  useReactFlow,
-  useViewport,
   Node,
   Edge,
   NodeMouseHandler,
@@ -22,13 +20,23 @@ import NodeDetailPanel from './NodeDetailPanel';
 import BlackspaceBackground from './BlackspaceBackground';
 import CartographerPanel from './CartographerPanel';
 import DebugZoom from './DebugZoom';
+import CanonicalMiniMap from './CanonicalMiniMap';
+import { CanvasController, ViewportTracker, CanvasZoomControls, CanvasKeyboardControls } from './canvasControls';
 import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
-import { isFinitePosition, NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
+import { NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
 import { EDGE_TYPES } from '../lib/constants';
+import { EDGE_COLORS, EDGE_LABELS } from '../lib/canvasTheme';
+import {
+  FALLBACK_VIEWPORT,
+  isValidViewport,
+  sanitizeViewport,
+  toSafePosition,
+  isValidXYPosition,
+} from '../lib/viewport';
 import { HUD_LAYERS, HUD_SPACING, HUD_STACK_GAP } from '../constants/hudLayout';
 
 const nodeTypes = {
@@ -37,220 +45,7 @@ const nodeTypes = {
   semanticFieldNode: SemanticFieldNode,
 };
 
-const EDGE_COLORS: Record<EdgeType, string> = {
-  evolves_from: '#06b6d4',
-  contradicts:  '#f43f5e',
-  references:   '#3b82f6',
-  remixes:      '#a855f7',
-  supports:     '#10b981'
-};
-
-const EDGE_LABELS: Record<EdgeType, string> = {
-  evolves_from: 'evolves from',
-  contradicts:  'contradicts',
-  references:   'references',
-  remixes:      'remixes',
-  supports:     'supports'
-};
-
-const NODE_TYPE_COLORS: Record<string, string> = {
-  thought:      '#06b6d4',
-  joke:         '#f59e0b',
-  character:    '#a855f7',
-  myth:         '#a855f7',
-  research:     '#3b82f6',
-  canon:        '#10b981',
-  contradiction:'#f43f5e',
-  artifact:     '#64748b',
-  fragment:     '#475569'
-};
-
 type PendingConnection = { source: string; target: string };
-
-function CanvasController() {
-  const { setCenter } = useReactFlow();
-  const { focusedNodeId, clearFocusedNode, nodes } = useThoughtStore();
-
-  useEffect(() => {
-    if (!focusedNodeId) return;
-    const node = nodes.find((n) => n.id === focusedNodeId);
-    if (node) setCenter(node.x + 100, node.y + 50, { zoom: 1.5, duration: 600 });
-    clearFocusedNode();
-  }, [focusedNodeId, nodes, setCenter, clearFocusedNode]);
-
-  return null;
-}
-
-/** Syncs ReactFlow viewport zoom to the parent via a stable callback ref. */
-function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) {
-  const vp = useViewport();
-  const cbRef = useRef(onViewport);
-  cbRef.current = onViewport;
-
-  useEffect(() => {
-    cbRef.current(vp);
-  // Only re-run when the actual viewport values change, not the callback reference.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vp.zoom, vp.x, vp.y]);
-
-  return null;
-}
-
-function CanvasZoomControls() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
-  // h-11 w-11 = 44px — meets Apple HIG minimum touch target size for iPhone/iPad
-  const buttonClassName = 'h-11 w-11 rounded border border-void-700 bg-void-800/90 text-slate-300 hover:bg-void-700 hover:text-slate-100 transition-colors';
-
-  return (
-    <div className="flex flex-col gap-1.5 pointer-events-auto">
-      <button aria-label="Zoom in" onClick={() => zoomIn({ duration: 180 })} className={buttonClassName}>+</button>
-      <button aria-label="Zoom out" onClick={() => zoomOut({ duration: 180 })} className={buttonClassName}>−</button>
-      <button aria-label="Fit view" onClick={() => fitView({ duration: 240, padding: 0.25 })} className={buttonClassName}>⤢</button>
-    </div>
-  );
-}
-
-/** Wires ⌘/Ctrl + = / − / 0 keyboard shortcuts to canvas zoom. */
-function CanvasKeyboardControls() {
-  const { zoomIn, zoomOut, setViewport, getViewport } = useReactFlow();
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const tag = (event.target as HTMLElement | null)?.tagName ?? '';
-      const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement | null)?.isContentEditable;
-      if (isEditable) return;
-
-      const isCmdCtrl = event.metaKey || event.ctrlKey;
-      if (!isCmdCtrl) return;
-
-      if (event.key === '=' || event.key === '+') {
-        event.preventDefault();
-        zoomIn({ duration: 180 });
-      } else if (event.key === '-') {
-        event.preventDefault();
-        zoomOut({ duration: 180 });
-      } else if (event.key === '0') {
-        event.preventDefault();
-        const vp = getViewport();
-        setViewport({ ...vp, zoom: 1 }, { duration: 300 });
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [zoomIn, zoomOut, setViewport, getViewport]);
-
-  return null;
-}
-
-function CanonicalMiniMap({ nodes, edges, viewport, wrapperRef }: {
-  nodes: { id: string; x: number; y: number; type: string }[];
-  edges: { source: string; target: string }[];
-  viewport: Viewport;
-  wrapperRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  const { setViewport } = useReactFlow();
-  const nodePositions = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
-  const worldBounds = useMemo(() => {
-    if (!nodes.length) return { minX: -100, maxX: 100, minY: -100, maxY: 100 };
-    const xs = nodes.map((n) => n.x);
-    const ys = nodes.map((n) => n.y);
-    return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-  }, [nodes]);
-  const worldWidth = Math.max(worldBounds.maxX - worldBounds.minX, 1);
-  const worldHeight = Math.max(worldBounds.maxY - worldBounds.minY, 1);
-  const scale = Math.min((MINIMAP_SIZE - MINIMAP_PADDING) / worldWidth, (MINIMAP_SIZE - MINIMAP_PADDING) / worldHeight);
-  const offsetX = (MINIMAP_SIZE - worldWidth * scale) / 2;
-  const offsetY = (MINIMAP_SIZE - worldHeight * scale) / 2;
-  const toMini = useCallback((x: number, y: number) => ({ x: offsetX + (x - worldBounds.minX) * scale, y: offsetY + (y - worldBounds.minY) * scale }), [offsetX, offsetY, scale, worldBounds.minX, worldBounds.minY]);
-  const viewportWorld = useMemo(() => {
-    const rect = wrapperRef.current?.getBoundingClientRect();
-    const width = rect?.width ?? 1;
-    const height = rect?.height ?? 1;
-    return { minX: -viewport.x / viewport.zoom, minY: -viewport.y / viewport.zoom, width: width / viewport.zoom, height: height / viewport.zoom };
-  }, [viewport, wrapperRef]);
-  const viewportMini = useMemo(() => {
-    const topLeft = toMini(viewportWorld.minX, viewportWorld.minY);
-    return { x: topLeft.x, y: topLeft.y, width: viewportWorld.width * scale, height: viewportWorld.height * scale };
-  }, [toMini, viewportWorld, scale]);
-  const onMiniMapInteract = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const miniX = event.clientX - rect.left;
-    const miniY = event.clientY - rect.top;
-    const worldX = worldBounds.minX + (miniX - offsetX) / scale;
-    const worldY = worldBounds.minY + (miniY - offsetY) / scale;
-    const wrapper = wrapperRef.current?.getBoundingClientRect();
-    const screenWidth = wrapper?.width ?? 1;
-    const screenHeight = wrapper?.height ?? 1;
-    setViewport({ x: -(worldX - screenWidth / (2 * viewport.zoom)) * viewport.zoom, y: -(worldY - screenHeight / (2 * viewport.zoom)) * viewport.zoom, zoom: viewport.zoom }, { duration: 120 });
-  }, [offsetX, offsetY, scale, setViewport, viewport.zoom, worldBounds.minX, worldBounds.minY, wrapperRef]);
-
-  useEffect(() => {
-    if (IS_DEV && DEBUG.minimap) console.log('[MINIMAP]', { totalNodes: nodes.length, worldBounds, camera: viewport });
-  }, [nodes.length, worldBounds, viewport]);
-
-  return (
-    <div className="absolute" style={{ right: HUD_SPACING, bottom: HUD_SPACING, zIndex: HUD_LAYERS.minimap }}>
-      <svg width={MINIMAP_SIZE} height={MINIMAP_SIZE} viewBox={`0 0 ${MINIMAP_SIZE} ${MINIMAP_SIZE}`} className="rounded border border-void-700 bg-[#0b0f19] pointer-events-auto" onPointerDown={onMiniMapInteract}>
-        {edges.map((edge, i) => {
-          const source = nodePositions.get(edge.source);
-          const target = nodePositions.get(edge.target);
-          if (!source || !target) return null;
-          const s = toMini(source.x, source.y);
-          const t = toMini(target.x, target.y);
-          return <line key={`${edge.source}-${edge.target}-${i}`} x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke="#334155" strokeWidth={0.7} />;
-        })}
-        {nodes.map((node) => {
-          const p = toMini(node.x, node.y);
-          return <circle key={node.id} cx={p.x} cy={p.y} r={1.8} fill={NODE_TYPE_COLORS[node.type] ?? '#1e293b'} />;
-        })}
-        <rect x={viewportMini.x} y={viewportMini.y} width={viewportMini.width} height={viewportMini.height} fill="rgba(3,7,18,0.4)" stroke="#38bdf8" strokeWidth={1} />
-      </svg>
-    </div>
-  );
-}
-
-
-const FALLBACK_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
-const FALLBACK_POSITION = { x: 0, y: 0 };
-const MINIMAP_SIZE = 180;
-const MINIMAP_PADDING = 24;
-
-function isValidViewport(vp: Viewport): boolean {
-  return Number.isFinite(vp.x) && Number.isFinite(vp.y) && Number.isFinite(vp.zoom) && vp.zoom > 0;
-}
-
-function clampZoom(zoom: number, minZoom: number, maxZoom: number): number {
-  if (!Number.isFinite(zoom)) return minZoom;
-  return Math.max(minZoom, Math.min(maxZoom, zoom));
-}
-
-function sanitizeViewport(vp: Viewport, minZoom: number, maxZoom: number, fallback: Viewport): Viewport {
-  const safeZoom = clampZoom(vp.zoom, minZoom, maxZoom);
-  const safeX = Number.isFinite(vp.x) ? vp.x : fallback.x;
-  const safeY = Number.isFinite(vp.y) ? vp.y : fallback.y;
-  if (!Number.isFinite(safeZoom)) return fallback;
-  return { x: safeX, y: safeY, zoom: safeZoom };
-}
-
-function toSafePosition(nodeId: string, x: number, y: number) {
-  if (isFinitePosition(x, y)) return { x, y };
-  console.error('[INVALID NODE POSITION]', nodeId, { x, y, fallback: FALLBACK_POSITION });
-  return FALLBACK_POSITION;
-}
-
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isValidXYPosition(pos: unknown): pos is { x: number; y: number } {
-  return (
-    !!pos &&
-    typeof pos === 'object' &&
-    isFiniteNumber((pos as { x?: unknown }).x) &&
-    isFiniteNumber((pos as { y?: unknown }).y)
-  );
-}
 
 interface SpatialCanvasProps {
   immersive: boolean;
