@@ -29,9 +29,9 @@ import { useVisibleNodes } from '../hooks/useVisibleNodes';
 import { useFlowGraph } from '../hooks/useFlowGraph';
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers';
 import { useCanvasGestures } from '../hooks/useCanvasGestures';
+import { useCanvasHotkeys } from '../hooks/useCanvasHotkeys';
+import { EdgeTypePicker, EdgeActionToolbar } from './EdgeControls';
 import { NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
-import { EDGE_TYPES } from '../lib/constants';
-import { EDGE_COLORS, EDGE_LABELS } from '../lib/canvasTheme';
 import { HUD_LAYERS, HUD_SPACING, HUD_STACK_GAP } from '../constants/hudLayout';
 
 const nodeTypes = {
@@ -196,29 +196,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     setSelectedNodeId(rfNode.id);
   }, [nodes, openSubMap, focusNode]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const isCmdCtrl = event.metaKey || event.ctrlKey;
-      if (event.key === 'Escape' || (isCmdCtrl && event.key === 'ArrowUp')) {
-        event.preventDefault();
-        exitToParent();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [exitToParent]);
-
-  useEffect(() => {
-    if (!IS_DEV) return;
-    const onDebugHotkey = (event: KeyboardEvent) => {
-      if (event.shiftKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault();
-        DEBUG.overlays = !DEBUG.overlays;
-      }
-    };
-    window.addEventListener('keydown', onDebugHotkey);
-    return () => window.removeEventListener('keydown', onDebugHotkey);
-  }, []);
+  useCanvasHotkeys(exitToParent);
 
   if (currentMapId === MASTER_MAP_ID) {
     return (
@@ -348,62 +326,15 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
       {/* Edge type chooser */}
       {pendingConnection && (
-        <div
-          className="absolute inset-0 z-40 flex items-center justify-center bg-void-900/50 backdrop-blur-sm"
-          onClick={() => setPendingConnection(null)}
-        >
-          <div
-            className="bg-void-800 border border-void-700 rounded-lg p-4 w-60 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400 mb-3">Define Connection</div>
-            <div className="space-y-1">
-              {(Object.entries(EDGE_LABELS) as [EdgeType, string][]).map(([type, label]) => (
-                <button
-                  key={type}
-                  onClick={() => handleEdgeTypeSelect(type)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded font-mono text-xs hover:bg-void-700 transition-colors text-left"
-                >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EDGE_COLORS[type] }} />
-                  <span className="text-slate-300">{label}</span>
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setPendingConnection(null)}
-              className="mt-3 w-full text-center font-mono text-[10px] text-slate-600 hover:text-slate-400 py-1 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <EdgeTypePicker onSelect={handleEdgeTypeSelect} onCancel={() => setPendingConnection(null)} />
       )}
       {selectedEdge && edgeActionPosition && (
-        <div
-          className="absolute z-40 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-void-700 bg-void-900/95 px-2 py-2 shadow-xl backdrop-blur-sm flex items-center gap-2"
-          style={{ left: edgeActionPosition.left, top: edgeActionPosition.top }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <span className="text-[10px] font-mono text-slate-500">{EDGE_LABELS[selectedEdge.type]}</span>
-          <select
-            value={selectedEdge.type}
-            onChange={(event) => updateEdgeType(selectedEdge.id, event.target.value as EdgeType)}
-            className="bg-void-800 border border-void-700 rounded px-1.5 py-1 text-[10px] font-mono text-slate-300"
-          >
-            {EDGE_TYPES.map((type) => (
-              <option key={type} value={type}>{EDGE_LABELS[type]}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => {
-              console.log('[EDGE DELETE]', selectedEdge.id);
-              deleteEdge(selectedEdge.id);
-            }}
-            className="rounded border border-rose-700/60 bg-rose-900/20 px-2 py-1 text-[10px] font-mono text-rose-300 hover:bg-rose-800/30"
-          >
-            Delete
-          </button>
-        </div>
+        <EdgeActionToolbar
+          edge={selectedEdge}
+          position={edgeActionPosition}
+          onChangeType={updateEdgeType}
+          onDelete={deleteEdge}
+        />
       )}
 
       <NodeDetailPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} initialTab={selectedNodeTab} />
