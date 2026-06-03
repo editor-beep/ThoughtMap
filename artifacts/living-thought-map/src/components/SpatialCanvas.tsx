@@ -1,13 +1,9 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, {
-  NodeChange,
   Connection,
-  useReactFlow,
-  useViewport,
   Node,
   Edge,
   NodeMouseHandler,
-  Viewport,
   ReactFlowInstance
 } from 'reactflow';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
@@ -22,13 +18,20 @@ import NodeDetailPanel from './NodeDetailPanel';
 import BlackspaceBackground from './BlackspaceBackground';
 import CartographerPanel from './CartographerPanel';
 import DebugZoom from './DebugZoom';
+import CanonicalMiniMap from './CanonicalMiniMap';
+import { CanvasController, ViewportTracker, CanvasZoomControls, CanvasKeyboardControls } from './canvasControls';
 import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
-import { isFinitePosition, NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
-import { NodeVisualMode } from '../types/nodeVisualMode';
-import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
-import { EDGE_TYPES } from '../lib/constants';
+import { useCanvasViewport } from '../hooks/useCanvasViewport';
+import { useNodeVisualMode } from '../hooks/useNodeVisualMode';
+import { useVisibleNodes } from '../hooks/useVisibleNodes';
+import { useFlowGraph } from '../hooks/useFlowGraph';
+import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers';
+import { useCanvasGestures } from '../hooks/useCanvasGestures';
+import { useCanvasHotkeys } from '../hooks/useCanvasHotkeys';
+import { EdgeTypePicker, EdgeActionToolbar } from './EdgeControls';
+import { NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
 import { HUD_LAYERS, HUD_SPACING, HUD_STACK_GAP } from '../constants/hudLayout';
 
 const nodeTypes = {
@@ -37,220 +40,7 @@ const nodeTypes = {
   semanticFieldNode: SemanticFieldNode,
 };
 
-const EDGE_COLORS: Record<EdgeType, string> = {
-  evolves_from: '#06b6d4',
-  contradicts:  '#f43f5e',
-  references:   '#3b82f6',
-  remixes:      '#a855f7',
-  supports:     '#10b981'
-};
-
-const EDGE_LABELS: Record<EdgeType, string> = {
-  evolves_from: 'evolves from',
-  contradicts:  'contradicts',
-  references:   'references',
-  remixes:      'remixes',
-  supports:     'supports'
-};
-
-const NODE_TYPE_COLORS: Record<string, string> = {
-  thought:      '#06b6d4',
-  joke:         '#f59e0b',
-  character:    '#a855f7',
-  myth:         '#a855f7',
-  research:     '#3b82f6',
-  canon:        '#10b981',
-  contradiction:'#f43f5e',
-  artifact:     '#64748b',
-  fragment:     '#475569'
-};
-
 type PendingConnection = { source: string; target: string };
-
-function CanvasController() {
-  const { setCenter } = useReactFlow();
-  const { focusedNodeId, clearFocusedNode, nodes } = useThoughtStore();
-
-  useEffect(() => {
-    if (!focusedNodeId) return;
-    const node = nodes.find((n) => n.id === focusedNodeId);
-    if (node) setCenter(node.x + 100, node.y + 50, { zoom: 1.5, duration: 600 });
-    clearFocusedNode();
-  }, [focusedNodeId, nodes, setCenter, clearFocusedNode]);
-
-  return null;
-}
-
-/** Syncs ReactFlow viewport zoom to the parent via a stable callback ref. */
-function ViewportTracker({ onViewport }: { onViewport: (v: Viewport) => void }) {
-  const vp = useViewport();
-  const cbRef = useRef(onViewport);
-  cbRef.current = onViewport;
-
-  useEffect(() => {
-    cbRef.current(vp);
-  // Only re-run when the actual viewport values change, not the callback reference.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vp.zoom, vp.x, vp.y]);
-
-  return null;
-}
-
-function CanvasZoomControls() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
-  // h-11 w-11 = 44px — meets Apple HIG minimum touch target size for iPhone/iPad
-  const buttonClassName = 'h-11 w-11 rounded border border-void-700 bg-void-800/90 text-slate-300 hover:bg-void-700 hover:text-slate-100 transition-colors';
-
-  return (
-    <div className="flex flex-col gap-1.5 pointer-events-auto">
-      <button aria-label="Zoom in" onClick={() => zoomIn({ duration: 180 })} className={buttonClassName}>+</button>
-      <button aria-label="Zoom out" onClick={() => zoomOut({ duration: 180 })} className={buttonClassName}>−</button>
-      <button aria-label="Fit view" onClick={() => fitView({ duration: 240, padding: 0.25 })} className={buttonClassName}>⤢</button>
-    </div>
-  );
-}
-
-/** Wires ⌘/Ctrl + = / − / 0 keyboard shortcuts to canvas zoom. */
-function CanvasKeyboardControls() {
-  const { zoomIn, zoomOut, setViewport, getViewport } = useReactFlow();
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const tag = (event.target as HTMLElement | null)?.tagName ?? '';
-      const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement | null)?.isContentEditable;
-      if (isEditable) return;
-
-      const isCmdCtrl = event.metaKey || event.ctrlKey;
-      if (!isCmdCtrl) return;
-
-      if (event.key === '=' || event.key === '+') {
-        event.preventDefault();
-        zoomIn({ duration: 180 });
-      } else if (event.key === '-') {
-        event.preventDefault();
-        zoomOut({ duration: 180 });
-      } else if (event.key === '0') {
-        event.preventDefault();
-        const vp = getViewport();
-        setViewport({ ...vp, zoom: 1 }, { duration: 300 });
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [zoomIn, zoomOut, setViewport, getViewport]);
-
-  return null;
-}
-
-function CanonicalMiniMap({ nodes, edges, viewport, wrapperRef }: {
-  nodes: { id: string; x: number; y: number; type: string }[];
-  edges: { source: string; target: string }[];
-  viewport: Viewport;
-  wrapperRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  const { setViewport } = useReactFlow();
-  const nodePositions = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
-  const worldBounds = useMemo(() => {
-    if (!nodes.length) return { minX: -100, maxX: 100, minY: -100, maxY: 100 };
-    const xs = nodes.map((n) => n.x);
-    const ys = nodes.map((n) => n.y);
-    return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-  }, [nodes]);
-  const worldWidth = Math.max(worldBounds.maxX - worldBounds.minX, 1);
-  const worldHeight = Math.max(worldBounds.maxY - worldBounds.minY, 1);
-  const scale = Math.min((MINIMAP_SIZE - MINIMAP_PADDING) / worldWidth, (MINIMAP_SIZE - MINIMAP_PADDING) / worldHeight);
-  const offsetX = (MINIMAP_SIZE - worldWidth * scale) / 2;
-  const offsetY = (MINIMAP_SIZE - worldHeight * scale) / 2;
-  const toMini = useCallback((x: number, y: number) => ({ x: offsetX + (x - worldBounds.minX) * scale, y: offsetY + (y - worldBounds.minY) * scale }), [offsetX, offsetY, scale, worldBounds.minX, worldBounds.minY]);
-  const viewportWorld = useMemo(() => {
-    const rect = wrapperRef.current?.getBoundingClientRect();
-    const width = rect?.width ?? 1;
-    const height = rect?.height ?? 1;
-    return { minX: -viewport.x / viewport.zoom, minY: -viewport.y / viewport.zoom, width: width / viewport.zoom, height: height / viewport.zoom };
-  }, [viewport, wrapperRef]);
-  const viewportMini = useMemo(() => {
-    const topLeft = toMini(viewportWorld.minX, viewportWorld.minY);
-    return { x: topLeft.x, y: topLeft.y, width: viewportWorld.width * scale, height: viewportWorld.height * scale };
-  }, [toMini, viewportWorld, scale]);
-  const onMiniMapInteract = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const miniX = event.clientX - rect.left;
-    const miniY = event.clientY - rect.top;
-    const worldX = worldBounds.minX + (miniX - offsetX) / scale;
-    const worldY = worldBounds.minY + (miniY - offsetY) / scale;
-    const wrapper = wrapperRef.current?.getBoundingClientRect();
-    const screenWidth = wrapper?.width ?? 1;
-    const screenHeight = wrapper?.height ?? 1;
-    setViewport({ x: -(worldX - screenWidth / (2 * viewport.zoom)) * viewport.zoom, y: -(worldY - screenHeight / (2 * viewport.zoom)) * viewport.zoom, zoom: viewport.zoom }, { duration: 120 });
-  }, [offsetX, offsetY, scale, setViewport, viewport.zoom, worldBounds.minX, worldBounds.minY, wrapperRef]);
-
-  useEffect(() => {
-    if (IS_DEV && DEBUG.minimap) console.log('[MINIMAP]', { totalNodes: nodes.length, worldBounds, camera: viewport });
-  }, [nodes.length, worldBounds, viewport]);
-
-  return (
-    <div className="absolute" style={{ right: HUD_SPACING, bottom: HUD_SPACING, zIndex: HUD_LAYERS.minimap }}>
-      <svg width={MINIMAP_SIZE} height={MINIMAP_SIZE} viewBox={`0 0 ${MINIMAP_SIZE} ${MINIMAP_SIZE}`} className="rounded border border-void-700 bg-[#0b0f19] pointer-events-auto" onPointerDown={onMiniMapInteract}>
-        {edges.map((edge, i) => {
-          const source = nodePositions.get(edge.source);
-          const target = nodePositions.get(edge.target);
-          if (!source || !target) return null;
-          const s = toMini(source.x, source.y);
-          const t = toMini(target.x, target.y);
-          return <line key={`${edge.source}-${edge.target}-${i}`} x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke="#334155" strokeWidth={0.7} />;
-        })}
-        {nodes.map((node) => {
-          const p = toMini(node.x, node.y);
-          return <circle key={node.id} cx={p.x} cy={p.y} r={1.8} fill={NODE_TYPE_COLORS[node.type] ?? '#1e293b'} />;
-        })}
-        <rect x={viewportMini.x} y={viewportMini.y} width={viewportMini.width} height={viewportMini.height} fill="rgba(3,7,18,0.4)" stroke="#38bdf8" strokeWidth={1} />
-      </svg>
-    </div>
-  );
-}
-
-
-const FALLBACK_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
-const FALLBACK_POSITION = { x: 0, y: 0 };
-const MINIMAP_SIZE = 180;
-const MINIMAP_PADDING = 24;
-
-function isValidViewport(vp: Viewport): boolean {
-  return Number.isFinite(vp.x) && Number.isFinite(vp.y) && Number.isFinite(vp.zoom) && vp.zoom > 0;
-}
-
-function clampZoom(zoom: number, minZoom: number, maxZoom: number): number {
-  if (!Number.isFinite(zoom)) return minZoom;
-  return Math.max(minZoom, Math.min(maxZoom, zoom));
-}
-
-function sanitizeViewport(vp: Viewport, minZoom: number, maxZoom: number, fallback: Viewport): Viewport {
-  const safeZoom = clampZoom(vp.zoom, minZoom, maxZoom);
-  const safeX = Number.isFinite(vp.x) ? vp.x : fallback.x;
-  const safeY = Number.isFinite(vp.y) ? vp.y : fallback.y;
-  if (!Number.isFinite(safeZoom)) return fallback;
-  return { x: safeX, y: safeY, zoom: safeZoom };
-}
-
-function toSafePosition(nodeId: string, x: number, y: number) {
-  if (isFinitePosition(x, y)) return { x, y };
-  console.error('[INVALID NODE POSITION]', nodeId, { x, y, fallback: FALLBACK_POSITION });
-  return FALLBACK_POSITION;
-}
-
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isValidXYPosition(pos: unknown): pos is { x: number; y: number } {
-  return (
-    !!pos &&
-    typeof pos === 'object' &&
-    isFiniteNumber((pos as { x?: unknown }).x) &&
-    isFiniteNumber((pos as { y?: unknown }).y)
-  );
-}
 
 interface SpatialCanvasProps {
   immersive: boolean;
@@ -262,98 +52,22 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeTab, setSelectedNodeTab] = useState<'chat' | 'edit'>('chat');
-  const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
-  const [lastGestureSource, setLastGestureSource] = useState<'wheel' | 'touch' | 'unknown'>('unknown');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [isDraggingNode, setIsDraggingNode] = useState(false);
-  const lastTouchPointerAtRef = useRef(0);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const rfWrapperRef = useRef<HTMLDivElement | null>(null);
-  // Stable ref to the current nodes list so drag-recovery callbacks can look
-  // up a node's correct store position without adding nodes to their dep array.
-  const nodesRef = useRef(nodes);
-  nodesRef.current = nodes;
   const MIN_ZOOM = 0.05;
   const MAX_ZOOM = 2.5;
+
+  // Canvas viewport mirror + the NaN/out-of-range zoom drift defense.
+  const { rfViewport, handleViewport } = useCanvasViewport(MIN_ZOOM, MAX_ZOOM, rfInstanceRef);
+  const nodeVisualMode = useNodeVisualMode(rfViewport.zoom);
+  const { isDraggingNode, onNodesChange, onNodeDragStart, onNodeDragStop } =
+    useNodeDragHandlers(updateNodePosition, nodes, rfInstanceRef, rfWrapperRef);
 
   const handleOpenPanel = useCallback((nodeId: string, tab: 'chat' | 'edit') => {
     setSelectedNodeTab(tab);
     setSelectedNodeId(nodeId);
   }, []);
-
-  // Padding (in screen px) from the viewport edge — a node released closer
-  // than this to the edge counts as off-screen and gets pulled back into view.
-  const OFFSCREEN_EDGE_PADDING = 48;
-
-  // Sync React Flow's internal viewport back to a sane value whenever a
-  // gesture (especially trackpad/touch pinch under Safari) produces a NaN or
-  // out-of-range zoom. Without this, our local `rfViewport` is sanitized but
-  // RF's transform pane still renders at `scale(NaN)`, hiding every node
-  // while React's render count stays "valid" — the exact symptom users see
-  // on iPad pinch and Magic Keyboard trackpad pinch.
-  const pendingViewportCorrectionRef = useRef<Viewport | null>(null);
-  const handleViewport = useCallback((vp: Viewport) => {
-    const nextViewport = sanitizeViewport(vp, MIN_ZOOM, MAX_ZOOM, FALLBACK_VIEWPORT);
-    const sanitizedDiffers =
-      nextViewport.x !== vp.x || nextViewport.y !== vp.y || nextViewport.zoom !== vp.zoom;
-    if (sanitizedDiffers) {
-      const instance = rfInstanceRef.current;
-      // Coalesce repeated corrections into a single rAF so a noisy gesture
-      // stream (e.g. Safari pinch with NaN deltas) can't queue a storm of
-      // setViewport calls. Each frame we apply only the latest correction.
-      const wasIdle = pendingViewportCorrectionRef.current === null;
-      pendingViewportCorrectionRef.current = nextViewport;
-      if (instance && wasIdle) {
-        requestAnimationFrame(() => {
-          const queued = pendingViewportCorrectionRef.current;
-          pendingViewportCorrectionRef.current = null;
-          if (!queued) return;
-          try { instance.setViewport(queued, { duration: 0 }); } catch { /* RF may be unmounting */ }
-        });
-      }
-    }
-    if (!isValidViewport(nextViewport)) {
-      console.error('[INVALID VIEWPORT]', vp, nextViewport);
-      setRfViewport(FALLBACK_VIEWPORT);
-      return;
-    }
-    setRfViewport((current) => {
-      if (current.x === nextViewport.x && current.y === nextViewport.y && current.zoom === nextViewport.zoom) {
-        return current;
-      }
-      return nextViewport;
-    });
-  }, [MAX_ZOOM, MIN_ZOOM]);
-
-  // Stable hysteresis-based mode selection. Previously this lived in a
-  // `useMemo` that mutated a ref — impure, double-invoked under React 18
-  // StrictMode, and prone to skipping states under fast pinch input. Owning
-  // the mode in real state lets effects drive transitions deterministically.
-  const [nodeVisualMode, setNodeVisualMode] = useState<NodeVisualMode>(NodeVisualMode.FULL_CARD);
-  useEffect(() => {
-    const zoom = rfViewport.zoom;
-    if (!Number.isFinite(zoom)) return;
-    setNodeVisualMode((prev) => {
-      // Hysteresis bands: cards engage above the upper threshold, drop to the
-      // next mode below the lower threshold. The gap prevents flicker loops
-      // when zoom hovers near a boundary.
-      if (prev === NodeVisualMode.FULL_CARD) {
-        return zoom < 0.84 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.FULL_CARD;
-      }
-      // prev === COMPACT_CARD
-      return zoom >= 0.95 ? NodeVisualMode.FULL_CARD : NodeVisualMode.COMPACT_CARD;
-    });
-  }, [rfViewport.zoom]);
-
-  const activeRealmIds = useMemo(
-    () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
-    [realms]
-  );
-
-  const knownRealmIds = useMemo(
-    () => new Set(realms.map((r) => r.id)),
-    [realms]
-  );
 
   const currentMap = maps[currentMapId] ?? null;
   const isDetail = currentMap?.level === 'detail';
@@ -372,22 +86,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     });
   }, [currentMap, maps, switchMap]);
 
-  const visibleNodes = useMemo(
-    () =>
-      nodes.filter((n) => {
-        if (n.realms.length === 0) return true;
-        // Only realms that actually exist in the store can hide a node. Realm
-        // ids that don't match any known realm (e.g. ids invented by the
-        // Cartographer AI) must NOT hide the node — otherwise valid nodes
-        // vanish and the whole canvas goes blank.
-        const knownRealms = n.realms.filter((r) => knownRealmIds.has(r));
-        if (knownRealms.length === 0) return true;
-        return knownRealms.some((r) => activeRealmIds.has(r));
-      }),
-    [nodes, activeRealmIds, knownRealmIds]
-  );
-
-  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
+  const { visibleNodes, visibleNodeIds } = useVisibleNodes(nodes, realms);
 
   useEffect(() => {
     if (!IS_DEV) return;
@@ -418,69 +117,21 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const shouldUseClusterMode =
     rfViewport.zoom < NODE_VISUAL_MODE_THRESHOLDS.CLUSTER &&
     !isDraggingNode;
-  const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
-  const activeFocusId = selectedNodeId ?? hoveredNodeId;
-  const neighborhoodNodeIds = useMemo(() => {
-    if (!activeFocusId) return new Set<string>();
-    const result = new Set<string>([activeFocusId]);
-    edgePairs.forEach(([s, t]) => {
-      if (s === activeFocusId) result.add(t);
-      if (t === activeFocusId) result.add(s);
-    });
-    return result;
-  }, [activeFocusId, edgePairs]);
-
-  const flowNodes = useMemo(() => {
-    if (shouldUseClusterMode) {
-      const clusterNodes = clusters.map((c, i) => ({
-        id: `cluster-${i}`,
-        type: 'clusterMarker',
-        position: { x: c.x, y: c.y },
-        data: { cluster: c },
-        draggable: false,
-        selectable: false,
-      }));
-
-      // Isolated single nodes fall back to their regular dot rendering.
-      const singleNodes = isolatedNodes.map((node) => {
-        const safePosition = toSafePosition(node.id, node.x, node.y);
-        return {
-        id: node.id,
-        type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-        position: safePosition,
-        data: {
-          node,
-          onOpen: openSubMap,
-          isFocused: selectedNodeId === node.id,
-          emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
-          semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
-          onRequestExpand: setSelectedNodeId,
-          onOpenPanel: handleOpenPanel,
-        },
-      };
-      });
-
-      return [...clusterNodes, ...singleNodes];
-    }
-
-    return visibleNodes.map((node) => {
-      const safePosition = toSafePosition(node.id, node.x, node.y);
-      return {
-      id: node.id,
-      type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-      position: safePosition,
-      data: {
-        node,
-        onOpen: openSubMap,
-        isFocused: selectedNodeId === node.id,
-        emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
-        semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
-        onRequestExpand: setSelectedNodeId,
-        onOpenPanel: handleOpenPanel,
-      }
-    };
-    });
-  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, rfViewport.zoom, handleOpenPanel]);
+  const { flowNodes, flowEdges } = useFlowGraph({
+    visibleNodes,
+    visibleNodeIds,
+    edges,
+    clusters,
+    isolatedNodes,
+    shouldUseClusterMode,
+    selectedNodeId,
+    hoveredNodeId,
+    selectedEdgeId,
+    zoom: rfViewport.zoom,
+    onOpenSubMap: openSubMap,
+    onRequestExpand: setSelectedNodeId,
+    onOpenPanel: handleOpenPanel,
+  });
 
   useEffect(() => {
     if (IS_DEV && DEBUG.selection) {
@@ -488,81 +139,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     }
   }, [selectedNodeId]);
 
-
-
-  const flowEdges = useMemo(
-    () =>
-      shouldUseClusterMode
-        ? []
-        : edges
-            .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
-            .map((edge) => {
-              const isFocusedEdge = activeFocusId && (edge.source === activeFocusId || edge.target === activeFocusId);
-              const isNeighborEdge = activeFocusId && (neighborhoodNodeIds.has(edge.source) || neighborhoodNodeIds.has(edge.target));
-              const isSelectedEdge = selectedEdgeId === edge.id;
-              return {
-              id: edge.id,
-              source: edge.source,
-              target: edge.target,
-              animated: Boolean(isFocusedEdge || isSelectedEdge),
-              interactionWidth: 28,
-              label: isSelectedEdge ? EDGE_LABELS[edge.type] : undefined,
-              labelStyle: { fill: isFocusedEdge || isSelectedEdge ? '#bae6fd' : '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
-              labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
-              style: {
-                stroke: EDGE_COLORS[edge.type],
-                strokeWidth: isSelectedEdge ? 3.4 : isFocusedEdge ? 2.8 : isNeighborEdge ? 2.1 : 1.2,
-                opacity: isSelectedEdge ? 1 : activeFocusId ? (isNeighborEdge ? 0.9 : 0.2) : 0.75,
-              }
-            };}),
-    [shouldUseClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds, selectedEdgeId]
-  );
-
-  const validateFlowNodePosition = useCallback((rfNode: Node) => {
-    if (!IS_DEV || !DEBUG.dragValidation) return;
-    const px = rfNode.position?.x;
-    const py = rfNode.position?.y;
-    if (!Number.isFinite(px)) console.warn('[CARD POSITION INVALID X]', rfNode.id, px);
-    if (!Number.isFinite(py)) console.warn('[CARD POSITION INVALID Y]', rfNode.id, py);
-  }, []);
-
-
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      changes.forEach((change) => {
-        if (change.type !== 'position' || !change.id) return;
-
-        // While the user is actively dragging, let React Flow own the node
-        // position. Writing the store back into the `nodes` prop on every
-        // drag tick creates a coordinate-feedback loop where React Flow
-        // applies its pointer delta on top of an already-moved position,
-        // producing wild jumps. We commit the final position once in
-        // onNodeDragStop.
-        if (change.dragging) return;
-
-        const nextPosition = change.position;
-        if (!isValidXYPosition(nextPosition)) {
-          // Spurious drag-end with invalid coordinates (common when trackpad
-          // scroll is misread as a node drag). Restore the node to its current
-          // store position so React Flow doesn't keep it stuck at NaN.
-          const storeNode = nodesRef.current.find((n) => n.id === change.id);
-          if (storeNode && Number.isFinite(storeNode.x) && Number.isFinite(storeNode.y)) {
-            updateNodePosition(change.id, storeNode.x, storeNode.y);
-          }
-          return;
-        }
-
-        const nextX = nextPosition.x;
-        const nextY = nextPosition.y;
-        if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) {
-          console.error('[INVALID POINTER POSITION]', nextX, nextY);
-          return;
-        }
-        updateNodePosition(change.id, nextX, nextY);
-      });
-    },
-    [updateNodePosition]
-  );
+  const { lastGestureSource, lastTouchPointerAtRef, handlePointerDiagnostics, handleWheelDiagnostics } =
+    useCanvasGestures(rfWrapperRef, {
+      flowNodesLength: flowNodes.length,
+      nodeVisualMode,
+      rfViewport,
+      visibleNodesLength: visibleNodes.length,
+    });
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => deleted.forEach((n) => deleteNode(n.id)),
@@ -578,66 +161,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     if (params.source && params.target) {
       setPendingConnection({ source: params.source, target: params.target });
     }
-  }, []);
-
-  const handlePointerDiagnostics = useCallback((event: React.PointerEvent) => {
-    const normalized = normalizePointerEvent(event);
-    if (normalized.pointerType === 'touch') {
-      lastTouchPointerAtRef.current = Date.now();
-      setLastGestureSource('touch');
-    }
-    if (IS_DEV && DEBUG.pointerEvents) {
-      console.log('[POINTER EVENT]', {
-        type: event.type,
-        pointerType: normalized.pointerType,
-        clientX: normalized.clientX,
-        clientY: normalized.clientY,
-      });
-    }
-  }, []);
-
-  const handleWheelDiagnostics = useCallback((event: React.WheelEvent) => {
-    setLastGestureSource('wheel');
-    if (IS_DEV && DEBUG.pointerEvents) {
-      console.log('[WHEEL EVENT]', {
-        deltaX: event.deltaX,
-        deltaY: event.deltaY,
-        ctrlKey: event.ctrlKey,
-      });
-    }
-  }, []);
-
-  // Keep a ref of the values used only for debug logging so the gesture
-  // listener can be registered exactly once (on mount) rather than being torn
-  // down and re-attached on every viewport tick. Unnecessary re-registration
-  // can cause missed gesturestart events during pinch animations on iOS.
-  const gestureDebugRef = useRef({ flowNodesLength: 0, nodeVisualMode: NodeVisualMode.FULL_CARD as NodeVisualMode, rfViewport: FALLBACK_VIEWPORT, visibleNodesLength: 0 });
-  gestureDebugRef.current = { flowNodesLength: flowNodes.length, nodeVisualMode, rfViewport, visibleNodesLength: visibleNodes.length };
-
-  useEffect(() => {
-    const target = rfWrapperRef.current;
-    if (!target) return;
-    const onGesture = (event: Event) => {
-      setLastGestureSource('touch');
-      if (IS_DEV && DEBUG.pointerEvents) {
-        const { flowNodesLength, nodeVisualMode: mode, rfViewport: vp, visibleNodesLength } = gestureDebugRef.current;
-        console.group('[ZOOM PIPELINE]');
-        console.log('gesture', event.type);
-        console.log('viewport', vp);
-        console.log('mode', mode);
-        console.log('rendered', flowNodesLength, 'visible', visibleNodesLength);
-        console.groupEnd();
-      }
-    };
-    target.addEventListener('gesturestart', onGesture, { passive: true });
-    target.addEventListener('gesturechange', onGesture, { passive: true });
-    target.addEventListener('gestureend', onGesture, { passive: true });
-    return () => {
-      target.removeEventListener('gesturestart', onGesture);
-      target.removeEventListener('gesturechange', onGesture);
-      target.removeEventListener('gestureend', onGesture);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleEdgeTypeSelect = (type: EdgeType) => {
@@ -672,91 +195,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     setSelectedNodeId(rfNode.id);
   }, [nodes, openSubMap, focusNode]);
 
-  const onNodeDragStart: NodeMouseHandler = useCallback(() => {
-    setIsDraggingNode(true);
-  }, []);
-
-  const onNodeDragStop: NodeMouseHandler = useCallback((_event, rfNode) => {
-    setIsDraggingNode(false);
-    validateFlowNodePosition(rfNode);
-
-    // Commit the final drag position to the store exactly once. React Flow
-    // owned the position internally during the drag (see onNodesChange); now
-    // that the gesture is over we persist where the node was released.
-    const finalX = rfNode.position?.x;
-    const finalY = rfNode.position?.y;
-    if (!Number.isFinite(finalX) || !Number.isFinite(finalY)) {
-      // Spurious drag-stop with NaN coordinates. Write the node's correct store
-      // position back so React Flow exits its NaN internal state and re-renders
-      // the node at the right place (without a store write, RF keeps showing it
-      // at NaN and the node appears to vanish).
-      const storeNode = nodesRef.current.find((n) => n.id === rfNode.id);
-      if (storeNode && Number.isFinite(storeNode.x) && Number.isFinite(storeNode.y)) {
-        updateNodePosition(rfNode.id, storeNode.x, storeNode.y);
-      }
-      return;
-    }
-    updateNodePosition(rfNode.id, finalX, finalY);
-
-    // Safety net: if the user flung the node outside the current viewport,
-    // gently pan the camera to keep it discoverable. Works in both card and
-    // dot modes since we operate purely on logical (flow) coordinates.
-    const instance = rfInstanceRef.current;
-    const wrapper = rfWrapperRef.current;
-    if (!instance || !wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-
-    const vp = instance.getViewport();
-    if (!isValidViewport(vp)) return;
-
-    // Approximate node footprint in flow coords so a card that's mostly
-    // off-screen still counts as off-screen.
-    const nodeWidthFlow = (rfNode.width ?? 0) || 0;
-    const nodeHeightFlow = (rfNode.height ?? 0) || 0;
-
-    const screenLeft = finalX * vp.zoom + vp.x;
-    const screenTop = finalY * vp.zoom + vp.y;
-    const screenRight = screenLeft + nodeWidthFlow * vp.zoom;
-    const screenBottom = screenTop + nodeHeightFlow * vp.zoom;
-
-    const pad = OFFSCREEN_EDGE_PADDING;
-    const offscreen =
-      screenRight < pad ||
-      screenBottom < pad ||
-      screenLeft > rect.width - pad ||
-      screenTop > rect.height - pad;
-
-    if (!offscreen) return;
-
-    const centerFlowX = finalX + nodeWidthFlow / 2;
-    const centerFlowY = finalY + nodeHeightFlow / 2;
-    instance.setCenter(centerFlowX, centerFlowY, { zoom: vp.zoom, duration: 450 });
-  }, [validateFlowNodePosition, updateNodePosition]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const isCmdCtrl = event.metaKey || event.ctrlKey;
-      if (event.key === 'Escape' || (isCmdCtrl && event.key === 'ArrowUp')) {
-        event.preventDefault();
-        exitToParent();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [exitToParent]);
-
-  useEffect(() => {
-    if (!IS_DEV) return;
-    const onDebugHotkey = (event: KeyboardEvent) => {
-      if (event.shiftKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault();
-        DEBUG.overlays = !DEBUG.overlays;
-      }
-    };
-    window.addEventListener('keydown', onDebugHotkey);
-    return () => window.removeEventListener('keydown', onDebugHotkey);
-  }, []);
+  useCanvasHotkeys(exitToParent);
 
   if (currentMapId === MASTER_MAP_ID) {
     return (
@@ -886,62 +325,15 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
 
       {/* Edge type chooser */}
       {pendingConnection && (
-        <div
-          className="absolute inset-0 z-40 flex items-center justify-center bg-void-900/50 backdrop-blur-sm"
-          onClick={() => setPendingConnection(null)}
-        >
-          <div
-            className="bg-void-800 border border-void-700 rounded-lg p-4 w-60 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400 mb-3">Define Connection</div>
-            <div className="space-y-1">
-              {(Object.entries(EDGE_LABELS) as [EdgeType, string][]).map(([type, label]) => (
-                <button
-                  key={type}
-                  onClick={() => handleEdgeTypeSelect(type)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded font-mono text-xs hover:bg-void-700 transition-colors text-left"
-                >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EDGE_COLORS[type] }} />
-                  <span className="text-slate-300">{label}</span>
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setPendingConnection(null)}
-              className="mt-3 w-full text-center font-mono text-[10px] text-slate-600 hover:text-slate-400 py-1 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <EdgeTypePicker onSelect={handleEdgeTypeSelect} onCancel={() => setPendingConnection(null)} />
       )}
       {selectedEdge && edgeActionPosition && (
-        <div
-          className="absolute z-40 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-void-700 bg-void-900/95 px-2 py-2 shadow-xl backdrop-blur-sm flex items-center gap-2"
-          style={{ left: edgeActionPosition.left, top: edgeActionPosition.top }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <span className="text-[10px] font-mono text-slate-500">{EDGE_LABELS[selectedEdge.type]}</span>
-          <select
-            value={selectedEdge.type}
-            onChange={(event) => updateEdgeType(selectedEdge.id, event.target.value as EdgeType)}
-            className="bg-void-800 border border-void-700 rounded px-1.5 py-1 text-[10px] font-mono text-slate-300"
-          >
-            {EDGE_TYPES.map((type) => (
-              <option key={type} value={type}>{EDGE_LABELS[type]}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => {
-              console.log('[EDGE DELETE]', selectedEdge.id);
-              deleteEdge(selectedEdge.id);
-            }}
-            className="rounded border border-rose-700/60 bg-rose-900/20 px-2 py-1 text-[10px] font-mono text-rose-300 hover:bg-rose-800/30"
-          >
-            Delete
-          </button>
-        </div>
+        <EdgeActionToolbar
+          edge={selectedEdge}
+          position={edgeActionPosition}
+          onChangeType={updateEdgeType}
+          onDelete={deleteEdge}
+        />
       )}
 
       <NodeDetailPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} initialTab={selectedNodeTab} />
