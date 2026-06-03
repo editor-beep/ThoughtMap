@@ -62,7 +62,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const { rfViewport, handleViewport } = useCanvasViewport(MIN_ZOOM, MAX_ZOOM, rfInstanceRef);
   const nodeVisualMode = useNodeVisualMode(rfViewport.zoom);
   const { isDraggingNode, onNodesChange, onNodeDragStart, onNodeDragStop } =
-    useNodeDragHandlers(updateNodePosition, rfInstanceRef, rfWrapperRef);
+    useNodeDragHandlers(updateNodePosition, nodes, rfInstanceRef, rfWrapperRef);
 
   const handleOpenPanel = useCallback((nodeId: string, tab: 'chat' | 'edit') => {
     setSelectedNodeTab(tab);
@@ -101,13 +101,12 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }, [nodes.length, visibleNodes, rfViewport]);
 
   useEffect(() => {
-    if (nodes.length > 0 && visibleNodes.length === 0) {
-      console.error('[VISIBLE NODE COLLAPSE]', {
-        total: nodes.length,
-        zoom: rfViewport.zoom,
-      });
+    // Fires only when the collapse condition toggles (not on every zoom tick),
+    // and only in development, so it never floods the production console.
+    if (IS_DEV && nodes.length > 0 && visibleNodes.length === 0) {
+      console.warn('[VISIBLE NODE COLLAPSE]', { total: nodes.length });
     }
-  }, [nodes.length, visibleNodes.length, rfViewport.zoom]);
+  }, [nodes.length, visibleNodes.length]);
 
   const { clusters, isolatedNodes } = useClusters(visibleNodes, rfViewport.zoom);
   // Drive cluster mode directly from zoom rather than from the hysteresis-based
@@ -216,7 +215,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   }
 
   return (
-    <div ref={rfWrapperRef} className="w-full h-full relative isolate">
+    <div ref={rfWrapperRef} className="w-full h-full relative isolate" style={{ touchAction: 'none' }}>
       <BlackspaceBackground viewport={rfViewport} />
       {currentMap && (
         <MapHeader

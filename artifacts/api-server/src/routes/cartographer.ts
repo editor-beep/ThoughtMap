@@ -187,7 +187,7 @@ router.post("/cartographer", async (req: Request, res: Response) => {
   const context = contextSchema.parse(parsed.data.context ?? {});
   const apiKey = process.env.GEMINI_API_KEY ?? "";
   if (!apiKey) return void res.status(500).json({ error: "Server misconfiguration: missing GEMINI_API_KEY" });
-  const model = "gemini-2.0-flash";
+  const model = "gemini-2.5-flash";
   const systemPrompt = buildSystemPrompt(mode, style, context);
 
   const isJsonMode = mode === "extract" || mode === "analyze" || mode === "crystallize";
