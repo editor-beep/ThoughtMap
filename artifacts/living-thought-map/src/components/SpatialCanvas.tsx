@@ -5,7 +5,6 @@ import ReactFlow, {
   Node,
   Edge,
   NodeMouseHandler,
-  Viewport,
   ReactFlowInstance
 } from 'reactflow';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
@@ -25,6 +24,9 @@ import { CanvasController, ViewportTracker, CanvasZoomControls, CanvasKeyboardCo
 import { DEBUG, IS_DEV } from '../config/debug';
 import MapDensityIndicator from './MapDensityIndicator';
 import { useClusters } from '../hooks/useClusters';
+import { useCanvasViewport } from '../hooks/useCanvasViewport';
+import { useNodeVisualMode } from '../hooks/useNodeVisualMode';
+import { useVisibleNodes } from '../hooks/useVisibleNodes';
 import { NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
@@ -33,7 +35,6 @@ import { EDGE_COLORS, EDGE_LABELS } from '../lib/canvasTheme';
 import {
   FALLBACK_VIEWPORT,
   isValidViewport,
-  sanitizeViewport,
   toSafePosition,
   isValidXYPosition,
 } from '../lib/viewport';
@@ -57,7 +58,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeTab, setSelectedNodeTab] = useState<'chat' | 'edit'>('chat');
-  const [rfViewport, setRfViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [lastGestureSource, setLastGestureSource] = useState<'wheel' | 'touch' | 'unknown'>('unknown');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [isDraggingNode, setIsDraggingNode] = useState(false);
@@ -67,6 +67,10 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const MIN_ZOOM = 0.05;
   const MAX_ZOOM = 2.5;
 
+  // Canvas viewport mirror + the NaN/out-of-range zoom drift defense.
+  const { rfViewport, handleViewport } = useCanvasViewport(MIN_ZOOM, MAX_ZOOM, rfInstanceRef);
+  const nodeVisualMode = useNodeVisualMode(rfViewport.zoom);
+
   const handleOpenPanel = useCallback((nodeId: string, tab: 'chat' | 'edit') => {
     setSelectedNodeTab(tab);
     setSelectedNodeId(nodeId);
@@ -75,71 +79,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   // Padding (in screen px) from the viewport edge — a node released closer
   // than this to the edge counts as off-screen and gets pulled back into view.
   const OFFSCREEN_EDGE_PADDING = 48;
-
-  // Sync React Flow's internal viewport back to a sane value whenever a
-  // gesture (especially trackpad/touch pinch under Safari) produces a NaN or
-  // out-of-range zoom. Without this, our local `rfViewport` is sanitized but
-  // RF's transform pane still renders at `scale(NaN)`, hiding every node
-  // while React's render count stays "valid" — the exact symptom users see
-  // on iPad pinch and Magic Keyboard trackpad pinch.
-  const pendingViewportCorrectionRef = useRef<Viewport | null>(null);
-  const handleViewport = useCallback((vp: Viewport) => {
-    const nextViewport = sanitizeViewport(vp, MIN_ZOOM, MAX_ZOOM, FALLBACK_VIEWPORT);
-    const sanitizedDiffers =
-      nextViewport.x !== vp.x || nextViewport.y !== vp.y || nextViewport.zoom !== vp.zoom;
-    if (sanitizedDiffers) {
-      const instance = rfInstanceRef.current;
-      // Coalesce repeated corrections into a single rAF so a noisy gesture
-      // stream (e.g. Safari pinch with NaN deltas) can't queue a storm of
-      // setViewport calls. Each frame we apply only the latest correction.
-      const wasIdle = pendingViewportCorrectionRef.current === null;
-      pendingViewportCorrectionRef.current = nextViewport;
-      if (instance && wasIdle) {
-        requestAnimationFrame(() => {
-          const queued = pendingViewportCorrectionRef.current;
-          pendingViewportCorrectionRef.current = null;
-          if (!queued) return;
-          try { instance.setViewport(queued, { duration: 0 }); } catch { /* RF may be unmounting */ }
-        });
-      }
-    }
-    if (!isValidViewport(nextViewport)) {
-      console.error('[INVALID VIEWPORT]', vp, nextViewport);
-      setRfViewport(FALLBACK_VIEWPORT);
-      return;
-    }
-    setRfViewport((current) => {
-      if (current.x === nextViewport.x && current.y === nextViewport.y && current.zoom === nextViewport.zoom) {
-        return current;
-      }
-      return nextViewport;
-    });
-  }, [MAX_ZOOM, MIN_ZOOM]);
-
-  // Stable hysteresis-based mode selection. Previously this lived in a
-  // `useMemo` that mutated a ref — impure, double-invoked under React 18
-  // StrictMode, and prone to skipping states under fast pinch input. Owning
-  // the mode in real state lets effects drive transitions deterministically.
-  const [nodeVisualMode, setNodeVisualMode] = useState<NodeVisualMode>(NodeVisualMode.FULL_CARD);
-  useEffect(() => {
-    const zoom = rfViewport.zoom;
-    if (!Number.isFinite(zoom)) return;
-    setNodeVisualMode((prev) => {
-      // Hysteresis bands: cards engage above the upper threshold, drop to the
-      // next mode below the lower threshold. The gap prevents flicker loops
-      // when zoom hovers near a boundary.
-      if (prev === NodeVisualMode.FULL_CARD) {
-        return zoom < 0.84 ? NodeVisualMode.COMPACT_CARD : NodeVisualMode.FULL_CARD;
-      }
-      // prev === COMPACT_CARD
-      return zoom >= 0.95 ? NodeVisualMode.FULL_CARD : NodeVisualMode.COMPACT_CARD;
-    });
-  }, [rfViewport.zoom]);
-
-  const activeRealmIds = useMemo(
-    () => new Set(realms.filter((r) => r.isActive).map((r) => r.id)),
-    [realms]
-  );
 
   const currentMap = maps[currentMapId] ?? null;
   const isDetail = currentMap?.level === 'detail';
@@ -158,12 +97,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     });
   }, [currentMap, maps, switchMap]);
 
-  const visibleNodes = useMemo(
-    () => nodes.filter((n) => n.realms.length === 0 || n.realms.some((r) => activeRealmIds.has(r))),
-    [nodes, activeRealmIds]
-  );
-
-  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
+  const { visibleNodes, visibleNodeIds } = useVisibleNodes(nodes, realms);
 
   useEffect(() => {
     if (!IS_DEV) return;
