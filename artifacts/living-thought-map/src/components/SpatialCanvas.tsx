@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, {
-  NodeChange,
   Connection,
   Node,
   Edge,
@@ -28,16 +27,11 @@ import { useCanvasViewport } from '../hooks/useCanvasViewport';
 import { useNodeVisualMode } from '../hooks/useNodeVisualMode';
 import { useVisibleNodes } from '../hooks/useVisibleNodes';
 import { useFlowGraph } from '../hooks/useFlowGraph';
+import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers';
+import { useCanvasGestures } from '../hooks/useCanvasGestures';
 import { NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
-import { NodeVisualMode } from '../types/nodeVisualMode';
-import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
 import { EDGE_TYPES } from '../lib/constants';
 import { EDGE_COLORS, EDGE_LABELS } from '../lib/canvasTheme';
-import {
-  FALLBACK_VIEWPORT,
-  isValidViewport,
-  isValidXYPosition,
-} from '../lib/viewport';
 import { HUD_LAYERS, HUD_SPACING, HUD_STACK_GAP } from '../constants/hudLayout';
 
 const nodeTypes = {
@@ -58,10 +52,7 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeTab, setSelectedNodeTab] = useState<'chat' | 'edit'>('chat');
-  const [lastGestureSource, setLastGestureSource] = useState<'wheel' | 'touch' | 'unknown'>('unknown');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [isDraggingNode, setIsDraggingNode] = useState(false);
-  const lastTouchPointerAtRef = useRef(0);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const rfWrapperRef = useRef<HTMLDivElement | null>(null);
   const MIN_ZOOM = 0.05;
@@ -70,15 +61,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   // Canvas viewport mirror + the NaN/out-of-range zoom drift defense.
   const { rfViewport, handleViewport } = useCanvasViewport(MIN_ZOOM, MAX_ZOOM, rfInstanceRef);
   const nodeVisualMode = useNodeVisualMode(rfViewport.zoom);
+  const { isDraggingNode, onNodesChange, onNodeDragStart, onNodeDragStop } =
+    useNodeDragHandlers(updateNodePosition, rfInstanceRef, rfWrapperRef);
 
   const handleOpenPanel = useCallback((nodeId: string, tab: 'chat' | 'edit') => {
     setSelectedNodeTab(tab);
     setSelectedNodeId(nodeId);
   }, []);
-
-  // Padding (in screen px) from the viewport edge — a node released closer
-  // than this to the edge counts as off-screen and gets pulled back into view.
-  const OFFSCREEN_EDGE_PADDING = 48;
 
   const currentMap = maps[currentMapId] ?? null;
   const isDetail = currentMap?.level === 'detail';
@@ -151,48 +140,13 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     }
   }, [selectedNodeId]);
 
-  const validateFlowNodePosition = useCallback((rfNode: Node) => {
-    if (!IS_DEV || !DEBUG.dragValidation) return;
-    const px = rfNode.position?.x;
-    const py = rfNode.position?.y;
-    if (!Number.isFinite(px)) console.warn('[CARD POSITION INVALID X]', rfNode.id, px);
-    if (!Number.isFinite(py)) console.warn('[CARD POSITION INVALID Y]', rfNode.id, py);
-  }, []);
-
-
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      changes.forEach((change) => {
-        if (change.type !== 'position' || !change.id) return;
-
-        // While the user is actively dragging, let React Flow own the node
-        // position. Writing the store back into the `nodes` prop on every
-        // drag tick creates a coordinate-feedback loop where React Flow
-        // applies its pointer delta on top of an already-moved position,
-        // producing wild jumps. We commit the final position once in
-        // onNodeDragStop.
-        if (change.dragging) return;
-
-        const nextPosition = change.position;
-        if (!isValidXYPosition(nextPosition)) {
-          console.error('[INVALID DRAG POSITION — SKIPPING UPDATE]', {
-            nodeId: change.id,
-            nextPosition,
-          });
-          return;
-        }
-
-        const nextX = nextPosition.x;
-        const nextY = nextPosition.y;
-        if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) {
-          console.error('[INVALID POINTER POSITION]', nextX, nextY);
-          return;
-        }
-        updateNodePosition(change.id, nextX, nextY);
-      });
-    },
-    [updateNodePosition]
-  );
+  const { lastGestureSource, lastTouchPointerAtRef, handlePointerDiagnostics, handleWheelDiagnostics } =
+    useCanvasGestures(rfWrapperRef, {
+      flowNodesLength: flowNodes.length,
+      nodeVisualMode,
+      rfViewport,
+      visibleNodesLength: visibleNodes.length,
+    });
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => deleted.forEach((n) => deleteNode(n.id)),
@@ -208,66 +162,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     if (params.source && params.target) {
       setPendingConnection({ source: params.source, target: params.target });
     }
-  }, []);
-
-  const handlePointerDiagnostics = useCallback((event: React.PointerEvent) => {
-    const normalized = normalizePointerEvent(event);
-    if (normalized.pointerType === 'touch') {
-      lastTouchPointerAtRef.current = Date.now();
-      setLastGestureSource('touch');
-    }
-    if (IS_DEV && DEBUG.pointerEvents) {
-      console.log('[POINTER EVENT]', {
-        type: event.type,
-        pointerType: normalized.pointerType,
-        clientX: normalized.clientX,
-        clientY: normalized.clientY,
-      });
-    }
-  }, []);
-
-  const handleWheelDiagnostics = useCallback((event: React.WheelEvent) => {
-    setLastGestureSource('wheel');
-    if (IS_DEV && DEBUG.pointerEvents) {
-      console.log('[WHEEL EVENT]', {
-        deltaX: event.deltaX,
-        deltaY: event.deltaY,
-        ctrlKey: event.ctrlKey,
-      });
-    }
-  }, []);
-
-  // Keep a ref of the values used only for debug logging so the gesture
-  // listener can be registered exactly once (on mount) rather than being torn
-  // down and re-attached on every viewport tick. Unnecessary re-registration
-  // can cause missed gesturestart events during pinch animations on iOS.
-  const gestureDebugRef = useRef({ flowNodesLength: 0, nodeVisualMode: NodeVisualMode.FULL_CARD as NodeVisualMode, rfViewport: FALLBACK_VIEWPORT, visibleNodesLength: 0 });
-  gestureDebugRef.current = { flowNodesLength: flowNodes.length, nodeVisualMode, rfViewport, visibleNodesLength: visibleNodes.length };
-
-  useEffect(() => {
-    const target = rfWrapperRef.current;
-    if (!target) return;
-    const onGesture = (event: Event) => {
-      setLastGestureSource('touch');
-      if (IS_DEV && DEBUG.pointerEvents) {
-        const { flowNodesLength, nodeVisualMode: mode, rfViewport: vp, visibleNodesLength } = gestureDebugRef.current;
-        console.group('[ZOOM PIPELINE]');
-        console.log('gesture', event.type);
-        console.log('viewport', vp);
-        console.log('mode', mode);
-        console.log('rendered', flowNodesLength, 'visible', visibleNodesLength);
-        console.groupEnd();
-      }
-    };
-    target.addEventListener('gesturestart', onGesture, { passive: true });
-    target.addEventListener('gesturechange', onGesture, { passive: true });
-    target.addEventListener('gestureend', onGesture, { passive: true });
-    return () => {
-      target.removeEventListener('gesturestart', onGesture);
-      target.removeEventListener('gesturechange', onGesture);
-      target.removeEventListener('gestureend', onGesture);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleEdgeTypeSelect = (type: EdgeType) => {
@@ -301,64 +195,6 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
     focusNode(rfNode.id);
     setSelectedNodeId(rfNode.id);
   }, [nodes, openSubMap, focusNode]);
-
-  const onNodeDragStart: NodeMouseHandler = useCallback(() => {
-    setIsDraggingNode(true);
-  }, []);
-
-  const onNodeDragStop: NodeMouseHandler = useCallback((_event, rfNode) => {
-    setIsDraggingNode(false);
-    validateFlowNodePosition(rfNode);
-
-    // Commit the final drag position to the store exactly once. React Flow
-    // owned the position internally during the drag (see onNodesChange); now
-    // that the gesture is over we persist where the node was released.
-    const finalX = rfNode.position?.x;
-    const finalY = rfNode.position?.y;
-    if (!Number.isFinite(finalX) || !Number.isFinite(finalY)) {
-      console.error('[INVALID DRAG POSITION — SKIPPING UPDATE]', {
-        nodeId: rfNode.id,
-        nextPosition: rfNode.position,
-      });
-      return;
-    }
-    updateNodePosition(rfNode.id, finalX, finalY);
-
-    // Safety net: if the user flung the node outside the current viewport,
-    // gently pan the camera to keep it discoverable. Works in both card and
-    // dot modes since we operate purely on logical (flow) coordinates.
-    const instance = rfInstanceRef.current;
-    const wrapper = rfWrapperRef.current;
-    if (!instance || !wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-
-    const vp = instance.getViewport();
-    if (!isValidViewport(vp)) return;
-
-    // Approximate node footprint in flow coords so a card that's mostly
-    // off-screen still counts as off-screen.
-    const nodeWidthFlow = (rfNode.width ?? 0) || 0;
-    const nodeHeightFlow = (rfNode.height ?? 0) || 0;
-
-    const screenLeft = finalX * vp.zoom + vp.x;
-    const screenTop = finalY * vp.zoom + vp.y;
-    const screenRight = screenLeft + nodeWidthFlow * vp.zoom;
-    const screenBottom = screenTop + nodeHeightFlow * vp.zoom;
-
-    const pad = OFFSCREEN_EDGE_PADDING;
-    const offscreen =
-      screenRight < pad ||
-      screenBottom < pad ||
-      screenLeft > rect.width - pad ||
-      screenTop > rect.height - pad;
-
-    if (!offscreen) return;
-
-    const centerFlowX = finalX + nodeWidthFlow / 2;
-    const centerFlowY = finalY + nodeHeightFlow / 2;
-    instance.setCenter(centerFlowX, centerFlowY, { zoom: vp.zoom, duration: 450 });
-  }, [validateFlowNodePosition, updateNodePosition]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
