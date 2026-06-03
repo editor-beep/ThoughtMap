@@ -27,6 +27,7 @@ import { useClusters } from '../hooks/useClusters';
 import { useCanvasViewport } from '../hooks/useCanvasViewport';
 import { useNodeVisualMode } from '../hooks/useNodeVisualMode';
 import { useVisibleNodes } from '../hooks/useVisibleNodes';
+import { useFlowGraph } from '../hooks/useFlowGraph';
 import { NODE_VISUAL_MODE_THRESHOLDS } from '../lib/nodeVisualMode';
 import { NodeVisualMode } from '../types/nodeVisualMode';
 import { normalizePointerEvent } from '../lib/input/normalizePointerEvent';
@@ -35,7 +36,6 @@ import { EDGE_COLORS, EDGE_LABELS } from '../lib/canvasTheme';
 import {
   FALLBACK_VIEWPORT,
   isValidViewport,
-  toSafePosition,
   isValidXYPosition,
 } from '../lib/viewport';
 import { HUD_LAYERS, HUD_SPACING, HUD_STACK_GAP } from '../constants/hudLayout';
@@ -129,105 +129,27 @@ export default function SpatialCanvas({ immersive, onImmersiveToggle }: SpatialC
   const shouldUseClusterMode =
     rfViewport.zoom < NODE_VISUAL_MODE_THRESHOLDS.CLUSTER &&
     !isDraggingNode;
-  const edgePairs = useMemo(() => edges.map((e) => [e.source, e.target] as const), [edges]);
-  const activeFocusId = selectedNodeId ?? hoveredNodeId;
-  const neighborhoodNodeIds = useMemo(() => {
-    if (!activeFocusId) return new Set<string>();
-    const result = new Set<string>([activeFocusId]);
-    edgePairs.forEach(([s, t]) => {
-      if (s === activeFocusId) result.add(t);
-      if (t === activeFocusId) result.add(s);
-    });
-    return result;
-  }, [activeFocusId, edgePairs]);
-
-  const flowNodes = useMemo(() => {
-    if (shouldUseClusterMode) {
-      const clusterNodes = clusters.map((c, i) => ({
-        id: `cluster-${i}`,
-        type: 'clusterMarker',
-        position: { x: c.x, y: c.y },
-        data: { cluster: c },
-        draggable: false,
-        selectable: false,
-      }));
-
-      // Isolated single nodes fall back to their regular dot rendering.
-      const singleNodes = isolatedNodes.map((node) => {
-        const safePosition = toSafePosition(node.id, node.x, node.y);
-        return {
-        id: node.id,
-        type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-        position: safePosition,
-        data: {
-          node,
-          onOpen: openSubMap,
-          isFocused: selectedNodeId === node.id,
-          emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
-          semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
-          onRequestExpand: setSelectedNodeId,
-          onOpenPanel: handleOpenPanel,
-        },
-      };
-      });
-
-      return [...clusterNodes, ...singleNodes];
-    }
-
-    return visibleNodes.map((node) => {
-      const safePosition = toSafePosition(node.id, node.x, node.y);
-      return {
-      id: node.id,
-      type: node.isSemanticField ? 'semanticFieldNode' : 'thoughtMapNode',
-      position: safePosition,
-      data: {
-        node,
-        onOpen: openSubMap,
-        isFocused: selectedNodeId === node.id,
-        emphasis: neighborhoodNodeIds.has(node.id) ? (activeFocusId === node.id ? 'focused' : 'neighborhood') : (activeFocusId ? 'background' : 'default'),
-        semanticCompression: Math.max(0, Math.min(1, (rfViewport.zoom - 0.28) / 0.5)),
-        onRequestExpand: setSelectedNodeId,
-        onOpenPanel: handleOpenPanel,
-      }
-    };
-    });
-  }, [shouldUseClusterMode, clusters, isolatedNodes, visibleNodes, openSubMap, selectedNodeId, neighborhoodNodeIds, activeFocusId, rfViewport.zoom, handleOpenPanel]);
+  const { flowNodes, flowEdges } = useFlowGraph({
+    visibleNodes,
+    visibleNodeIds,
+    edges,
+    clusters,
+    isolatedNodes,
+    shouldUseClusterMode,
+    selectedNodeId,
+    hoveredNodeId,
+    selectedEdgeId,
+    zoom: rfViewport.zoom,
+    onOpenSubMap: openSubMap,
+    onRequestExpand: setSelectedNodeId,
+    onOpenPanel: handleOpenPanel,
+  });
 
   useEffect(() => {
     if (IS_DEV && DEBUG.selection) {
       console.log('[SELECTED NODE]', selectedNodeId);
     }
   }, [selectedNodeId]);
-
-
-
-  const flowEdges = useMemo(
-    () =>
-      shouldUseClusterMode
-        ? []
-        : edges
-            .filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
-            .map((edge) => {
-              const isFocusedEdge = activeFocusId && (edge.source === activeFocusId || edge.target === activeFocusId);
-              const isNeighborEdge = activeFocusId && (neighborhoodNodeIds.has(edge.source) || neighborhoodNodeIds.has(edge.target));
-              const isSelectedEdge = selectedEdgeId === edge.id;
-              return {
-              id: edge.id,
-              source: edge.source,
-              target: edge.target,
-              animated: Boolean(isFocusedEdge || isSelectedEdge),
-              interactionWidth: 28,
-              label: isSelectedEdge ? EDGE_LABELS[edge.type] : undefined,
-              labelStyle: { fill: isFocusedEdge || isSelectedEdge ? '#bae6fd' : '#475569', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
-              labelBgStyle: { fill: '#030712', fillOpacity: 0.85 },
-              style: {
-                stroke: EDGE_COLORS[edge.type],
-                strokeWidth: isSelectedEdge ? 3.4 : isFocusedEdge ? 2.8 : isNeighborEdge ? 2.1 : 1.2,
-                opacity: isSelectedEdge ? 1 : activeFocusId ? (isNeighborEdge ? 0.9 : 0.2) : 0.75,
-              }
-            };}),
-    [shouldUseClusterMode, edges, visibleNodeIds, activeFocusId, neighborhoodNodeIds, selectedEdgeId]
-  );
 
   const validateFlowNodePosition = useCallback((rfNode: Node) => {
     if (!IS_DEV || !DEBUG.dragValidation) return;
