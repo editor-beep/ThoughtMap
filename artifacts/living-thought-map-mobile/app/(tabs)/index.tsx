@@ -1,7 +1,7 @@
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
-import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,7 +13,7 @@ import { useColors } from "@/hooks/useColors";
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { chatHistory, isStreaming, sendChatMessage, extractToMap, realms, clearThoughtStream } = useThought();
+  const { chatHistory, isStreaming, sendChatMessage, extractToMap, realms, clearThoughtStream, paywallRequired, openSubscriptionCheckout, dismissPaywall } = useThought();
   const [inputText, setInputText] = useState("");
   const inputRef = useRef<TextInput>(null);
   const s = makeStyles(colors);
@@ -132,6 +132,32 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* Paywall modal */}
+      <Modal visible={paywallRequired} transparent animationType="fade" onRequestClose={dismissPaywall}>
+        <View style={s.paywallBackdrop}>
+          <View style={[s.paywallCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.paywallDot, { backgroundColor: colors.cosmicCyan }]} />
+            <Text style={[s.paywallTitle, { color: colors.foreground }]}>ThoughtMap Pro</Text>
+            <Text style={[s.paywallBody, { color: colors.mutedForeground }]}>
+              Navigator (AI chat) and Cartographer AI features require an active subscription.
+            </Text>
+            <Text style={[s.paywallPrice, { color: colors.cosmicCyan }]}>$10 / month</Text>
+            <Pressable
+              style={[s.paywallBtn, { backgroundColor: colors.cosmicCyan }]}
+              onPress={async () => {
+                dismissPaywall();
+                await openSubscriptionCheckout();
+              }}
+            >
+              <Text style={[s.paywallBtnText, { color: colors.background }]}>Subscribe</Text>
+            </Pressable>
+            <Pressable onPress={dismissPaywall} style={{ marginTop: 12 }}>
+              <Text style={[s.paywallDismiss, { color: colors.mutedForeground }]}>Not now</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -158,5 +184,22 @@ function makeStyles(colors: any) {
       paddingLeft: 16, paddingRight: 6, paddingVertical: 6,
     },
     input: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", maxHeight: 100, lineHeight: 20 },
+    paywallBackdrop: {
+      flex: 1, backgroundColor: "rgba(0,0,0,0.7)",
+      alignItems: "center", justifyContent: "center", padding: 24,
+    },
+    paywallCard: {
+      width: "100%", maxWidth: 360, borderRadius: 16, borderWidth: 1,
+      padding: 28, alignItems: "center",
+    },
+    paywallDot: { width: 10, height: 10, borderRadius: 5, marginBottom: 16 },
+    paywallTitle: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 10, textAlign: "center" },
+    paywallBody: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, marginBottom: 16 },
+    paywallPrice: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 24 },
+    paywallBtn: {
+      width: "100%", paddingVertical: 14, borderRadius: 10, alignItems: "center",
+    },
+    paywallBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+    paywallDismiss: { fontSize: 13, fontFamily: "Inter_400Regular" },
   });
 }

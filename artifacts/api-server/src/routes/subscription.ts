@@ -43,28 +43,17 @@ router.post("/subscription/checkout", requireAuth, async (req: any, res) => {
       customerId = customer.id;
     }
 
-    let priceId = req.body.priceId;
-    if (!priceId) {
-      try {
-        const products = await storage.listProductsWithPrices();
-        priceId = products[0]?.prices?.[0]?.id;
-      } catch { /* DB sync not ready */ }
-    }
-    if (!priceId) {
-      try {
-        const stripe = await getUncachableStripeClient();
-        const prices = await stripe.prices.list({ active: true, type: "recurring", limit: 10 });
-        const sorted = prices.data.sort((a, b) => (a.unit_amount ?? 0) - (b.unit_amount ?? 0));
-        priceId = sorted[0]?.id;
-      } catch { /* Stripe API fallback failed */ }
-    }
-    if (!priceId) {
-      priceId = process.env.STRIPE_MONTHLY_PRICE_ID;
+    const allowedPriceId = process.env.STRIPE_MONTHLY_PRICE_ID;
+    if (!allowedPriceId) {
+      return res.status(500).json({ error: "Subscription price not configured on the server." });
     }
 
-    if (!priceId) {
-      return res.status(400).json({ error: "No price available. Please set up a product in Stripe first." });
+    const requestedPriceId = req.body.priceId;
+    if (requestedPriceId && requestedPriceId !== allowedPriceId) {
+      return res.status(400).json({ error: "Invalid price ID." });
     }
+
+    const priceId = allowedPriceId;
 
     const stripe = await getUncachableStripeClient();
     const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";

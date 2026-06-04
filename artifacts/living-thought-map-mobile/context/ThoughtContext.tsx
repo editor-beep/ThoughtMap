@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
+import { Linking } from "react-native";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 export type NodeType =
@@ -58,6 +59,24 @@ const INITIAL_CHAT: ChatMessage[] = [
 
 const STORAGE_KEY = "thought-map-mobile-v1";
 
+function getApiBaseUrl(): string {
+  const raw = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!raw) return "";
+  const host = raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  return `https://${host}`;
+}
+
+async function readJsonBody(response: { text?: () => Promise<string> }): Promise<any> {
+  try {
+    if (typeof response.text === "function") {
+      const body = await response.text();
+      if (!body) return null;
+      try { return JSON.parse(body); } catch { return { error: body.slice(0, 200) }; }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 interface ThoughtContextValue {
   nodes: ThoughtNode[];
   realms: Realm[];
@@ -65,6 +84,7 @@ interface ThoughtContextValue {
   chatHistory: ChatMessage[];
   activeTerrain: TerrainId;
   isStreaming: boolean;
+  paywallRequired: boolean;
   addNode: (node: Omit<ThoughtNode, "id" | "createdAt">) => string;
   updateNode: (id: string, updates: Partial<Pick<ThoughtNode, "title" | "content" | "type" | "realms">>) => void;
   deleteNode: (id: string) => void;
@@ -79,6 +99,8 @@ interface ThoughtContextValue {
   nodeChatStreaming: string | null;
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
   clearThoughtStream: () => void;
+  openSubscriptionCheckout: () => Promise<void>;
+  dismissPaywall: () => void;
 }
 
 const ThoughtContext = createContext<ThoughtContextValue | null>(null);
@@ -109,21 +131,6 @@ function getChatUrl(): string {
   return `https://${host}/api/chat`;
 }
 
-async function readChatErrorBody(response: { text?: () => Promise<string> }): Promise<string> {
-  try {
-    if (typeof response.text === "function") {
-      const body = await response.text();
-      if (!body) return "";
-      try {
-        const parsed = JSON.parse(body);
-        if (parsed && typeof parsed.error === "string") return parsed.error;
-      } catch { /* not JSON */ }
-      return body.slice(0, 200);
-    }
-  } catch { /* ignore */ }
-  return "";
-}
-
 export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   const { getToken } = useAuth();
   const [nodes, setNodes] = useState<ThoughtNode[]>([]);
@@ -134,6 +141,7 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   const [edges, setEdges] = useState<ThoughtEdge[]>([]);
   const [nodeChats, setNodeChats] = useState<Record<string, ChatMessage[]>>({});
   const [nodeChatStreaming, setNodeChatStreaming] = useState<string | null>(null);
+  const [paywallRequired, setPaywallRequired] = useState(false);
   const initializedRef = useRef(false);
 
   // Load persisted state on mount
@@ -237,8 +245,13 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        const detail = await readChatErrorBody(response);
-        throw new Error(`API error ${response.status}${detail ? ` — ${detail}` : ""}`);
+        const parsed = await readJsonBody(response);
+        if (response.status === 403 && parsed?.code === "subscription_required") {
+          const e: any = new Error("Subscription required");
+          e._subscriptionRequired = true;
+          throw e;
+        }
+        throw new Error(`API error ${response.status}${parsed?.error ? ` — ${parsed.error}` : ""}`);
       }
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
@@ -269,12 +282,20 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
           } catch { /* skip malformed SSE */ }
         }
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      setNodeChats((prev) => ({
-        ...prev,
-        [nodeId]: (prev[nodeId] ?? []).map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)),
-      }));
+    } catch (err: any) {
+      if (err?._subscriptionRequired) {
+        setPaywallRequired(true);
+        setNodeChats((prev) => ({
+          ...prev,
+          [nodeId]: (prev[nodeId] ?? []).filter((m) => m.id !== assistantId),
+        }));
+      } else {
+        const msg = err instanceof Error ? err.message : "Something went wrong";
+        setNodeChats((prev) => ({
+          ...prev,
+          [nodeId]: (prev[nodeId] ?? []).map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)),
+        }));
+      }
     } finally {
       setNodeChatStreaming(null);
     }
@@ -307,8 +328,13 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        const detail = await readChatErrorBody(response);
-        throw new Error(`API error ${response.status}${detail ? ` — ${detail}` : ""}`);
+        const parsed = await readJsonBody(response);
+        if (response.status === 403 && parsed?.code === "subscription_required") {
+          const e: any = new Error("Subscription required");
+          e._subscriptionRequired = true;
+          throw e;
+        }
+        throw new Error(`API error ${response.status}${parsed?.error ? ` — ${parsed.error}` : ""}`);
       }
 
       const reader = response.body?.getReader();
@@ -341,9 +367,14 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
           } catch { /* skip malformed SSE */ }
         }
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      setChatHistory((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)));
+    } catch (err: any) {
+      if (err?._subscriptionRequired) {
+        setPaywallRequired(true);
+        setChatHistory((prev) => prev.filter((m) => m.id !== assistantId));
+      } else {
+        const msg = err instanceof Error ? err.message : "Something went wrong";
+        setChatHistory((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)));
+      }
     } finally {
       setIsStreaming(false);
     }
@@ -369,6 +400,28 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     setIsStreaming(false);
   }, []);
 
+  const dismissPaywall = useCallback(() => setPaywallRequired(false), []);
+
+  const openSubscriptionCheckout = useCallback(async () => {
+    try {
+      const base = getApiBaseUrl();
+      if (!base) {
+        console.warn("[ThoughtContext] EXPO_PUBLIC_DOMAIN not set, cannot open checkout");
+        return;
+      }
+      const token = await getToken().catch(() => null);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${base}/api/subscription/checkout`, { method: "POST", headers });
+      const data = await res.json();
+      if (data?.url) {
+        await Linking.openURL(data.url);
+      }
+    } catch (err) {
+      console.error("[ThoughtContext] checkout error", err);
+    }
+  }, [getToken]);
+
   // Persist whenever state changes
   useEffect(() => {
     if (initializedRef.current) persist(nodes, realms, chatHistory, activeTerrain, edges, nodeChats);
@@ -376,10 +429,11 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThoughtContext.Provider value={{
-      nodes, realms, edges, chatHistory, activeTerrain, isStreaming,
+      nodes, realms, edges, chatHistory, activeTerrain, isStreaming, paywallRequired,
       addNode, updateNode, deleteNode, toggleRealm, addRealm,
       addEdge, deleteEdge, sendChatMessage, extractToMap, setTerrain,
       nodeChats, nodeChatStreaming, sendNodeChatMessage, clearThoughtStream,
+      openSubscriptionCheckout, dismissPaywall,
     }}>
       {children}
     </ThoughtContext.Provider>
