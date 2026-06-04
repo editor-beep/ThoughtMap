@@ -82,6 +82,8 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"), // 'active' | 'canceled' | null
+  subscriptionEndDate: timestamp("subscription_end_date"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

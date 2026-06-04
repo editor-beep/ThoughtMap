@@ -13,9 +13,9 @@ router.get("/subscription/status", requireAuth, async (req: any, res) => {
       return res.json({ subscribed: false, subscription: null });
     }
     const isActive = await storage.hasActiveSubscription(user.stripeCustomerId);
-    res.json({ subscribed: isActive, subscription: null });
+    return res.json({ subscribed: isActive, subscription: null });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -69,9 +69,9 @@ router.post("/subscription/checkout", requireAuth, async (req: any, res) => {
       cancel_url: `${baseUrl}/`,
     });
 
-    res.json({ url: session.url });
+    return res.json({ url: session.url });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -92,9 +92,9 @@ router.post("/subscription/portal", requireAuth, async (req: any, res) => {
       return_url: `${baseUrl}/`,
     });
 
-    res.json({ url: portalSession.url });
+    return res.json({ url: portalSession.url });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -106,9 +106,9 @@ router.post("/user/sync", requireAuth, async (req: any, res) => {
     const subscribed = user.stripeCustomerId
       ? await storage.hasActiveSubscription(user.stripeCustomerId)
       : false;
-    res.json({ user: { id: user.id, email: user.email }, subscribed });
+    return res.json({ user: { id: user.id, email: user.email }, subscribed });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

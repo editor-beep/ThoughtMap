@@ -483,7 +483,7 @@ export default function TopNav() {
             </a>
           </Show>
           <Show when="signed-in">
-            <UserButton afterSignOutUrl={normalizedBasePath || '/'} />
+            <UserButton />
           </Show>
         </div>
       </nav>
@@ -676,7 +676,7 @@ export default function TopNav() {
           </a>
         </Show>
         <Show when="signed-in">
-          <UserButton afterSignOutUrl={normalizedBasePath || '/'} />
+          <UserButton />
         </Show>
       </div>
 

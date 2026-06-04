@@ -3,9 +3,6 @@ import { useLocation } from 'wouter';
 import { X, Sparkles, Brain, Map, Zap } from 'lucide-react';
 import { useAuth } from '@clerk/react';
 
-const rawBase = import.meta.env.BASE_URL || '/';
-const basePath = rawBase.endsWith('/') && rawBase !== '/' ? rawBase.slice(0, -1) : (rawBase === '/' ? '' : rawBase);
-
 interface PaywallModalProps {
   open: boolean;
   onClose: () => void;

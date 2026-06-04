@@ -1,5 +1,4 @@
-import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
+import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 export class Storage {

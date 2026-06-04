@@ -69,9 +69,9 @@ export default function SignUpScreen() {
               <Text style={styles.fieldError}>{errors.fields.code.message}</Text>
             )}
 
-            {errors.global && (
+            {errors.global && errors.global.length > 0 && (
               <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{errors.global.message}</Text>
+                <Text style={styles.errorText}>{errors.global[0].longMessage ?? errors.global[0].message}</Text>
               </View>
             )}
 
@@ -113,8 +113,8 @@ export default function SignUpScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          {errors.fields.emailAddress && (
-            <Text style={styles.fieldError}>{errors.fields.emailAddress.message}</Text>
+          {(errors.fields as any)?.emailAddress && (
+            <Text style={styles.fieldError}>{(errors.fields as any).emailAddress.message}</Text>
           )}
 
           <Text style={styles.label}>Password</Text>
@@ -130,9 +130,9 @@ export default function SignUpScreen() {
             <Text style={styles.fieldError}>{errors.fields.password.message}</Text>
           )}
 
-          {errors.global && (
+          {errors.global && errors.global.length > 0 && (
             <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errors.global.message}</Text>
+              <Text style={styles.errorText}>{errors.global[0].longMessage ?? errors.global[0].message}</Text>
             </View>
           )}
 
