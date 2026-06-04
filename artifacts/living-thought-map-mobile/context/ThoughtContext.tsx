@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 export type NodeType =
@@ -124,6 +125,7 @@ async function readChatErrorBody(response: { text?: () => Promise<string> }): Pr
 }
 
 export function ThoughtProvider({ children }: { children: React.ReactNode }) {
+  const { getToken } = useAuth();
   const [nodes, setNodes] = useState<ThoughtNode[]>([]);
   const [realms, setRealms] = useState<Realm[]>(INITIAL_REALMS);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(INITIAL_CHAT);
@@ -226,9 +228,11 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
       const url = getChatUrl();
       console.log("[ThoughtContext] node chat → POST", url);
 
+      const token = await getToken().catch(() => null);
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await expoFetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...authHeaders },
         body: JSON.stringify({ messages: contextMessages }),
       });
 
@@ -294,9 +298,11 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
       const url = getChatUrl();
       console.log("[ThoughtContext] chat → POST", url);
 
+      const token = await getToken().catch(() => null);
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await expoFetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...authHeaders },
         body: JSON.stringify({ messages: historyForRequest }),
       });
 

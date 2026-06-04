@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { UserButton, Show } from '@clerk/react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
-import { Search, X, ChevronDown, Download, Upload, Info, Trash2, Plus, MoreHorizontal } from 'lucide-react';
+import { Search, X, ChevronDown, Download, Upload, Info, Trash2, Plus, MoreHorizontal, LogIn } from 'lucide-react';
 type DropdownId = 'anchors' | 'realms' | 'exportimport' | 'mobile-more';
 
 interface DropdownButtonProps {
@@ -469,12 +470,21 @@ export default function TopNav() {
           )}
         </div>
 
-        {/* Desktop-only: Info */}
-        <div className="ml-auto hidden md:flex flex-shrink-0">
+        {/* Desktop-only: Info + Auth */}
+        <div className="ml-auto hidden md:flex items-center gap-2 flex-shrink-0">
           <a href={infoPath} className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors">
             <Info size={12} />
             <span>INFO</span>
           </a>
+          <Show when="signed-out">
+            <a href={`${normalizedBasePath}/sign-in`} className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-cosmic-cyan/80 hover:text-cosmic-cyan hover:bg-void-800/60 transition-colors">
+              <LogIn size={12} />
+              <span>SIGN IN</span>
+            </a>
+          </Show>
+          <Show when="signed-in">
+            <UserButton afterSignOutUrl={normalizedBasePath || '/'} />
+          </Show>
         </div>
       </nav>
     );
@@ -650,8 +660,8 @@ export default function TopNav() {
         )}
       </div>
 
-      {/* ── Desktop-only: Info ── */}
-      <div className="ml-auto hidden md:flex flex-shrink-0">
+      {/* ── Desktop-only: Info + Auth ── */}
+      <div className="ml-auto hidden md:flex items-center gap-2 flex-shrink-0">
         <a
           href={infoPath}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-slate-500 hover:text-slate-300 hover:bg-void-800/60 transition-colors"
@@ -659,6 +669,15 @@ export default function TopNav() {
           <Info size={12} />
           <span>INFO</span>
         </a>
+        <Show when="signed-out">
+          <a href={`${normalizedBasePath}/sign-in`} className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[11px] text-cosmic-cyan/80 hover:text-cosmic-cyan hover:bg-void-800/60 transition-colors">
+            <LogIn size={12} />
+            <span>SIGN IN</span>
+          </a>
+        </Show>
+        <Show when="signed-in">
+          <UserButton afterSignOutUrl={normalizedBasePath || '/'} />
+        </Show>
       </div>
 
       {/* Hidden file input */}

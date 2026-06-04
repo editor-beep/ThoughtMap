@@ -28,6 +28,7 @@ waitForPort = 8081
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
+integrations = ["stripe:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -64,3 +65,11 @@ externalPort = 3001
 [[ports]]
 localPort = 23729
 externalPort = 5173
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.development]
+STRIPE_MONTHLY_PRICE_ID = "price_1TeXiVAsf0xa6pJgJvrrod5q"

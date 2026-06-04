@@ -74,3 +74,16 @@ export const chatMessagesTable = pgTable("chat_messages", {
 
 export type InsertChatMessage = typeof chatMessagesTable.$inferInsert;
 export type SelectChatMessage = typeof chatMessagesTable.$inferSelect;
+
+// ── Users (Clerk + Stripe) ─────────────────────────────────────────────────
+
+export const usersTable = pgTable("users", {
+  id: text("id").primaryKey(), // Clerk user ID
+  email: text("email").notNull(),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type InsertUser = typeof usersTable.$inferInsert;
+export type SelectUser = typeof usersTable.$inferSelect;
