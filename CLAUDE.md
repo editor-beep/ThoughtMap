@@ -44,7 +44,6 @@ artifacts/
   api-server/          — Express 5 API (@workspace/api-server)
   living-thought-map/  — Main React SPA (@workspace/living-thought-map)
   living-thought-map-mobile/ — Expo mobile version
-  mockup-sandbox/      — UI mockup/design sandbox
 lib/
   api-spec/            — OpenAPI spec + Orval codegen config (@workspace/api-spec)
   api-client-react/    — Generated React Query hooks (@workspace/api-client-react)
