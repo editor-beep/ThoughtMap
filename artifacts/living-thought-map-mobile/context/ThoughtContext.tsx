@@ -100,6 +100,7 @@ interface ThoughtContextValue {
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
   clearThoughtStream: () => void;
   openSubscriptionCheckout: () => Promise<void>;
+  openBillingPortal: () => Promise<void>;
   dismissPaywall: () => void;
 }
 
@@ -422,6 +423,23 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     }
   }, [getToken]);
 
+  const openBillingPortal = useCallback(async () => {
+    try {
+      const base = getApiBaseUrl();
+      if (!base) return;
+      const token = await getToken().catch(() => null);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${base}/api/subscription/portal`, { method: "POST", headers });
+      const data = await res.json();
+      if (data?.url) {
+        await Linking.openURL(data.url);
+      }
+    } catch (err) {
+      console.error("[ThoughtContext] portal error", err);
+    }
+  }, [getToken]);
+
   // Persist whenever state changes
   useEffect(() => {
     if (initializedRef.current) persist(nodes, realms, chatHistory, activeTerrain, edges, nodeChats);
@@ -433,7 +451,7 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
       addNode, updateNode, deleteNode, toggleRealm, addRealm,
       addEdge, deleteEdge, sendChatMessage, extractToMap, setTerrain,
       nodeChats, nodeChatStreaming, sendNodeChatMessage, clearThoughtStream,
-      openSubscriptionCheckout, dismissPaywall,
+      openSubscriptionCheckout, openBillingPortal, dismissPaywall,
     }}>
       {children}
     </ThoughtContext.Provider>

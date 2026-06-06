@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UserButton, Show } from '@clerk/react';
 import { useThoughtStore, MASTER_MAP_ID } from '../store';
-import { Search, X, ChevronDown, Download, Upload, Info, Trash2, Plus, MoreHorizontal, LogIn } from 'lucide-react';
+import { Search, X, ChevronDown, Download, Upload, Info, Trash2, Plus, MoreHorizontal, LogIn, CreditCard } from 'lucide-react';
 type DropdownId = 'anchors' | 'realms' | 'exportimport' | 'mobile-more';
 
 interface DropdownButtonProps {
@@ -197,6 +197,21 @@ export default function TopNav() {
     });
     focusNode(id);
   };
+
+  const handleManageBilling = useCallback(async () => {
+    try {
+      const res = await fetch('/api/subscription/portal', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        if (url) window.location.href = url;
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const handleAddAnchor = () => {
     const trimmed = newAnchorTitle.trim();
@@ -483,7 +498,15 @@ export default function TopNav() {
             </a>
           </Show>
           <Show when="signed-in">
-            <UserButton />
+            <UserButton>
+              <UserButton.MenuItems>
+                <UserButton.Action
+                  label="Manage billing"
+                  labelIcon={<CreditCard size={16} />}
+                  onClick={handleManageBilling}
+                />
+              </UserButton.MenuItems>
+            </UserButton>
           </Show>
         </div>
       </nav>
@@ -676,7 +699,15 @@ export default function TopNav() {
           </a>
         </Show>
         <Show when="signed-in">
-          <UserButton />
+          <UserButton>
+            <UserButton.MenuItems>
+              <UserButton.Action
+                label="Manage billing"
+                labelIcon={<CreditCard size={16} />}
+                onClick={handleManageBilling}
+              />
+            </UserButton.MenuItems>
+          </UserButton>
         </Show>
       </div>
 

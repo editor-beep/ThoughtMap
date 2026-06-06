@@ -1,6 +1,11 @@
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { storage } from "../storage";
 import { getUncachableStripeClient } from "../stripeClient";
+
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 export function requireAuth(req: any, res: any, next: any) {
   const auth = getAuth(req);
@@ -10,6 +15,18 @@ export function requireAuth(req: any, res: any, next: any) {
   }
   req.userId = userId;
   next();
+}
+
+async function isAdminUser(userId: string, storedEmail?: string): Promise<boolean> {
+  if (ADMIN_EMAILS.length === 0) return false;
+  if (storedEmail && ADMIN_EMAILS.includes(storedEmail.toLowerCase())) return true;
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
+    return ADMIN_EMAILS.includes(email.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 async function checkSubscriptionActive(stripeCustomerId: string): Promise<boolean> {
@@ -31,6 +48,9 @@ async function checkSubscriptionActive(stripeCustomerId: string): Promise<boolea
 export async function requireSubscription(req: any, res: any, next: any) {
   try {
     const user = await storage.getUser(req.userId);
+    if (await isAdminUser(req.userId, user?.email ?? undefined)) {
+      return next();
+    }
     if (!user?.stripeCustomerId) {
       return res.status(403).json({ error: "Subscription required", code: "subscription_required" });
     }
