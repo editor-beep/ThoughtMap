@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
-import { Linking } from "react-native";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 export type NodeType =
@@ -59,13 +58,6 @@ const INITIAL_CHAT: ChatMessage[] = [
 
 const STORAGE_KEY = "thought-map-mobile-v1";
 
-function getApiBaseUrl(): string {
-  const raw = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!raw) return "";
-  const host = raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-  return `https://${host}`;
-}
-
 async function readJsonBody(response: { text?: () => Promise<string> }): Promise<any> {
   try {
     if (typeof response.text === "function") {
@@ -84,7 +76,6 @@ interface ThoughtContextValue {
   chatHistory: ChatMessage[];
   activeTerrain: TerrainId;
   isStreaming: boolean;
-  paywallRequired: boolean;
   addNode: (node: Omit<ThoughtNode, "id" | "createdAt">) => string;
   updateNode: (id: string, updates: Partial<Pick<ThoughtNode, "title" | "content" | "type" | "realms">>) => void;
   deleteNode: (id: string) => void;
@@ -99,9 +90,6 @@ interface ThoughtContextValue {
   nodeChatStreaming: string | null;
   sendNodeChatMessage: (nodeId: string, nodeTitle: string, nodeContent: string, message: string) => Promise<void>;
   clearThoughtStream: () => void;
-  openSubscriptionCheckout: () => Promise<void>;
-  openBillingPortal: () => Promise<void>;
-  dismissPaywall: () => void;
 }
 
 const ThoughtContext = createContext<ThoughtContextValue | null>(null);
@@ -126,8 +114,6 @@ function getChatUrl(): string {
     }
     return "/api/chat";
   }
-  // Normalize: strip scheme and any trailing slash so accidental "https://host/"
-  // or "host/" values don't produce malformed URLs.
   const host = raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
   return `https://${host}/api/chat`;
 }
@@ -142,10 +128,8 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   const [edges, setEdges] = useState<ThoughtEdge[]>([]);
   const [nodeChats, setNodeChats] = useState<Record<string, ChatMessage[]>>({});
   const [nodeChatStreaming, setNodeChatStreaming] = useState<string | null>(null);
-  const [paywallRequired, setPaywallRequired] = useState(false);
   const initializedRef = useRef(false);
 
-  // Load persisted state on mount
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (initializedRef.current) return;
@@ -172,10 +156,7 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
   const addNode = useCallback((nodeData: Omit<ThoughtNode, "id" | "createdAt">) => {
     const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newNode: ThoughtNode = { ...nodeData, id, createdAt: new Date().toISOString() };
-    setNodes((prev) => {
-      const next = [...prev, newNode];
-      return next;
-    });
+    setNodes((prev) => [...prev, newNode]);
     return id;
   }, []);
 
@@ -247,11 +228,6 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
       if (!response.ok) {
         const parsed = await readJsonBody(response);
-        if (response.status === 403 && parsed?.code === "subscription_required") {
-          const e: any = new Error("Subscription required");
-          e._subscriptionRequired = true;
-          throw e;
-        }
         throw new Error(`API error ${response.status}${parsed?.error ? ` — ${parsed.error}` : ""}`);
       }
       const reader = response.body?.getReader();
@@ -284,19 +260,11 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (err: any) {
-      if (err?._subscriptionRequired) {
-        setPaywallRequired(true);
-        setNodeChats((prev) => ({
-          ...prev,
-          [nodeId]: (prev[nodeId] ?? []).filter((m) => m.id !== assistantId),
-        }));
-      } else {
-        const msg = err instanceof Error ? err.message : "Something went wrong";
-        setNodeChats((prev) => ({
-          ...prev,
-          [nodeId]: (prev[nodeId] ?? []).map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)),
-        }));
-      }
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setNodeChats((prev) => ({
+        ...prev,
+        [nodeId]: (prev[nodeId] ?? []).map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)),
+      }));
     } finally {
       setNodeChatStreaming(null);
     }
@@ -307,7 +275,6 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     const assistantId = genId();
     const assistantMsg: ChatMessage = { id: assistantId, role: "assistant", content: "", timestamp: new Date().toISOString() };
 
-    // Capture history BEFORE state update (stale closure prevention)
     const historyForRequest = chatHistory.map((m) => ({ role: m.role, content: m.content }));
     historyForRequest.push({ role: "user", content });
 
@@ -330,11 +297,6 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
 
       if (!response.ok) {
         const parsed = await readJsonBody(response);
-        if (response.status === 403 && parsed?.code === "subscription_required") {
-          const e: any = new Error("Subscription required");
-          e._subscriptionRequired = true;
-          throw e;
-        }
         throw new Error(`API error ${response.status}${parsed?.error ? ` — ${parsed.error}` : ""}`);
       }
 
@@ -369,13 +331,8 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (err: any) {
-      if (err?._subscriptionRequired) {
-        setPaywallRequired(true);
-        setChatHistory((prev) => prev.filter((m) => m.id !== assistantId));
-      } else {
-        const msg = err instanceof Error ? err.message : "Something went wrong";
-        setChatHistory((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)));
-      }
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setChatHistory((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: `⚠ ${msg}` } : m)));
     } finally {
       setIsStreaming(false);
     }
@@ -401,57 +358,16 @@ export function ThoughtProvider({ children }: { children: React.ReactNode }) {
     setIsStreaming(false);
   }, []);
 
-  const dismissPaywall = useCallback(() => setPaywallRequired(false), []);
-
-  const openSubscriptionCheckout = useCallback(async () => {
-    try {
-      const base = getApiBaseUrl();
-      if (!base) {
-        console.warn("[ThoughtContext] EXPO_PUBLIC_DOMAIN not set, cannot open checkout");
-        return;
-      }
-      const token = await getToken().catch(() => null);
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${base}/api/subscription/checkout`, { method: "POST", headers });
-      const data = await res.json();
-      if (data?.url) {
-        await Linking.openURL(data.url);
-      }
-    } catch (err) {
-      console.error("[ThoughtContext] checkout error", err);
-    }
-  }, [getToken]);
-
-  const openBillingPortal = useCallback(async () => {
-    try {
-      const base = getApiBaseUrl();
-      if (!base) return;
-      const token = await getToken().catch(() => null);
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${base}/api/subscription/portal`, { method: "POST", headers });
-      const data = await res.json();
-      if (data?.url) {
-        await Linking.openURL(data.url);
-      }
-    } catch (err) {
-      console.error("[ThoughtContext] portal error", err);
-    }
-  }, [getToken]);
-
-  // Persist whenever state changes
   useEffect(() => {
     if (initializedRef.current) persist(nodes, realms, chatHistory, activeTerrain, edges, nodeChats);
   }, [nodes, realms, chatHistory, activeTerrain, edges, nodeChats, persist]);
 
   return (
     <ThoughtContext.Provider value={{
-      nodes, realms, edges, chatHistory, activeTerrain, isStreaming, paywallRequired,
+      nodes, realms, edges, chatHistory, activeTerrain, isStreaming,
       addNode, updateNode, deleteNode, toggleRealm, addRealm,
       addEdge, deleteEdge, sendChatMessage, extractToMap, setTerrain,
       nodeChats, nodeChatStreaming, sendNodeChatMessage, clearThoughtStream,
-      openSubscriptionCheckout, openBillingPortal, dismissPaywall,
     }}>
       {children}
     </ThoughtContext.Provider>

@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 import { createRateLimiter } from "../lib/rateLimiter";
-import { requireAuth, requireSubscription } from "../middlewares/auth";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -69,7 +69,7 @@ export function buildSystemInstruction(contextNodes?: { id: string; title: strin
   return `${BASE_SYSTEM_PROMPT}\n\n## Current Canvas Context\n${lines.join("\n")}`;
 }
 
-router.post("/chat", requireAuth, requireSubscription, async (req: Request, res: Response) => {
+router.post("/chat", requireAuth, async (req: Request, res: Response) => {
   const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
     ?? req.socket.remoteAddress
     ?? "unknown";

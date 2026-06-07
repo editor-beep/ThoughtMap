@@ -112,8 +112,6 @@ interface MapState {
   noteCrystallizationTheme: (index: number) => void;
   sendCrystallizationExpansion: (phrase: string) => Promise<void>;
   dismissCrystallization: () => void;
-  paywallOpen: boolean;
-  setPaywallOpen: (open: boolean) => void;
 }
 
 const INITIAL_REALMS: Realm[] = [
@@ -173,7 +171,6 @@ export const useThoughtStore = create<MapState>()(
       crystallizationTurns: 3,
       crystallizationAppliedNodes: [],
       crystallizationAppliedTensions: [],
-      paywallOpen: false,
       createMap: (title, parentMapId, parentNodeId) => {
         const id = `map_${crypto.randomUUID()}`;
         const now = new Date().toISOString();
@@ -459,7 +456,7 @@ export const useThoughtStore = create<MapState>()(
 
         const streamResponse = async (res: Response) => {
           if (!res.ok || !res.body) {
-            if (res.status === 403) { set({ paywallOpen: true }); throw new Error('subscription_required'); }
+            if (res.status === 403) { throw new Error('Access denied'); }
             if (res.status === 401) throw new Error('Please sign in to use this feature');
             if (res.status === 504) throw new Error('The AI took too long to respond');
             let apiErr = `API error: ${res.status}`;
@@ -720,7 +717,6 @@ export const useThoughtStore = create<MapState>()(
           });
 
           if (!res.ok) {
-            if (res.status === 403) { set({ cartographerLoading: false, paywallOpen: true }); return; }
             if (res.status === 401) { set({ cartographerLoading: false }); return; }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
@@ -780,7 +776,6 @@ export const useThoughtStore = create<MapState>()(
           });
 
           if (!res.ok) {
-            if (res.status === 403) { set({ cartographerLoading: false, paywallOpen: true }); return; }
             if (res.status === 401) { set({ cartographerLoading: false }); return; }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
@@ -936,7 +931,6 @@ export const useThoughtStore = create<MapState>()(
           });
 
           if (!res.ok || !res.body) {
-            if (res.status === 403) { set({ cartographerLoading: false, paywallOpen: true }); return; }
             if (res.status === 401) { set({ cartographerLoading: false }); return; }
             throw new Error('Wander mode failed');
           }
@@ -989,7 +983,6 @@ export const useThoughtStore = create<MapState>()(
             signal: AbortSignal.timeout(30000),
           });
           if (!res.ok) {
-            if (res.status === 403) { set({ cartographerLoading: false, paywallOpen: true }); return; }
             if (res.status === 401) { set({ cartographerLoading: false }); return; }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
@@ -1042,7 +1035,6 @@ export const useThoughtStore = create<MapState>()(
             signal: AbortSignal.timeout(30000),
           });
           if (!res.ok) {
-            if (res.status === 403) { set({ crystallizationLoading: false, paywallOpen: true }); return; }
             if (res.status === 401) { set({ crystallizationLoading: false }); return; }
             let errorMsg = `API error: ${res.status}`;
             try { const body = await res.json(); if (body.error) errorMsg = body.error; } catch { /**/ }
@@ -1167,8 +1159,6 @@ export const useThoughtStore = create<MapState>()(
       dismissCrystallization: () => {
         set({ crystallizationResult: null, crystallizationAppliedNodes: [], crystallizationAppliedTensions: [] });
       },
-
-      setPaywallOpen: (open) => set({ paywallOpen: open }),
 
       undo: () => {
         const { undoStack } = get();

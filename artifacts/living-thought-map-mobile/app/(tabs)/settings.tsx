@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useUser } from "@clerk/expo";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,43 +18,12 @@ const TERRAINS: { id: TerrainId; name: string; desc: string; icon: keyof typeof 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { realms, activeTerrain, toggleRealm, setTerrain, openSubscriptionCheckout, openBillingPortal } = useThought();
-  const { signOut, isSignedIn, getToken } = useAuth();
+  const { realms, activeTerrain, toggleRealm, setTerrain } = useThought();
+  const { signOut, isSignedIn } = useAuth();
   const { user } = useUser();
   const s = makeStyles(colors);
 
-  const [subscribed, setSubscribed] = useState<boolean | null>(null);
-  const [subLoading, setSubLoading] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
-
-  useEffect(() => {
-    if (!isSignedIn) { setSubscribed(false); return; }
-    (async () => {
-      try {
-        const base = process.env.EXPO_PUBLIC_DOMAIN
-          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-          : null;
-        if (!base) return;
-        const token = await getToken().catch(() => null);
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(`${base}/api/subscription/status`, { headers });
-        const data = await res.json();
-        setSubscribed(!!data.subscribed);
-      } catch { setSubscribed(null); }
-    })();
-  }, [isSignedIn, getToken]);
-
-  const handleSubscribe = async () => {
-    setSubLoading(true);
-    try { await openSubscriptionCheckout(); } finally { setSubLoading(false); }
-  };
-
-  const handlePortal = async () => {
-    setPortalLoading(true);
-    try { await openBillingPortal(); } finally { setPortalLoading(false); }
-  };
 
   const handleSignOut = async () => {
     setSignOutLoading(true);
@@ -84,51 +53,6 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <View style={[s.divider, { backgroundColor: colors.border }]} />
-
-            {/* Subscription status */}
-            <View style={s.subRow}>
-              <View style={[s.subBadge, { backgroundColor: subscribed ? "#06b6d4" + "22" : colors.muted, borderColor: subscribed ? "#06b6d4" + "44" : colors.border }]}>
-                <Ionicons
-                  name={subscribed ? "checkmark-circle" : "ellipse-outline"}
-                  size={14}
-                  color={subscribed ? "#06b6d4" : colors.mutedForeground}
-                />
-                <Text style={[s.subBadgeText, { color: subscribed ? "#06b6d4" : colors.mutedForeground }]}>
-                  {subscribed === null ? "Checking…" : subscribed ? "Active subscription" : "No subscription"}
-                </Text>
-              </View>
-            </View>
-
-            {/* Subscribe / Manage */}
-            {!subscribed && (
-              <Pressable
-                style={[s.btn, { backgroundColor: "#06b6d4" }, subLoading && s.btnDisabled]}
-                onPress={handleSubscribe}
-                disabled={subLoading}
-              >
-                {subLoading
-                  ? <ActivityIndicator size="small" color="#030712" />
-                  : <>
-                      <Ionicons name="flash-outline" size={15} color="#030712" />
-                      <Text style={[s.btnText, { color: "#030712" }]}>Subscribe — $10/month</Text>
-                    </>
-                }
-              </Pressable>
-            )}
-
-            <Pressable
-              style={[s.btnOutline, { borderColor: colors.border }, portalLoading && s.btnDisabled]}
-              onPress={handlePortal}
-              disabled={portalLoading}
-            >
-              {portalLoading
-                ? <ActivityIndicator size="small" color={colors.mutedForeground} />
-                : <>
-                    <Ionicons name="card-outline" size={15} color={colors.mutedForeground} />
-                    <Text style={[s.btnOutlineText, { color: colors.mutedForeground }]}>Manage billing</Text>
-                  </>
-              }
-            </Pressable>
 
             <Pressable
               style={[s.btnOutline, { borderColor: colors.border }, signOutLoading && s.btnDisabled]}
@@ -229,12 +153,7 @@ function makeStyles(colors: any) {
     accountRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
     accountEmail: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
     divider: { height: 1, marginHorizontal: 14 },
-    subRow: { padding: 12, paddingBottom: 4 },
-    subBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, alignSelf: "flex-start" },
-    subBadgeText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-    btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, margin: 12, marginTop: 10, paddingVertical: 12, borderRadius: 10 },
-    btnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    btnOutline: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginHorizontal: 12, marginBottom: 10, paddingVertical: 11, borderRadius: 10, borderWidth: 1 },
+    btnOutline: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, margin: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1 },
     btnOutlineText: { fontSize: 14, fontFamily: "Inter_500Medium" },
     btnDisabled: { opacity: 0.5 },
     realmRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 6 },

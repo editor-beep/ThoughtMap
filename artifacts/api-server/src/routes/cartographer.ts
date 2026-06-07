@@ -172,9 +172,9 @@ Rules:
 - Do not manufacture structure. An empty array is valid if nothing has crystallized in that category.` : "");
 }
 
-import { requireAuth, requireSubscription } from "../middlewares/auth";
+import { requireAuth } from "../middlewares/auth";
 
-router.post("/cartographer", requireAuth, requireSubscription, async (req: Request, res: Response) => {
+router.post("/cartographer", requireAuth, async (req: Request, res: Response) => {
   const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
     ?? req.socket.remoteAddress
     ?? "unknown";

@@ -10,7 +10,6 @@ import SpatialCanvas from './components/SpatialCanvas';
 import ThoughtStreamRail from './components/ThoughtStreamRail';
 import { useThoughtStore, MASTER_MAP_ID } from './store';
 import InfoPage from './pages/InfoPage';
-import PaywallModal from './components/PaywallModal';
 
 // REQUIRED — copy verbatim per clerk-auth skill
 const clerkPubKey = publishableKeyFromHost(
@@ -136,9 +135,6 @@ function CanvasApp() {
   const [immersive, setImmersive] = useState(false);
   const currentMapId = useThoughtStore((state) => state.currentMapId);
   const isMasterMapView = currentMapId === MASTER_MAP_ID;
-  const paywallOpen = useThoughtStore((s) => s.paywallOpen);
-  const setPaywallOpen = useThoughtStore((s) => s.setPaywallOpen);
-
   return (
     <>
       <MapUrlSync />
@@ -175,7 +171,6 @@ function CanvasApp() {
           </nav>
         )}
       </div>
-      <PaywallModal open={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </>
   );
 }
