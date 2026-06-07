@@ -1,5 +1,6 @@
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getUncachableStripeClient } from "./stripeClient";
 
 export class Storage {
   async getUser(id: string) {
@@ -30,10 +31,38 @@ export class Storage {
 
   async hasActiveSubscription(stripeCustomerId: string): Promise<boolean> {
     const [user] = await db
-      .select({ subscriptionStatus: usersTable.subscriptionStatus })
+      .select({
+        subscriptionStatus: usersTable.subscriptionStatus,
+        stripeSubscriptionId: usersTable.stripeSubscriptionId,
+      })
       .from(usersTable)
       .where(eq(usersTable.stripeCustomerId, stripeCustomerId));
-    return user?.subscriptionStatus === "active";
+
+    if (!user) return false;
+
+    if (user.subscriptionStatus === "active") return true;
+
+    if (user.subscriptionStatus !== null) return false;
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const subscriptions = await stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: "active",
+        limit: 1,
+      });
+      const isActive = subscriptions.data.length > 0;
+      if (isActive) {
+        const sub = subscriptions.data[0];
+        await db
+          .update(usersTable)
+          .set({ subscriptionStatus: "active", stripeSubscriptionId: sub.id })
+          .where(eq(usersTable.stripeCustomerId, stripeCustomerId));
+      }
+      return isActive;
+    } catch {
+      return false;
+    }
   }
 
   async updateSubscriptionStatusByCustomerId(
